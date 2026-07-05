@@ -1,0 +1,16 @@
+# Base de dados gerada
+*.db
+
+# Capturas de descoberta (grandes, regeneráveis)
+capturas_*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Sistema
+.DS_Store
+Thumbs.db
