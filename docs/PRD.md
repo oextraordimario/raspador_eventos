@@ -185,6 +185,23 @@ que um agente consome de fato.
 - **Critério de sucesso:** perguntar em linguagem natural num cliente de IA real e
   receber eventos corretos da base, sem intermediação manual.
 
+**Como vira um teste real (resumo, no contexto atual):**
+1. **Cliente de IA:** menor atrito é **MCP local com o Claude** (Claude Desktop/Code
+   falam MCP via stdio e acessam o `eventos.db` local direto). ChatGPT exigiria expor
+   uma API HTTP pública (custom GPT Action) — ou seja, hospedagem.
+2. **Camada de consulta:** empacotar a lógica que já existe (`demo.py`/notebook) numa
+   função limpa e parametrizada — `buscar_eventos(texto, cidade, data_inicio,
+   data_fim, limite)` retornando lista estruturada. Este é o contrato da tool.
+3. **MCP server:** script Python (SDK de MCP) que expõe essa função como tool sobre a
+   base. É o grosso do trabalho novo.
+4. **Registro:** apontar o Claude para o server local na config (uma vez).
+5. **Base populada:** rodar a raspagem antes (snapshot é suficiente para o teste).
+6. **Teste de verdade:** fazer as perguntas no Claude e verificar que ele chama a tool
+   e devolve eventos corretos ("fim de semana" → janela de datas calculada pelo agente).
+
+Não precisa de nuvem nem de Postgres para este teste — dá para fechar o loop 100%
+local via MCP + Claude.
+
 ### Frente C — Cobertura e frescor (posterior)
 - Paginar o catálogo completo (não só a amostra trending).
 - Execução agendada para manter a base atualizada.
