@@ -1,7 +1,11 @@
-"""PoC ponta a ponta: raspa Sympla -> grava SQLite -> consulta em linguagem natural.
+"""PoC ponta a ponta: raspa as fontes -> grava SQLite -> consulta em linguagem natural.
+
+Fontes: Sympla, Ingresse e Shotgun, unificadas no mesmo schema.
+Escopo do PoC: festas/baladas em Brasília.
 
 Uso:
-    python demo.py                 # raspa SP e roda consultas de exemplo
+    python demo.py                 # raspa as 3 fontes e roda consultas de exemplo
+    python demo.py --sem-shotgun   # pula o Shotgun (lento, usa navegador)
     python demo.py --so-consultar  # pula a raspagem, so consulta o que ja tem
 """
 
@@ -10,17 +14,32 @@ from datetime import datetime, timezone
 
 import store
 import sympla
+import ingresse
+import shotgun
 
 
-def coletar():
+def coletar(incluir_shotgun=True):
     con = store.conectar()
-    print("Raspando festas/baladas de Brasília no Sympla...")
-    eventos = sympla.raspar(city="brasilia", state="DF",
-                            location="Brasília", max_paginas=8)
-    n = store.upsert_eventos(con, eventos)
+    total_novos = 0
+
+    print("[Sympla] festas/baladas de Brasília...")
+    total_novos += store.upsert_eventos(con, sympla.raspar(
+        city="brasilia", state="DF", location="Brasília", max_paginas=8))
+
+    print("[Ingresse] eventos de Brasília...")
+    total_novos += store.upsert_eventos(con, ingresse.raspar())
+
+    if incluir_shotgun:
+        print("[Shotgun] eventos de Brasília (via navegador)...")
+        total_novos += store.upsert_eventos(con, shotgun.raspar(
+            city_slug="brasilia"))
+
     store.reconstruir_fts(con)
     total = con.execute("SELECT COUNT(*) FROM eventos").fetchone()[0]
-    print(f"\n{n} eventos gravados. Base agora tem {total} eventos.\n")
+    porfonte = dict(con.execute(
+        "SELECT fonte, COUNT(*) FROM eventos GROUP BY fonte").fetchall())
+    print(f"\n{total_novos} eventos gravados/atualizados. "
+          f"Base tem {total} eventos. Por fonte: {porfonte}\n")
     con.close()
 
 
@@ -63,13 +82,13 @@ def _mostrar(titulo, rows):
         return
     for r in rows:
         quando = (r["start_date"] or "")[:16].replace("T", " ")
-        print(f"  • {quando} | {r['nome'][:60]}")
+        print(f"  • {quando} | [{r['fonte']}] {r['nome'][:55]}")
         print(f"      {r['local_nome'] or '?'} — {r['cidade'] or '?'} | {r['url']}")
 
 
 if __name__ == "__main__":
     if "--so-consultar" not in sys.argv:
-        coletar()
+        coletar(incluir_shotgun="--sem-shotgun" not in sys.argv)
 
     agora = datetime.now(timezone.utc).isoformat()
 
