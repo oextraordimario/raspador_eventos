@@ -1,0 +1,7 @@
+# Dependências do PoC. Instale com:  pip install -r requirements.txt
+mcp>=1.10          # MCP server que expõe a base para agentes de IA (Frente B)
+playwright>=1.57   # descoberta de API interna e raspagem do Shotgun
+pandas>=2.2        # notebook de exploração (tests/manuais)
+
+# Depois de instalar o Playwright, rode uma vez para baixar o navegador:
+#   python -m playwright install chromium
