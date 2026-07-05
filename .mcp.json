@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "eventos-brasilia": {
+      "command": "C:/Python313/python.exe",
+      "args": ["C:/Users/mgbju/Documents/GitHub/raspador_eventos/mcp_server.py"]
+    }
+  }
+}

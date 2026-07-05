@@ -211,8 +211,12 @@ local via MCP + Claude.
 ## 8. Métricas de sucesso do PoC
 
 - ✅ Raspagem estruturada funcionando em ≥1 fonte (Sympla — **feito**).
-- ⬜ Raspagem funcionando nas 3 fontes sob schema único.
-- ⬜ Consulta em linguagem natural via agente de IA real retornando eventos corretos.
+- ✅ Raspagem funcionando nas 3 fontes sob schema único (Sympla + Ingresse +
+  Shotgun — **feito**).
+- 🟡 Consulta em linguagem natural via agente de IA: **camada de consulta e MCP
+  server implementados e testados** (`consulta.py`, `mcp_server.py`,
+  `tests/test_mcp_server.py`). Falta a validação manual num cliente de IA real
+  (Claude Code / Claude Desktop / Codex) — ver `docs/TESTE_MCP.md`.
 - Qualitativo: as respostas do agente batem com o que está realmente à venda nos
   sites (precisão), e cobrem o que deveriam (recall).
 
