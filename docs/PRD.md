@@ -216,6 +216,26 @@ que um agente consome de fato.
 
 - **Linguagem:** Python 3.13
 - **Descoberta de API:** Playwright (Chromium headless)
-- **Raspagem:** HTTP puro (`urllib`, sem dependência de navegador em produção)
-- **Base:** SQLite + FTS5 (PoC) → Postgres (produção)
+- **Raspagem:** HTTP puro (`urllib`) para Sympla e Ingresse; Playwright para o
+  Shotgun (bloqueia HTTP puro e renderiza via RSC)
+- **Base (hoje):** SQLite + FTS5 — arquivo `eventos.db`, persistente em disco,
+  regenerável pela raspagem (fora do Git por ser binário).
+- **Base (alvo do PoC):** **Postgres local**. Decidido não hospedar em nuvem
+  enquanto é PoC. Ver seção 10.1.
 - **Acesso IA:** MCP server ou API HTTP (a definir na Frente B)
+
+### 10.1. Persistência em Postgres local (pendente)
+
+O teste do PoC será feito com **Postgres local** (sem nuvem — evita trabalho
+desnecessário nesta fase). Situação atual e o que falta:
+
+- Postgres 18 e `psycopg2` já instalados na máquina, mas **o servidor não está
+  operacional**: não há serviço registrado nem cluster de dados (`initdb` nunca
+  concluído) — a porta 5432 recusa conexão.
+- **A fazer, quando retomarmos esta parte:**
+  1. Inicializar o cluster (`initdb`), subir o servidor e criar o database.
+  2. **Testar a conexão** (host/porta/usuário/senha) a partir do Python.
+  3. Migrar `store.py` de SQLite para Postgres (trocar o driver e o SQL; o
+     índice textual passa de FTS5 para `tsvector`/full-text search do Postgres).
+  4. Revalidar a raspagem e as consultas contra a base Postgres.
+- Enquanto isso, o SQLite segue como store funcional do PoC (já persistente).
