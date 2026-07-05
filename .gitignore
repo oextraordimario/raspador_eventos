@@ -11,6 +11,9 @@ __pycache__/
 venv/
 *.egg-info/
 
+# Jupyter
+.ipynb_checkpoints/
+
 # Sistema
 .DS_Store
 Thumbs.db
