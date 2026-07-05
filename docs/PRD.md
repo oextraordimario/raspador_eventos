@@ -36,13 +36,27 @@ considerada tranquila (é filtro sobre dado limpo).
 
 ## 3. Objetivos e não-objetivos
 
+### Escopo do PoC (foco atual)
+Deliberadamente estreito, para validar o que interessa antes de generalizar:
+- **Cidade:** apenas **Brasília (DF)**. Outras cidades/estados estão fora do escopo
+  por ora — não são prioridade e não precisam ser testados.
+- **Tipo de evento:** apenas **festas, baladas e afins** (vida noturna / música).
+  Outros tipos — cursos, workshops, eventos culturais, corporativos etc. — estão
+  fora do escopo por ora e devem ser filtrados na coleta ou na consulta.
+
+> A validação inicial da técnica de raspagem (seção 6) foi feita em São Paulo por
+> conveniência de volume; daqui pra frente o alvo é Brasília + festas.
+
 ### Objetivos (do PoC)
-- Provar que dá pra raspar as três plataformas-alvo (Sympla, Ingresse, Shotgun).
+- Provar que dá pra raspar as três plataformas-alvo (Sympla, Ingresse, Shotgun),
+  no recorte de Brasília e de festas/baladas.
 - Unificar os eventos num schema único, agnóstico de fonte.
 - Fechar o loop com IA de verdade: uma pergunta em linguagem natural retorna
-  eventos corretos da base.
+  festas corretas de Brasília.
 
 ### Não-objetivos (por ora)
+- Outras cidades além de Brasília.
+- Outros tipos de evento além de festas/baladas.
 - Cobertura 100% do catálogo (o PoC opera com amostras representativas).
 - Interface de usuário final / app próprio.
 - Compra de ingressos, autenticação de usuários, pagamentos.
@@ -54,11 +68,13 @@ considerada tranquila (é filtro sobre dado limpo).
 **Usuário primário no PoC:** o próprio agente de IA, que traduz a intenção do
 humano em filtros sobre a base.
 
-Casos de uso que a base precisa atender:
-- Busca temática: *"festas de pagode"*, *"stand-up comedy"*, *"shows de rock"*.
-- Janela temporal: *"neste fim de semana"*, *"hoje à noite"*, *"em agosto"*.
-- Geográfico: *"em São Paulo"*, *"perto de mim"* (lat/lon disponível).
-- Combinações: *"pagode neste fim de semana em SP"*.
+Casos de uso que a base precisa atender (todos no recorte Brasília + festas):
+- Busca temática dentro de vida noturna: *"festas de pagode"*, *"baladas de
+  techno"*, *"sertanejo"*, *"funk"*.
+- Janela temporal: *"neste fim de semana"*, *"hoje à noite"*, *"sexta que vem"*.
+- Combinações: *"pagode neste fim de semana em Brasília"*.
+- (Geolocalização por lat/lon fica disponível para um "perto de mim" futuro, mas
+  não é foco enquanto o escopo é uma cidade só.)
 
 ## 5. Arquitetura da solução
 
