@@ -14,9 +14,9 @@ import sympla
 
 def coletar():
     con = store.conectar()
-    print("Raspando eventos de São Paulo no Sympla...")
-    eventos = sympla.raspar(city="sao-paulo", state="SP",
-                            location="São Paulo", max_paginas=8)
+    print("Raspando festas/baladas de Brasília no Sympla...")
+    eventos = sympla.raspar(city="brasilia", state="DF",
+                            location="Brasília", max_paginas=8)
     n = store.upsert_eventos(con, eventos)
     store.reconstruir_fts(con)
     total = con.execute("SELECT COUNT(*) FROM eventos").fetchone()[0]
@@ -74,10 +74,14 @@ if __name__ == "__main__":
     agora = datetime.now(timezone.utc).isoformat()
 
     # Caso de uso 1: "quais festas de pagode vão ter?"
-    _mostrar('"pagode" em São Paulo (futuros)',
-             consultar("pagode", inicio=agora, cidade="São Paulo"))
+    _mostrar('"pagode" em Brasília (futuros)',
+             consultar("pagode", inicio=agora, cidade="Brasília"))
 
-    # Caso de uso 2: shows/música em geral
-    _mostrar('"show OR música" em São Paulo (futuros)',
-             consultar("show OR musica OR música", inicio=agora,
-                       cidade="São Paulo"))
+    # Caso de uso 2: baladas/festas em geral
+    _mostrar('"balada OR festa OR club" em Brasília (futuros)',
+             consultar("balada OR festa OR club OR party", inicio=agora,
+                       cidade="Brasília"))
+
+    # Caso de uso 3: tudo que tem, ordenado por data (as próximas festas)
+    _mostrar("Próximas festas/baladas em Brasília",
+             consultar(None, inicio=agora, cidade="Brasília"))

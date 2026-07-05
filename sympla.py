@@ -26,6 +26,10 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 CAMPOS = ("name,start_date,end_date,images,event_type,location,id,url,"
           "organizer,type")
 
+# ID de tema do Sympla. 99 = "Festas e Shows" (vida noturna/musica), que e o
+# recorte do PoC. Descoberto capturando a categoria show-musica-festa do site.
+TEMA_FESTAS_SHOWS = 99
+
 
 def _get(params):
     qs = urllib.parse.urlencode(params, safe="/,")
@@ -75,9 +79,14 @@ def _futuro(ev):
         return False
 
 
-def raspar(city="sao-paulo", state="SP", location="São Paulo",
-           q=None, max_paginas=10, pausa=1.0, apenas_futuros=True):
+def raspar(city="brasilia", state="DF", location="Brasília",
+           tema=TEMA_FESTAS_SHOWS, q=None, max_paginas=10, pausa=1.0,
+           apenas_futuros=True):
     """Raspa eventos de uma cidade (ou busca por texto) e devolve normalizados.
+
+    tema: ID de tema do Sympla para filtrar categoria (default: festas/shows).
+          Passe None para trazer todas as categorias.
+
 
     Retorna lista de dicts prontos para store.upsert_eventos.
     """
@@ -90,6 +99,8 @@ def raspar(city="sao-paulo", state="SP", location="São Paulo",
             "location_score": "month-trending-score",
             "limit": 100, "page": page,
         }
+        if tema is not None:
+            params["themes"] = tema
         if q:
             params["q"] = q
         resp = _get(params)
