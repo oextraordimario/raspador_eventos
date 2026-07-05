@@ -14,6 +14,9 @@ venv/
 # Jupyter
 .ipynb_checkpoints/
 
+# Estado local de ferramentas (Codex cria config de projeto aqui)
+.codex/
+
 # Sistema
 .DS_Store
 Thumbs.db

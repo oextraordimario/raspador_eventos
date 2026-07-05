@@ -213,10 +213,14 @@ local via MCP + Claude.
 - ✅ Raspagem estruturada funcionando em ≥1 fonte (Sympla — **feito**).
 - ✅ Raspagem funcionando nas 3 fontes sob schema único (Sympla + Ingresse +
   Shotgun — **feito**).
-- 🟡 Consulta em linguagem natural via agente de IA: **camada de consulta e MCP
-  server implementados e testados** (`consulta.py`, `mcp_server.py`,
-  `tests/test_mcp_server.py`). Falta a validação manual num cliente de IA real
-  (Claude Code / Claude Desktop / Codex) — ver `docs/TESTE_MCP.md`.
+- ✅ Consulta em linguagem natural via agente de IA: camada de consulta e MCP
+  server implementados e testados (`consulta.py`, `mcp_server.py`,
+  `tests/test_mcp_server.py`). **Conexão validada nos três clientes — Claude Code,
+  Claude Desktop e Codex — em 2026-07-05** (o server conecta e as tools ficam
+  disponíveis). Ver `docs/TESTE_MCP.md`.
+  - ⬜ *Pendente:* validar a **qualidade das respostas** (precisão/recall dos
+    eventos retornados nas perguntas em linguagem natural) — até agora só se
+    confirmou a conexão básica, que era o ponto crítico.
 - Qualitativo: as respostas do agente batem com o que está realmente à venda nos
   sites (precisão), e cobrem o que deveriam (recall).
 
