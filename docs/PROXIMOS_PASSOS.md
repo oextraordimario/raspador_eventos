@@ -29,11 +29,12 @@ conferências. Melhorias:
 - **Re-raspagem agendada** para manter a base atualizada.
 - **Deduplicação cross-fonte**: o mesmo evento pode aparecer em duas plataformas.
 
-## 4. Persistência em Postgres local
-Migrar `store.py` de SQLite para Postgres local (sem nuvem por ora). Checklist
-detalhado na seção 10.1 do PRD: inicializar o cluster (`initdb`), testar conexão,
-migrar o SQL (FTS5 → `tsvector`) e revalidar. Faz mais sentido junto com um acesso
-remoto, se/quando a base precisar ficar online.
+## 4. Persistência em Postgres (Neon, na Fase 1)
+Migrar `store.py` de SQLite para **Postgres gerenciado (Neon, free tier)** — trocar o
+driver e o SQL (FTS5 → `tsvector`/`pg_trgm`; o `norm_ts` migra junto) e revalidar. É o
+**portão de entrada da Fase 1** do MVP: acontece junto com a subida do acesso remoto,
+quando a base precisa ficar online. Na Fase 0 o SQLite local segue como store. Ver
+`docs/PRD_MVP.md`, seções 6 e 7.
 
 ## Qualidade de dados já observada (para tratar no caminho)
 - `end_date` inconsistente em algum evento do Sympla (começa em 2025, "termina" em

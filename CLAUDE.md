@@ -103,7 +103,9 @@ Não faça commit sem pedido. Mensagens em português.
 
 ## Documentos de referência
 
-- `docs/PRD.md` — visão, escopo, hipótese de risco, plano das frentes.
+- `docs/PRD_MVP.md` — **fonte da verdade atual**: visão do MVP, escopo, moat,
+  modelo de distribuição (híbrido/invisível-first), roadmap por fases (0/1/2).
+- `docs/PRD_POC.md` — registro histórico da prova de conceito (validação da raspagem).
 - `docs/PROXIMOS_PASSOS.md` — backlog priorizado (qualidade das respostas do agente,
   classificação de gênero, cobertura/frescor, migração p/ Postgres local).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.

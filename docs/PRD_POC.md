@@ -1,5 +1,9 @@
-# PRD — Base Unificada de Eventos para Agentes de IA
+# PRD (PoC) — Base Unificada de Eventos para Agentes de IA
 
+> ⚠️ **Documento histórico — superado por `docs/PRD_MVP.md`.** Este PRD registra a
+> prova de conceito e não deve mais ser usado para planejar. A fonte da verdade atual
+> é o `docs/PRD_MVP.md`.
+>
 > **Status:** Prova de conceito (PoC) validada para uma fonte (Sympla), ponta a ponta.
 > **Documento:** retroativo — escrito após a primeira sessão de validação, consolidando
 > o que foi construído e definindo as próximas duas frentes.
