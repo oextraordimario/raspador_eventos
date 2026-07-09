@@ -11,4 +11,6 @@ Diferença dos outros docs:
 - **`docs/specs/`** (aqui) detalha o **como** de um item antes de implementá-lo:
   contratos de dados, endpoints, decisões de design, casos de borda, plano de teste.
 
-Convenção: um arquivo por spec, nome em kebab-case (ex.: `raspagem-cinema.md`).
+Convenção: uma pasta por spec, nomeada `AAAAMMDD_nome-em-kebab-case/`, com o
+documento principal em `spec.md` (ex.: `20260709_mvp-fase-0/spec.md`). A pasta
+pode guardar anexos da spec (diagramas, capturas de API, notas de calibração).
