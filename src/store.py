@@ -8,8 +8,9 @@ para consulta por texto/data/cidade, que e o que um agente de IA precisa.
 import sqlite3
 from pathlib import Path
 
-# A base fica na raiz do repo (um nivel acima de src/), nao dentro do codigo-fonte.
-DB_PATH = Path(__file__).resolve().parent.parent / "eventos.db"
+# A base fica em data/ na raiz do repo (um nivel acima de src/), separada do
+# codigo-fonte. E gitignorada e regeravel via raspagem.
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "eventos.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS eventos (
@@ -48,6 +49,7 @@ def reconstruir_fts(con):
 
 
 def conectar():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)

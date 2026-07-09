@@ -25,7 +25,7 @@ considerado tranquilo). Prioridade nº 1 do usuário: validar/manter a raspagem.
 pip install -r requirements.txt
 python -m playwright install chromium          # necessário só p/ o Shotgun
 
-# Pipeline ponta a ponta (raspa as 3 fontes → grava eventos.db → roda consultas)
+# Pipeline ponta a ponta (raspa as 3 fontes → grava data/eventos.db → roda consultas)
 python src/demo.py
 python src/demo.py --sem-shotgun                # pula Shotgun (lento, usa navegador)
 python src/demo.py --so-consultar               # só consulta o que já está na base
@@ -49,17 +49,20 @@ smoke test executável. O interpretador usado no ambiente é `C:/Python313/pytho
 
 ## Arquitetura
 
-Duas frentes acopladas por uma base SQLite única (`eventos.db`, gitignorada):
+Duas frentes acopladas por uma base SQLite única (`data/eventos.db`, gitignorada):
 
-Todo o código Python vive em `src/` (a base `eventos.db` fica na **raiz** do repo, um
-nível acima — resolvida via `Path(__file__).parent.parent` em `store.py`):
+Todo o código Python vive em `src/`; a base fica em `data/eventos.db` na raiz do repo
+(resolvida via `parent.parent / "data"` em `store.py`, e a pasta é criada sob demanda
+em `conectar()`):
 
 ```
 src/
   store.py  consulta.py  mcp_server.py  demo.py   # núcleo + entrypoints (imports irmãos)
   scrapers/
     sympla.py  ingresse.py  shotgun.py  discover_sympla.py
-tests/   docs/
+data/          # eventos.db gerado aqui (gitignorado)
+docs/          # PRD, próximos passos, specs/ (specs técnicas de implementação)
+tests/
 ```
 
 Rodar entrypoints a partir da **raiz** do repo (ex.: `python src/demo.py`); o
@@ -126,4 +129,6 @@ Não faça commit sem pedido. Mensagens em português.
 - `docs/PRD_POC.md` — registro histórico da prova de conceito (validação da raspagem).
 - `docs/PROXIMOS_PASSOS.md` — backlog priorizado (qualidade das respostas do agente,
   classificação de gênero, cobertura/frescor, migração p/ Postgres local).
+- `docs/specs/` — specs técnicas de implementação (o "como" de cada item, um arquivo
+  por spec). Ver `docs/specs/README.md`.
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.
