@@ -16,6 +16,8 @@ O catálogo do Ingresse em Brasília é pequeno e já focado em vida noturna
 categoria como no Sympla.
 """
 
+import html
+import re
 import time
 import json
 import urllib.parse
@@ -23,20 +25,46 @@ import urllib.request
 from datetime import datetime, timezone
 
 API = "https://api-site.ingresse.com/events/search"
+
+# Endpoint de evento individual (no /openapi.json: "Get Event By Slug") — traz a
+# descricao (HTML), que a busca nao retorna. Descoberto em 2026-07-09.
+API_EVENTO = "https://api-site.ingresse.com/events/"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 ISO_BRASILIA = "BRA-DF"
 
 
-def _get(params):
-    qs = urllib.parse.urlencode(params)
+def _get_url(url):
     req = urllib.request.Request(
-        f"{API}?{qs}",
+        url,
         headers={"User-Agent": UA, "Accept": "application/json",
                  "Referer": "https://www.ingresse.com/"},
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
+
+
+def _get(params):
+    qs = urllib.parse.urlencode(params)
+    return _get_url(f"{API}?{qs}")
+
+
+def _limpar_html(texto):
+    """HTML -> texto puro (tags viram espaco, entidades resolvidas, espacos colapsados)."""
+    if not texto:
+        return None
+    texto = html.unescape(re.sub(r"<[^>]+>", " ", texto))
+    return re.sub(r"\s+", " ", texto).strip() or None
+
+
+def raspar_descricao(slug):
+    """Busca a descricao (texto limpo) de um evento pelo slug da URL publica.
+
+    Retorna dict {"descricao"} (valor pode ser None); levanta excecao em erro de
+    rede/HTTP — o chamador decide tolerar.
+    """
+    ev = _get_url(f"{API_EVENTO}{urllib.parse.quote(slug)}")
+    return {"descricao": _limpar_html(ev.get("description"))}
 
 
 def _normalizar(ev):

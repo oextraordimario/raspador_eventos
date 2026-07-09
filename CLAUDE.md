@@ -86,13 +86,19 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
 **Frente A — Raspagem.** Um módulo por fonte em `src/scrapers/`, cada um com uma função
 `raspar(...)` que devolve uma lista de dicts já normalizados para o schema unificado:
 - `src/scrapers/sympla.py` — API JSON interna de descoberta (`discovery-bff/search`), sem
-  navegador. Filtra por tema `99` ("Festas e Shows"). Paginado.
+  navegador. Filtra por tema `99` ("Festas e Shows"). Paginado. A **descrição e a
+  categoria real** vêm de outro BFF (`event-page.svc.sympla.com.br/.../event/{id}`,
+  id numérico do FIM da URL pública — difere do id do catálogo), via
+  `raspar_descricao(...)`, chamada pelo passo incremental "descrever" do `atualizar.py`.
 - `src/scrapers/ingresse.py` — BFF FastAPI `api-site.ingresse.com/events/search`, sem auth,
-  schema em `/openapi.json`. Catálogo de Brasília é pequeno.
+  schema em `/openapi.json`. Catálogo de Brasília é pequeno. Descrição via
+  `GET /events/{slug}` (`raspar_descricao`), também no passo "descrever".
 - `src/scrapers/shotgun.py` — **exige Playwright**: o site bloqueia HTTP puro (429) e renderiza
   via RSC. Pagina a listagem da cidade (`/pt/cities/<slug>?page=N`) até esgotar,
   extrai slugs `/events/<slug>` (links **relativos** — a regex tem que casar path
-  relativo) e lê o JSON-LD (`MusicEvent`) de cada evento.
+  relativo) e lê o JSON-LD (`MusicEvent`) de cada evento — incluindo os campos ricos
+  (`description`/`performer`/`organizer`/`offers` → descricao/atracoes/organizador/
+  preco_min), que vêm de graça na mesma página.
 - Cada scraper preenche `ULTIMA_RASPAGEM` (módulo) com `coletados`/`total_site`
   ao fim de `raspar()` — é daí que o `atualizar.py` mede cobertura.
 - `src/scrapers/discover_sympla.py` — ferramenta de reconhecimento, não faz parte do pipeline:
@@ -116,10 +122,13 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   `consulta.py`: `buscar_eventos` e `data_atual` (data/hora UTC + janela do fim de
   semana, para o agente montar filtros "hoje"/"neste fim de semana").
 
-Fluxo: `scraper.raspar()` → `store.upsert_eventos()` → `enriquecer.aplicar()` →
-`store.reconstruir_fts()` → `consulta.buscar_eventos()` → tool MCP → agente de IA.
-`atualizar.py` orquestra tudo isso sob demanda; `mcp_server.py` é o ponto de
-entrada em uso real; `demo.py` é a demo da PoC.
+Fluxo: `scraper.raspar()` → `store.upsert_eventos()` → descrever (busca incremental
+da descrição p/ Sympla/Ingresse; upsert usa COALESCE p/ nunca zerá-la) →
+`enriquecer.aplicar()` → `store.reconstruir_fts()` → `consulta.buscar_eventos()` →
+tool MCP → agente de IA. `atualizar.py` orquestra tudo isso sob demanda;
+`mcp_server.py` é o ponto de entrada em uso real; `demo.py` é a demo da PoC.
+O FTS indexa nome/categoria/atracoes/**descricao** — "eletrônica" acha evento sem o
+gênero no nome.
 
 ## Convenções e armadilhas
 

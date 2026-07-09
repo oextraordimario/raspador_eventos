@@ -66,6 +66,10 @@ EVENTOS = [
            start_date="2026-07-11T22:00:00+00:00"),
     evento(id="shotgun:s2", fonte="shotgun", nome="Sarau do Cerrado",
            start_date="2026-07-18T22:00:00.000Z"),  # formato Shotgun
+    # --- campos ricos: termo de busca que SÓ existe na descrição ---
+    evento(id="sympla:desc1", nome="Vórtice na Capital",
+           url="https://exemplo.com/desc",
+           descricao="Noite de música eletrônica com DJs convidados até o amanhecer."),
 ]
 
 
@@ -134,6 +138,23 @@ def main():
     com_ruido = consulta.buscar_eventos(limite=100, incluir_ruido=True)
     assert len(com_ruido) == len(todos) + 4
     print("consulta: incluir_ruido=True devolve os marcados — ok")
+
+    # --- campos ricos: FTS acha termo que só está na descrição (com acento) ---
+    achados = consulta.buscar_eventos(texto="eletrônica", limite=10)
+    assert any(e["url"] == "https://exemplo.com/desc" for e in achados), achados
+    trecho = [e for e in achados if e["url"] == "https://exemplo.com/desc"][0]
+    assert trecho["descricao"].startswith("Noite de música eletrônica")
+    print("campos ricos: FTS acha pelo texto da descrição, retorno traz trecho — ok")
+
+    # --- campos ricos: re-upsert do catálogo (sem descrição) não zera a colhida ---
+    store.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
+                                      descricao="texto original")])
+    store.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito")])
+    assert linha(con, "sympla:desc2")["descricao"] == "texto original"
+    store.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
+                                      descricao="texto novo")])
+    assert linha(con, "sympla:desc2")["descricao"] == "texto novo"
+    print("campos ricos: upsert preserva descrição já colhida (COALESCE) — ok")
 
     con.close()
     print("\nOK — enriquecimento v1 e consulta se comportam como a spec pede.")

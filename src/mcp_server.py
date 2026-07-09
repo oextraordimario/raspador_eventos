@@ -31,8 +31,9 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
     links dele nas demais plataformas, quando houver).
 
     Args:
-        texto: termos de busca no nome/categoria do evento (sintaxe FTS5, ex.:
-            "pagode", "funk OR techno", "sertanejo"). Vazio = qualquer evento.
+        texto: termos de busca no nome, atrações e descrição do evento (sintaxe
+            FTS5, ex.: "pagode", "funk OR techno", "eletrônica"). Acha o termo
+            mesmo quando ele só aparece na descrição. Vazio = qualquer evento.
         cidade: cidade do evento (padrão "Brasília"; hoje a base só cobre Brasília).
         data_inicio: início da janela, ISO 8601 (ex.: "2026-07-10T00:00:00+00:00").
             Vazio = sem limite inferior. Para "só eventos futuros", passe o horário
@@ -42,8 +43,9 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
 
     Returns:
         Lista de eventos com nome, fonte, start_date, end_date, cidade, local,
-        categoria, organizador, url e outras_urls (links do mesmo evento em
-        outras plataformas, se houver).
+        categoria, organizador, url, atracoes (line-up), preco_min, descricao
+        (trecho inicial) e outras_urls (links do mesmo evento em outras
+        plataformas, se houver).
     """
     return consulta.buscar_eventos(
         texto=texto or None, cidade=cidade or None,

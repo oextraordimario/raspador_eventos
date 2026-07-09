@@ -29,6 +29,9 @@ RUIDO_TERMOS = [
     # eventos políticos (calibração 2026-07-09: "lançamento" sozinho marcaria
     # show de lançamento de álbum, que é vida noturna real; "candidatura" é preciso)
     "candidatura",
+    # nome em inglês (calibração 2026-07-09: "International Conference of
+    # Nanoscience..." passou porque a lista era só em português)
+    "conference",
 ]
 
 # Similaridade de nome (0..1) para considerar duplicata cross-fonte.

@@ -16,7 +16,13 @@ import store
 
 # Campos uteis expostos ao agente (subconjunto enxuto da tabela).
 CAMPOS = ["nome", "fonte", "start_date", "end_date", "cidade", "estado",
-          "local_nome", "endereco", "categoria", "organizador", "url", "imagem"]
+          "local_nome", "endereco", "categoria", "organizador", "url", "imagem",
+          "atracoes", "preco_min"]
+
+# A descricao completa de dezenas de eventos e peso morto no contexto do agente;
+# um trecho basta para ele entender o estilo do evento (o texto inteiro fica na
+# base, indexado pelo FTS).
+DESCRICAO_MAX = 300
 
 
 def _norm_ts(iso):
@@ -83,7 +89,8 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     outras = ("(SELECT GROUP_CONCAT(o.url) FROM eventos o "
               "WHERE o.dedupe_grupo = e.dedupe_grupo AND o.id != e.id) "
               "AS outras_urls")
-    sql = f"SELECT {', '.join(CAMPOS)}, {outras} FROM eventos e"
+    descr = f"substr(e.descricao, 1, {DESCRICAO_MAX}) AS descricao"
+    sql = f"SELECT {', '.join(CAMPOS)}, {descr}, {outras} FROM eventos e"
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY norm_ts(e.start_date) LIMIT ?"

@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS eventos (
     imagem        TEXT,               -- URL da imagem / capa do evento
     raspado_em    TEXT NOT NULL,      -- timestamp ISO 8601 de quando foi raspado
 
+    -- Campos ricos da fonte (Etapa 5 da spec da Fase 0). Podem chegar depois do
+    -- catalogo (passo incremental "descrever" do atualizar.py); por isso o upsert
+    -- usa COALESCE nestas colunas: re-raspagem do catalogo NAO zera o que ja foi colhido.
+    descricao     TEXT,               -- texto livre do evento, limpo de HTML (insumo do FTS e do enriquecimento v2)
+    atracoes      TEXT,               -- line-up ("; "-separado) quando a fonte entrega (Shotgun: performer)
+    preco_min     REAL,               -- menor preco anunciado, quando a fonte entrega (Shotgun: offers)
+
     -- Colunas de enriquecimento v1 (preenchidas por src/enriquecer.py apos o upsert;
     -- os scrapers nao escrevem aqui). Recalculadas do zero a cada atualizacao.
     ruido           INTEGER NOT NULL DEFAULT 0,  -- 1 = nao e vida noturna (anuncio/curso/etc.); a consulta esconde
@@ -42,8 +49,11 @@ CREATE TABLE IF NOT EXISTS eventos (
 CREATE INDEX IF NOT EXISTS idx_eventos_start ON eventos(start_date);
 CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON eventos(cidade);
 
--- Indice de busca textual (nome/categoria) para as consultas em linguagem natural.
--- Tabela de conteudo externo (content='eventos'): reindexada via reconstruir_fts.sql
--- apos cada raspagem.
+-- Indice de busca textual (nome/categoria/atracoes/descricao) para as consultas em
+-- linguagem natural. Tabela de conteudo externo (content='eventos'): reindexada via
+-- reconstruir_fts.sql apos cada raspagem. A descricao entrou no indice na Etapa 5
+-- (validado que "eletronica" passa a achar evento sem o genero no nome, sem degradar
+-- as consultas canonicas — ver docs/specs/20260709_mvp-fase-0/execucao.md).
 CREATE VIRTUAL TABLE IF NOT EXISTS eventos_fts
-    USING fts5(nome, categoria, content='eventos', content_rowid='rowid');
+    USING fts5(nome, categoria, atracoes, descricao,
+               content='eventos', content_rowid='rowid');

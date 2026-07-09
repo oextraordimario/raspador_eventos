@@ -40,13 +40,22 @@ def conectar():
     return con
 
 
+# Campos ricos que podem ser colhidos num passo separado do catalogo (o "descrever"
+# do atualizar.py): no upsert, valor novo NULL preserva o que ja esta na base.
+_COLS_PRESERVAR = {"descricao", "atracoes", "preco_min"}
+
+
 def upsert_eventos(con, eventos):
     """Insere ou atualiza uma lista de eventos normalizados (dicts)."""
     cols = ["id", "fonte", "id_nativo", "nome", "start_date", "end_date",
             "cidade", "estado", "local_nome", "endereco", "lat", "lon",
-            "categoria", "organizador", "url", "imagem", "raspado_em"]
+            "categoria", "organizador", "url", "imagem", "raspado_em",
+            "descricao", "atracoes", "preco_min"]
     placeholders = ",".join("?" for _ in cols)
-    updates = ",".join(f"{c}=excluded.{c}" for c in cols if c != "id")
+    updates = ",".join(
+        f"{c}=COALESCE(excluded.{c}, {c})" if c in _COLS_PRESERVAR
+        else f"{c}=excluded.{c}"
+        for c in cols if c != "id")
     sql = (f"INSERT INTO eventos ({','.join(cols)}) VALUES ({placeholders}) "
            f"ON CONFLICT(id) DO UPDATE SET {updates}")
     con.executemany(sql, [[e.get(c) for c in cols] for e in eventos])

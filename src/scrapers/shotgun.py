@@ -48,9 +48,38 @@ def _extrair_musicevent(html):
     return None
 
 
+def _atracoes(ld):
+    """Line-up do JSON-LD (performer: dict ou lista de dicts) como texto '; '."""
+    perf = ld.get("performer")
+    if not perf:
+        return None
+    nomes = [p.get("name") for p in (perf if isinstance(perf, list) else [perf])
+             if isinstance(p, dict) and p.get("name")]
+    return "; ".join(nomes) or None
+
+
+def _preco_min(ld):
+    """Menor preco anunciado no JSON-LD (offers: dict ou lista)."""
+    offers = ld.get("offers")
+    if not offers:
+        return None
+    precos = []
+    for o in (offers if isinstance(offers, list) else [offers]):
+        if not isinstance(o, dict):
+            continue
+        for chave in ("lowPrice", "price"):
+            try:
+                precos.append(float(o[chave]))
+                break
+            except (KeyError, TypeError, ValueError):
+                continue
+    return min(precos) if precos else None
+
+
 def _normalizar(ld, slug, cidade_label, estado_label):
     loc = ld.get("location") or {}
     addr = loc.get("address") or {}
+    org = ld.get("organizer") or {}
     # addressLocality do Shotgun costuma ser o bairro; guardamos como bairro e
     # usamos o rotulo da cidade pesquisada para o campo cidade (consultavel).
     bairro = addr.get("addressLocality") or None
@@ -68,10 +97,14 @@ def _normalizar(ld, slug, cidade_label, estado_label):
         "lat": (loc.get("geo") or {}).get("latitude") or None,
         "lon": (loc.get("geo") or {}).get("longitude") or None,
         "categoria": "MusicEvent",
-        "organizador": None,
+        "organizador": (org.get("name") if isinstance(org, dict) else None) or None,
         "url": ld.get("url") or f"{BASE}/en/events/{slug}",
         "imagem": ld.get("image") if isinstance(ld.get("image"), str) else None,
         "raspado_em": datetime.now(timezone.utc).isoformat(),
+        # campos ricos que o JSON-LD ja entrega de graca (Etapa 5 da spec)
+        "descricao": (ld.get("description") or "").strip() or None,
+        "atracoes": _atracoes(ld),
+        "preco_min": _preco_min(ld),
     }
 
 

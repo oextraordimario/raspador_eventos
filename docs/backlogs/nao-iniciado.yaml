@@ -22,6 +22,8 @@
 # CICLO DE VIDA: implementado de verdade → o item SAI deste arquivo (git preserva;
 # o registro do que entrou no fluxo é o commit/spec correspondente). Testado e
 # descartado → move pra rejeitado.yaml (mantendo o código).
+# Buracos: NI-02/NI-03 (implementados em 2026-07-09 na Etapa 5 da spec da Fase 0 —
+# descrição/atrações/preço/categoria real capturados das 3 fontes).
 
 # ─────────────────────────── Enriquecimento ───────────────────────────
 
@@ -58,22 +60,27 @@
   eixo: enriquecimento
   fase: 0
   titulo: "Ruído v2 — pegar curso/anúncio sem palavra-chave no nome"
-  resumo: "a lista de termos v1 só vê o nome; curso com nome 'de fantasia' passa batido — sinais extras (duração multi-dia, horário diurno, local tipo centro de convenções) ou LLM"
+  resumo: "a lista de termos v1 só vê o nome; curso com nome 'de fantasia' passa batido — sinais extras (categoria real, duração, horário diurno, local) ou LLM"
   data: 2026-07-09
   depende_de: []
-  relacionado: [NI-02, NI-03, NI-05]
-  caso_real: ["'Do Chat GPT ao CLAUDE PRO' (curso de IA no Ulysses Centro de Convenções, sáb 8h30 da manhã, end_date 3 ANOS depois) — nenhuma palavra da lista no nome, passou pelo filtro"]
+  relacionado: [NI-05]
+  caso_real: ["'Do Chat GPT ao CLAUDE PRO' (curso de IA no Ulysses Centro de Convenções, sáb 8h30 da manhã, end_date 3 ANOS depois)", "'Atualização em Nódulos de Tireoide' (curso médico)", "'Open AA' (grupo de apoio)", "'VIP TÉCNICO BCF 2026'", "'Destravando sua Timidez'"]
   detalhe: |
-    O filtro v1 (palavra-chave no nome, fronteira de palavra) pegou 4/5 dos não-eventos
-    da base atual, mas é cego a nome "de fantasia". O caso real acumula três sinais que
-    o nome não mostra: começa 8h30 da manhã, dura "3 anos" (end_date 2029 — lixo de
-    origem) e o local é centro de convenções.
+    O filtro v1 (palavra-chave no nome, fronteira de palavra) pega o grosso, mas é
+    cego a nome "de fantasia". Os casos reais acumulam sinais que o nome não mostra:
+    horário diurno, duração absurda (end_date 2029), local tipo centro de convenções.
 
-    **Ideia (escada):** (a) heurísticas baratas — evento diurno que termina antes das
-    18h, duração > 2 dias, local com "centro de convenções/auditório" no nome; cada uma
-    marca com motivo próprio, mesma política conservadora; (b) quando a descrição
-    existir (NI-02/NI-03), incluir a descrição no matching de termos; (c) LLM v2 (NI-05)
-    decide "é vida noturna? sim/não" nos casos que as regras não alcançam.
+    **Sinal novo desde a Etapa 5:** a coluna `categoria` do Sympla agora tem a
+    categoria real do BFF (`musica`, `desenvolvimento-pessoal`, `saude-nutricao...`).
+    CUIDADO: é escolhida pelo organizador e mente ("Beatles Abbey Road Tribute" está
+    em `curso-workshop`, "BAILÃO DO VILLA" em `erotico-adulto-explicito`) — não pode
+    ser regra sozinha, mas serve como sinal composto.
+
+    **Ideia (escada):** (a) heurísticas baratas combinadas — categoria não-música E
+    (diurno OU duração > 2 dias OU local "centro de convenções/auditório"); cada
+    regra marca com motivo próprio, mesma política conservadora; (b) incluir a
+    descrição (agora existente) no matching de termos; (c) LLM v2 (NI-05) decide
+    "é vida noturna? sim/não" nos casos que as regras não alcançam.
 
 - codigo: NI-05
   status: nao-iniciado
@@ -85,15 +92,17 @@
   titulo: "Classificação de gênero/vibe por LLM (enriquecimento v2)"
   resumo: "campo genero (pagode/funk/techno/sertanejo/eletrônica...) preenchido por Sonnet via subagente no Claude Code CLI na ingestão — decisões já travadas no PRD §3/§7"
   data: 2026-07-09
-  depende_de: [NI-02, NI-06]
-  relacionado: [NI-03, NI-04]
-  caso_real: ["dogfooding 2026-07-09, busca 'eletrônico no fim de semana': só 3 eventos tinham o gênero no nome; Esquenta do Mantém e RECALL (after club) são eletrônicos e só foram classificados por conhecimento externo"]
+  depende_de: [NI-06]
+  relacionado: [NI-04]
+  caso_real: ["dogfooding 2026-07-09, busca 'eletrônico no fim de semana': só 3 eventos tinham o gênero no nome; Esquenta do Mantém e RECALL (after club) são eletrônicos e só foram classificados por conhecimento externo", "typo na origem: a descrição do VÉRTICE - House diz 'cena elentronica de Brasília' — keyword matching quebra com texto sujo, LLM não"]
   detalhe: |
     É o coração do moat (PRD §3): "festa de pagode/eletrônica" funcionar sem a palavra
     no nome. Decisões já travadas no PRD: modelo Sonnet (não Haiku — qualidade muito
     pior por economia irrisória), execução por subagente no Claude Code CLI
     (assinatura, não API paga), entrada em produção junto do Instagram (NI-06), que é
-    quem fornece texto rico para classificar.
+    quem fornece texto rico para classificar. Desde a Etapa 5 a base já tem descrição
+    (94–100% por fonte), atrações e categoria real — insumo local já disponível antes
+    mesmo do Instagram.
 
     **Ideia:** coluna genero (e talvez vibe/tags) preenchida na ingestão só para
     eventos novos/alterados; few-shot com os gêneros do recorte (pagode, samba, funk,
@@ -102,52 +111,6 @@
     pagode" retornar pagodes SEM a palavra no nome.
 
 # ─────────────────────────── Raspagem ───────────────────────────
-
-- codigo: NI-02
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: P
-  eixo: raspagem
-  fase: 0
-  titulo: "Extrair a descrição (e campos ricos) do evento no Shotgun — vem de graça no JSON-LD"
-  resumo: "o JSON-LD que já lemos tem description/performer/organizer/doorTime/offers, hoje descartados — absorvido pela Etapa 5 da spec da Fase 0"
-  data: 2026-07-09
-  depende_de: []
-  relacionado: [NI-03, NI-05]
-  caso_real: ["'Lust Disco Bolas' (2026-07-09): description com line-up completo e estilo da festa, performer com os DJs — tudo jogado fora hoje"]
-  detalhe: |
-    Não custa nenhuma requisição a mais: a página do evento já é visitada. **Absorvido
-    pela Etapa 5 da spec `docs/specs/20260709_mvp-fase-0/spec.md`** (revisão de
-    2026-07-09): coluna descricao + atracoes (performer) + preco quando houver
-    (offers) + preencher a coluna organizador que já existe e o Shotgun deixa NULL.
-    Quando a etapa rodar, este item sai da lista.
-
-- codigo: NI-03
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: raspagem
-  fase: 0
-  titulo: "Sondar e raspar a descrição do evento no Sympla e no Ingresse"
-  resumo: "descrição não vem no catálogo de nenhuma das duas; no Sympla existe na página do evento — absorvido pela Etapa 5 da spec da Fase 0 (sondagem primeiro, HTML como último recurso)"
-  data: 2026-07-09
-  depende_de: [NI-02]
-  relacionado: [NI-05, NI-06]
-  caso_real: ["VÉRTICE - House 10 de Julho: a descrição diz 'cena eletrônica de Brasília', mas a busca por 'eletrônico' não acha o evento porque o nome não tem a palavra"]
-  detalhe: |
-    Sondado em 2026-07-09: a API de descoberta do Sympla não retorna descrição em campo
-    nenhum (objeto completo conferido). A página do evento tem a descrição rica no
-    estado Next.js (campo `detail`, HTML embutido), mas exige uma requisição por evento
-    (~250) e o site recusa HTTP puro do urllib (loop de redirect) — via Playwright abre.
-    No Ingresse a busca também não traz (chaves: title/place/session/poster/slug); a
-    página/endpoint de evento individual ainda não foi sondada (o BFF tem /openapi.json).
-
-    **Absorvido pela Etapa 5 da spec `docs/specs/20260709_mvp-fase-0/spec.md`**
-    (revisão de 2026-07-09): sondar endpoint JSON individual antes de apelar pra HTML;
-    raspagem incremental (só eventos sem descrição); ritmo educado. Quando a etapa
-    rodar, este item sai da lista.
 
 - codigo: NI-06
   status: nao-iniciado
@@ -160,7 +123,7 @@
   resumo: "raspar o Instagram para suprir a descrição pobre das plataformas de ingresso — última etapa do MVP, fonte mais frágil/resistente; principal insumo do classificador (NI-05)"
   data: 2026-07-09
   depende_de: []
-  relacionado: [NI-03, NI-05]
+  relacionado: [NI-05]
   caso_real: []
   detalhe: |
     PRD §3/§6 (trilha de dados, item 3): sem o contexto do Instagram, o raspador

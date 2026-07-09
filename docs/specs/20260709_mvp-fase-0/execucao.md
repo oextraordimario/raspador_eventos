@@ -1,7 +1,9 @@
 # Notas de execução e calibração — Fase 0 (núcleo)
 
-Executada em 2026-07-09, no mesmo dia da spec. Registro do que foi **descoberto e
-calibrado** durante a implementação (o que não está no código nem na spec).
+Etapas 1–4 executadas em 2026-07-09, no mesmo dia da spec; **Etapa 5 (campos ricos)
+executada na mesma data** — ver a seção própria no fim. Registro do que foi
+**descoberto e calibrado** durante a implementação (o que não está no código nem
+na spec).
 
 ## Cobertura — o que a investigação revelou
 
@@ -68,9 +70,57 @@ Todos os 8 verificados em 2026-07-09:
 7. ✅ `--so-enriquecer` re-marca sem raspar (0s).
 8. ✅ `demo.py` delega para `consulta.buscar_eventos` (fim da comparação crua).
 
+## Etapa 5 — campos ricos da fonte (executada em 2026-07-09)
+
+### Sondagem: endpoints encontrados (HTTP puro, zero Playwright extra)
+
+- **Sympla:** interceptando XHR na página do evento, achamos o BFF
+  `event-page.svc.sympla.com.br/api/event-bff/purchase/event/{id}` — sem auth,
+  responde a urllib. Traz `detail` (HTML) / `strippedDetail` e **`eventsCategory`**
+  (a categoria real que a API de catálogo não dá). O `{id}` é o numérico no **fim da
+  URL pública** (difere do id do catálogo). Há também `.../tickets/grouped` com
+  preços — não usado (2ª requisição por evento; preço ficou só no Shotgun).
+- **Ingresse:** `GET api-site.ingresse.com/events/{slug}` (estava no `/openapi.json`)
+  traz `description` (HTML).
+- **Shotgun:** JSON-LD da página (já visitada) traz `description`, `performer`,
+  `organizer`, `offers` — capturados no próprio `_normalizar`.
+
+Resultado na base recriada: descrição em **100% Shotgun (77), 100% Ingresse (4),
+94% Sympla (243/257** — os 14 restantes não têm descrição na origem; 0 falhas).
+Preço em 77/77 do Shotgun (R$ 0–60); atrações em 26 eventos; `organizador` do
+Shotgun preenchido.
+
+### FTS com descrição — decisão: LIGADO
+
+- A/B na base real: "eletrônica OR eletrônico" passou de ~3 acertos (nome) para
+  **7 eventos** via descrição (Templo, Baile Loco c/ DJ Bassan, Festa 300, Spectres,
+  Happy Holi...). "pagode" foi de 8 → 39 resultados, e a revisão a olho mostrou
+  recall legítimo (eventos que têm pagode na programação sem a palavra no nome).
+- **Ironia registrada:** o caso-âncora (VÉRTICE - House) segue não sendo achado por
+  "eletrônica" — a descrição na origem tem **typo**: *"cena **elentronica** de
+  Brasília"*. Keyword matching quebra com texto sujo; é mais um argumento pro
+  classificador LLM (NI-05). O critério 12 fechou pelos equivalentes.
+
+### Categoria do Sympla — sinal, não regra
+
+O `eventsCategory` matou a cegueira do `'NORMAL'` (agora: `musica`: 196 etc.), mas o
+campo é **escolhido pelo organizador e mente**: "The Beatles Abbey Road Tribute" está
+em `curso-workshop`, "BAILÃO DO VILLA" em `erotico-adulto-explicito`, piseiro em
+`agro`. Portanto **não** virou regra de ruído (mataria show real); fica armazenado
+como sinal para o agente e para o ruído v2 (NI-04).
+
+### Calibração de ruído (rodada 2)
+
+- **Adicionado `conference`**: "International Conference of Nanoscience..." passava
+  porque a lista era só em português. Base agora com 5 marcados.
+- **Novos falsos negativos conhecidos** (sem termo seguro; evidência no NI-04):
+  "Atualização em Nódulos de Tireoide" (curso médico), "Open AA", "VIP TÉCNICO BCF",
+  "Destravando sua Timidez".
+
 ## O que fica para o dogfooding decidir
 
 - Se os limiares de dedupe seguram quando aparecer duplicata real viva.
 - Se a lista de ruído precisa de mais termos (rodar
   `python src/atualizar.py --so-enriquecer` após ajustar e revisar o relatório).
+- Se o FTS na descrição mantém a precisão em outras consultas de gênero.
 - O critério da fase em si (PRD §6): confiar mais no agente do que no Sympla.

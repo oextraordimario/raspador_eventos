@@ -14,6 +14,8 @@ Parametros uteis:
   page      pagina (1-based)
 """
 
+import html
+import re
 import time
 import json
 import urllib.parse
@@ -21,6 +23,12 @@ import urllib.request
 from datetime import datetime, timezone
 
 API = "https://www.sympla.com.br/api/discovery-bff/search/category-type"
+
+# BFF da pagina de evento (descoberto em 2026-07-09 interceptando XHR na pagina):
+# devolve JSON com detail/strippedDetail (descricao), eventsCategory etc., sem auth
+# e sem navegador. O id e o numerico no FIM da URL publica do evento (difere do id
+# do catalogo!): .../evento/<slug>/3488482 -> 3488482.
+BFF_EVENTO = "https://event-page.svc.sympla.com.br/api/event-bff/purchase/event/"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 CAMPOS = ("name,start_date,end_date,images,event_type,location,id,url,"
@@ -31,15 +39,45 @@ CAMPOS = ("name,start_date,end_date,images,event_type,location,id,url,"
 TEMA_FESTAS_SHOWS = 99
 
 
-def _get(params):
-    qs = urllib.parse.urlencode(params, safe="/,")
+def _get_url(url):
     req = urllib.request.Request(
-        f"{API}?{qs}",
+        url,
         headers={"User-Agent": UA, "Accept": "application/json",
                  "Referer": "https://www.sympla.com.br/"},
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
+
+
+def _get(params):
+    qs = urllib.parse.urlencode(params, safe="/,")
+    return _get_url(f"{API}?{qs}")
+
+
+def _limpar_html(texto):
+    """HTML -> texto puro (tags viram espaco, entidades resolvidas, espacos colapsados)."""
+    if not texto:
+        return None
+    texto = html.unescape(re.sub(r"<[^>]+>", " ", texto))
+    return re.sub(r"\s+", " ", texto).strip() or None
+
+
+def raspar_descricao(id_url):
+    """Busca descricao (texto limpo) e categoria real de um evento no BFF da pagina.
+
+    id_url: id numerico no fim da URL publica (ex.: 3488482). Retorna dict
+    {"descricao", "categoria"} (valores podem ser None); levanta excecao em erro
+    de rede/HTTP — o chamador decide tolerar.
+    """
+    ev = _get_url(f"{BFF_EVENTO}{id_url}")
+    cat = ev.get("eventsCategory")
+    if isinstance(cat, dict):
+        cat = cat.get("name")
+    return {
+        "descricao": _limpar_html(ev.get("detail")) or
+                     _limpar_html(ev.get("strippedDetail")),
+        "categoria": cat if isinstance(cat, str) and cat.strip() else None,
+    }
 
 
 def _normalizar(ev):

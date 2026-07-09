@@ -1,7 +1,8 @@
 """Atualização sob demanda da base de eventos — o comando único da Fase 0.
 
-Fluxo: raspa as 3 fontes (tolerante a falha por fonte) → upsert → enriquecimento
-v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS → relatório de saúde.
+Fluxo: raspa as 3 fontes (tolerante a falha por fonte) → upsert → descrever
+(busca incremental da descrição p/ eventos sem ela) → enriquecimento v1 (ruído +
+dedupe, recalculado do zero) → reconstrói o FTS → relatório de saúde.
 
 Uso (da raiz do repo):
     python src/atualizar.py                  # pipeline completo
@@ -9,6 +10,7 @@ Uso (da raiz do repo):
     python src/atualizar.py --so-enriquecer  # não raspa; só reaplica regras + FTS
 """
 
+import re
 import sys
 import time
 import traceback
@@ -51,6 +53,50 @@ def _raspar(con, incluir_shotgun=True):
             resultados[nome] = {"erro": f"{type(e).__name__}: {e}"}
             print(f"[{nome}] FALHOU — seguindo com as outras fontes.")
     return resultados
+
+
+def _descrever(con, pausa=0.4):
+    """Busca a descrição dos eventos que ainda não têm (incremental: o upsert
+    preserva descrição já colhida, então só os novos custam requisição).
+
+    Shotgun já traz descrição na raspagem (JSON-LD); Sympla e Ingresse têm
+    endpoints de evento individual (ver raspar_descricao de cada scraper).
+    """
+    pendentes = con.execute(
+        "SELECT id, fonte, url FROM eventos "
+        "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse') "
+        "AND url IS NOT NULL").fetchall()
+    if not pendentes:
+        return {"buscadas": 0, "falhas": 0}
+    print(f"\n[descrever] {len(pendentes)} eventos sem descrição...")
+    buscadas = falhas = 0
+    for i, r in enumerate(pendentes, 1):
+        try:
+            if r["fonte"] == "sympla":
+                # id numérico no fim da URL pública (difere do id do catálogo)
+                m = re.search(r"/(\d+)/?$", r["url"])
+                if not m:
+                    falhas += 1
+                    continue
+                d = sympla.raspar_descricao(m.group(1))
+                con.execute(
+                    "UPDATE eventos SET descricao = ?, "
+                    "categoria = COALESCE(?, categoria) WHERE id = ?",
+                    (d["descricao"], d.get("categoria"), r["id"]))
+            else:  # ingresse: slug no fim da URL pública
+                slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
+                d = ingresse.raspar_descricao(slug)
+                con.execute("UPDATE eventos SET descricao = ? WHERE id = ?",
+                            (d["descricao"], r["id"]))
+            buscadas += 1 if d["descricao"] else 0
+        except Exception:
+            falhas += 1
+        if i % 50 == 0:
+            print(f"  {i}/{len(pendentes)}...")
+        time.sleep(pausa)
+    con.commit()
+    print(f"  {buscadas} descrições gravadas | {falhas} falhas/sem descrição")
+    return {"buscadas": buscadas, "falhas": falhas}
 
 
 def _instante(iso):
@@ -96,6 +142,13 @@ def _relatorio(con, resultados, enriq, duracao):
         ds = sorted(futuros[fonte])
         print(f"    {fonte:<9} {ds[0].date()} → {ds[-1].date()}  ({len(ds)} eventos)")
 
+    # --- campos ricos: % com descrição por fonte ---
+    print("  descrição preenchida por fonte:")
+    for fonte, com, tot in con.execute(
+            "SELECT fonte, SUM(descricao IS NOT NULL), COUNT(*) "
+            "FROM eventos GROUP BY fonte ORDER BY fonte"):
+        print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
+
     # --- enriquecimento ---
     ruido, grupos = enriq["ruido"], enriq["grupos"]
     print(f"\nRuído marcado (some da consulta): {len(ruido)}")
@@ -125,6 +178,7 @@ def main():
         if resultados and all("erro" in r for r in resultados.values()):
             con.close()
             sys.exit("Todas as fontes falharam — base não atualizada.")
+        _descrever(con)
 
     enriq = enriquecer.aplicar(con)
     store.reconstruir_fts(con)
