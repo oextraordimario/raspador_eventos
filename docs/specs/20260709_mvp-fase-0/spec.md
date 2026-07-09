@@ -1,7 +1,8 @@
 # Spec — MVP Fase 0 (núcleo): cobertura, ruído, dedupe e fluxo sob demanda
 
-> **Status:** aprovada para execução. Escopo e decisões fechados com o autor em
-> 2026-07-09.
+> **Status:** Etapas 1–4 **executadas** em 2026-07-09 (ver [`execucao.md`](execucao.md));
+> **Etapa 5 adicionada na revisão de 2026-07-09** (campos ricos da fonte — §5.7),
+> pendente de execução. Escopo e decisões fechados com o autor.
 > **O quê/por quê:** `docs/PRD_MVP.md`, seção 6 (Fase 0). Esta spec é o **como**.
 > **Critério de sucesso da fase (PRD):** o autor abre o agente em vez do Sympla
 > para saber "o que tem hoje em Brasília" — e confia na resposta.
@@ -11,7 +12,7 @@
 ## 1. Objetivo
 
 Deixar o pipeline local (raspar → base SQLite → MCP) bom o suficiente para
-dogfooding diário. Quatro entregas:
+dogfooding diário. Cinco entregas:
 
 1. **Cobertura/qualidade da raspagem** das 3 fontes (Sympla, Ingresse, Shotgun),
    com medição de cobertura contra o total reportado por cada fonte.
@@ -21,6 +22,9 @@ dogfooding diário. Quatro entregas:
    **agrupado** e a consulta devolve um registro só.
 4. **Fluxo sob demanda:** um entrypoint dedicado `src/atualizar.py` que roda tudo
    e imprime um relatório de saúde da base.
+5. **Campos ricos da fonte** (adicionada na revisão de 2026-07-09): sondar e
+   capturar **descrição** e demais campos que as fontes oferecem e hoje são
+   descartados (line-up, preço, organizador do Shotgun) — ver §5.6.
 
 ## 2. Decisões já tomadas (não rediscutir)
 
@@ -230,7 +234,62 @@ raspar (3 fontes, tolerante a falha por fonte)
   irmãos (`import store`, `import enriquecer`, `from scrapers import ...`),
   prints em português, sem dependência nova.
 
-### 5.6 Ajustes menores
+### 5.6 Campos ricos da fonte — Etapa 5 (revisão de 2026-07-09)
+
+Motivação (dogfooding de 2026-07-09): a busca por "eletrônico" só achou eventos com o
+gênero **no nome**, enquanto a descrição do "VÉRTICE - House" no Sympla diz
+literalmente *"cena eletrônica de Brasília"*. Hoje **nenhum scraper captura descrição**
+(o schema nem tem coluna) e o Shotgun joga fora campos que já chegam prontos.
+
+**Sondagem já realizada (2026-07-09):**
+
+| Fonte | Catálogo | Página do evento |
+|---|---|---|
+| Shotgun | — | JSON-LD **já lido** tem `description`, `performer` (line-up), `organizer`, `doorTime`, `offers` — tudo descartado hoje |
+| Sympla | sem descrição (objeto completo da API conferido, sem `only`) | descrição rica no estado Next.js (campo `detail`, HTML); urllib toma loop de redirect, Playwright abre |
+| Ingresse | sem descrição (chaves: title/place/session/poster/slug) | **não sondada** — o BFF expõe `/openapi.json`; procurar endpoint de evento individual |
+
+**Sondagem restante (primeiro passo da etapa):**
+- Sympla: caçar um **endpoint JSON do evento individual** com a técnica do
+  `discover_sympla.py` na página de evento — HTML/Playwright só como último recurso.
+- Ingresse: inventariar o `/openapi.json` (endpoint de evento por id/slug) e conferir
+  quais campos a página entrega.
+- Inventariar na mesma passada **qualquer outro campo aproveitável** (preço, line-up,
+  classificação etária, porta/horário), não só descrição.
+
+**Schema (colunas novas em `sql/schema.sql`, preenchidas pelos scrapers):**
+
+```sql
+descricao   TEXT,   -- texto livre do evento (limpo de HTML); insumo do FTS e do enriquecimento v2
+atracoes    TEXT,   -- line-up ("; "-separado) quando a fonte entrega (Shotgun: performer)
+preco_min   REAL    -- menor preço anunciado, quando a fonte entrega (Shotgun: offers)
+```
+
+Migração: mesma política do §5.1 — base descartável, apagar e re-raspar. De quebra,
+**preencher `organizador`** no Shotgun (coluna já existe; `ld["organizer"]` está
+disponível e hoje vira `NULL`).
+
+**Captura por fonte:**
+- **Shotgun:** direto no `_normalizar` (custo zero — a página já é visitada).
+- **Sympla/Ingresse:** conforme a sondagem. Se exigir uma requisição por evento,
+  fazer como **passo incremental** do `atualizar.py`: só busca eventos **novos/sem
+  descrição** (nunca re-buscar o que já tem), com ritmo educado e teto por execução.
+  Importante: descrição colhida por passo próprio **não pode ser zerada pelo upsert**
+  do catálogo — ou a coluna fica fora da lista do upsert, ou o passo roda depois
+  (decidir na implementação; testar re-raspagem sem perda).
+- Limpar HTML para texto puro antes de gravar (a descrição alimenta FTS e LLM).
+
+**FTS e consulta:**
+- Avaliar incluir `descricao` no `eventos_fts` (**testar antes de ligar**: descrição
+  menciona gêneros de passagem — medir precisão nas consultas canônicas com e sem;
+  se ligar, considerar peso menor via `bm25()` por coluna). O caso de aceite: a busca
+  "eletrônica OR eletrônico" deve passar a achar o Vértice.
+- Expor `descricao` (truncada?) e `atracoes` no retorno de `buscar_eventos` — decidir
+  na implementação o tamanho (o retorno vai para o contexto do agente; descrição
+  inteira de 250 eventos é peso morto — talvez só um trecho, ou campo completo apenas
+  quando `limite` for pequeno).
+
+### 5.7 Ajustes menores
 
 - `src/demo.py`: `consultar()` passa a delegar para `consulta.buscar_eventos`
   (elimina a comparação de data como string crua). O arquivo permanece como
@@ -281,6 +340,20 @@ Seguir o padrão do repo: **scripts executáveis, sem framework**.
 8. Nenhuma consulta compara `start_date` como string crua (o `demo.py` foi
    ajustado).
 
+Da Etapa 5 (revisão de 2026-07-09):
+
+9. Todo evento do Shotgun cuja página tem `description`/`performer`/`organizer` no
+   JSON-LD grava `descricao`/`atracoes`/`organizador` (e `preco_min` quando `offers`
+   trouxer preço); o relatório do `atualizar.py` mostra o **% de eventos com
+   descrição por fonte**.
+10. A sondagem de Sympla e Ingresse está documentada (em `execucao.md`) com a
+    decisão tomada: endpoint JSON encontrado, ou fallback definido (Playwright
+    incremental), ou "fonte não expõe" — e, no que for viável, implementada.
+11. Re-raspagem do catálogo **não zera** descrição já colhida (testado).
+12. Se `descricao` entrar no FTS: a busca "eletrônica OR eletrônico" acha o caso
+    real (VÉRTICE - House, ou equivalente vivo na base) **sem** degradar as
+    consultas canônicas de gênero; se ficar fora, o motivo está registrado.
+
 ## 8. Plano de execução (pensado para autonomia)
 
 Intervenção do usuário: **nenhuma configuração externa é necessária** (tudo
@@ -302,6 +375,15 @@ apresentar uma sugestão de fatiamento dos commits, sem executá-los).
   relatório), ajuste do `demo.py`, atualização do `PROXIMOS_PASSOS.md`, base
   recriada do zero, todos os critérios do §7 re-checados, resumo final para
   revisão do autor (incluindo a lista de ruído marcada e os grupos de dedupe).
+- **Etapa 5 — Campos ricos** (adicionada na revisão de 2026-07-09; etapas 1–4 já
+  executadas): (a) concluir a sondagem (endpoint de evento individual no Sympla e
+  no Ingresse, inventário de campos extras); (b) colunas `descricao`/`atracoes`/
+  `preco_min` no schema + captura no Shotgun (JSON-LD, custo zero) e nas demais
+  fontes conforme a sondagem, incremental quando custar 1 requisição/evento;
+  (c) decisão medida sobre `descricao` no FTS + exposição na consulta/tool;
+  (d) base recriada, critérios 9–12 checados, `execucao.md` atualizado com a
+  calibração. Absorve os itens `NI-02`/`NI-03` do backlog (saem da lista ao
+  concluir).
 
 Depois da revisão, começa o que a spec **não** cobre: o dogfooding em si — usar
 o agente por algumas semanas e deixar o critério do PRD decidir se a Fase 0
