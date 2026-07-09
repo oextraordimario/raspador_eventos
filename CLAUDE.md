@@ -60,10 +60,16 @@ src/
   store.py  consulta.py  mcp_server.py  demo.py   # núcleo + entrypoints (imports irmãos)
   scrapers/
     sympla.py  ingresse.py  shotgun.py  discover_sympla.py
+sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver)
 data/          # eventos.db gerado aqui (gitignorado)
 docs/          # PRD, próximos passos, specs/ (specs técnicas de implementação)
 tests/
 ```
+
+O DDL não fica embutido em string Python: mora em `sql/schema.sql` e é **carregado**
+por `store.conectar()`. Ao mudar o schema, edite o `.sql` (não o `store.py`). O SQL
+dinâmico (upsert, e a query com a função `norm_ts` registrada em runtime) segue no
+código, porque não roda standalone.
 
 Rodar entrypoints a partir da **raiz** do repo (ex.: `python src/demo.py`); o
 `sys.path[0]` vira `src/`, então `import store`/`import consulta` resolvem como irmãos,
@@ -83,9 +89,10 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   intercepta XHR/fetch num navegador para achar a API interna quando um site muda.
 
 **Frente B — Consulta por IA.**
-- `src/store.py` — schema SQLite unificado + `upsert_eventos` (chave `<fonte>:<id_nativo>`
-  evita colisão) + índice FTS5 (`eventos_fts`) para busca textual. Depois de raspar,
-  chame `reconstruir_fts(con)` para reindexar.
+- `src/store.py` — aplica o schema (`sql/schema.sql`) + `upsert_eventos` (chave
+  `<fonte>:<id_nativo>` evita colisão) + índice FTS5 (`eventos_fts`) para busca textual.
+  Depois de raspar, chame `reconstruir_fts(con)` (roda `sql/reconstruir_fts.sql`) para
+  reindexar.
 - `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite)`,
   todos os args opcionais, retorno JSON-serializável. Esta é a camada canônica de
   consulta.
@@ -99,9 +106,9 @@ de raspagem+consulta; `mcp_server.py` é o ponto de entrada em uso real.
 
 ## Convenções e armadilhas
 
-- **Schema unificado é o contrato.** Todo scraper normaliza para os campos de
-  `store.py` (`id`, `fonte`, `nome`, `start_date`, `cidade`, `url`, etc.) antes de
-  gravar. Ao adicionar uma fonte, siga o mesmo `_normalizar(...)` → dict.
+- **Schema unificado é o contrato.** Todo scraper normaliza para os campos definidos
+  em `sql/schema.sql` (`id`, `fonte`, `nome`, `start_date`, `cidade`, `url`, etc.) antes
+  de gravar. Ao adicionar uma fonte, siga o mesmo `_normalizar(...)` → dict.
 - **Datas em formatos mistos.** Sympla/Ingresse usam `+00:00`, Shotgun usa `.000Z`.
   Comparação lexical de strings falha entre eles. `consulta.py` normaliza toda data
   via `_norm_ts` (registrada como função SQL `norm_ts`) antes de comparar/ordenar —

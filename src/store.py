@@ -3,48 +3,32 @@
 Schema unico que serve as tres fontes (Sympla, Ingresse, Shotgun). O scraper
 de cada fonte normaliza para este formato antes de gravar. A base e otimizada
 para consulta por texto/data/cidade, que e o que um agente de IA precisa.
+
+O DDL vive em sql/schema.sql (fonte unica, tambem rodavel no DBeaver); este
+modulo so o carrega e aplica.
 """
 
 import sqlite3
 from pathlib import Path
 
+_RAIZ = Path(__file__).resolve().parent.parent
+
 # A base fica em data/ na raiz do repo (um nivel acima de src/), separada do
 # codigo-fonte. E gitignorada e regeravel via raspagem.
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "eventos.db"
+DB_PATH = _RAIZ / "data" / "eventos.db"
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS eventos (
-    id            TEXT PRIMARY KEY,   -- "<fonte>:<id_nativo>", evita colisao entre fontes
-    fonte         TEXT NOT NULL,      -- sympla | ingresse | shotgun
-    id_nativo     TEXT NOT NULL,
-    nome          TEXT NOT NULL,
-    start_date    TEXT,               -- ISO 8601
-    end_date      TEXT,               -- ISO 8601
-    cidade        TEXT,
-    estado        TEXT,
-    local_nome    TEXT,
-    endereco      TEXT,
-    lat           REAL,
-    lon           REAL,
-    categoria     TEXT,               -- tipo/tema quando disponivel
-    organizador   TEXT,
-    url           TEXT,
-    imagem        TEXT,
-    raspado_em    TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_eventos_start ON eventos(start_date);
-CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON eventos(cidade);
+# SQL (schema + manutencao) mora em sql/, como fonte unica: os mesmos arquivos
+# rodam a mao no DBeaver. Ver sql/schema.sql e sql/reconstruir_fts.sql.
+_SQL_DIR = _RAIZ / "sql"
 
--- indice de busca textual (nome) para as consultas em linguagem natural.
--- Tabela de conteudo externo: reindexada via reconstruir_fts() apos cada raspagem.
-CREATE VIRTUAL TABLE IF NOT EXISTS eventos_fts
-    USING fts5(nome, categoria, content='eventos', content_rowid='rowid');
-"""
+
+def _ler_sql(nome):
+    return (_SQL_DIR / nome).read_text(encoding="utf-8")
 
 
 def reconstruir_fts(con):
     """Sincroniza o indice de busca textual com a tabela eventos."""
-    con.execute("INSERT INTO eventos_fts(eventos_fts) VALUES('rebuild')")
+    con.executescript(_ler_sql("reconstruir_fts.sql"))
     con.commit()
 
 
@@ -52,7 +36,7 @@ def conectar():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
-    con.executescript(SCHEMA)
+    con.executescript(_ler_sql("schema.sql"))
     return con
 
 
