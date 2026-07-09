@@ -12,6 +12,7 @@ Uso:
 import sys
 from datetime import datetime, timezone
 
+import consulta
 import store
 from scrapers import sympla, ingresse, shotgun
 
@@ -42,35 +43,14 @@ def coletar(incluir_shotgun=True):
 
 
 def consultar(termo, inicio=None, fim=None, cidade=None, limite=10):
-    """Simula o que um agente de IA faria: traduz a intencao em filtros SQL.
+    """Simula o que um agente de IA faria: traduz a intencao em filtros.
 
-    - termo: busca textual no nome/categoria (FTS)
-    - inicio/fim: janela de datas (ISO) -- ex.: um fim de semana
-    - cidade: filtro geografico
+    Delega para a camada canonica (consulta.buscar_eventos), que normaliza as
+    datas de formatos mistos antes de comparar e ja esconde ruido/duplicatas.
     """
-    con = store.conectar()
-    where, params = [], []
-    if termo:
-        where.append("e.rowid IN (SELECT rowid FROM eventos_fts "
-                     "WHERE eventos_fts MATCH ?)")
-        params.append(termo)
-    if inicio:
-        where.append("e.start_date >= ?")
-        params.append(inicio)
-    if fim:
-        where.append("e.start_date <= ?")
-        params.append(fim)
-    if cidade:
-        where.append("e.cidade = ?")
-        params.append(cidade)
-    sql = "SELECT e.* FROM eventos e"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY e.start_date LIMIT ?"
-    params.append(limite)
-    rows = con.execute(sql, params).fetchall()
-    con.close()
-    return rows
+    return consulta.buscar_eventos(texto=termo, cidade=cidade,
+                                   data_inicio=inicio, data_fim=fim,
+                                   limite=limite)
 
 
 def _mostrar(titulo, rows):

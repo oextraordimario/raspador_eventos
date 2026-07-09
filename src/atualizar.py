@@ -1,0 +1,136 @@
+"""Atualização sob demanda da base de eventos — o comando único da Fase 0.
+
+Fluxo: raspa as 3 fontes (tolerante a falha por fonte) → upsert → enriquecimento
+v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS → relatório de saúde.
+
+Uso (da raiz do repo):
+    python src/atualizar.py                  # pipeline completo
+    python src/atualizar.py --sem-shotgun    # pula o Shotgun (lento, usa navegador)
+    python src/atualizar.py --so-enriquecer  # não raspa; só reaplica regras + FTS
+"""
+
+import sys
+import time
+import traceback
+from datetime import datetime, timezone
+
+import enriquecer
+import store
+from scrapers import ingresse, shotgun, sympla
+
+
+def _checar_schema(con):
+    """Base criada antes das colunas de enriquecimento não é migrada: é descartável."""
+    cols = {r[1] for r in con.execute("PRAGMA table_info(eventos)")}
+    if "ruido" not in cols:
+        sys.exit("A base data/eventos.db é de um schema antigo (sem as colunas de "
+                 "enriquecimento).\nNa Fase 0 a base é descartável: apague o arquivo "
+                 "e rode de novo para re-raspar.")
+
+
+def _raspar(con, incluir_shotgun=True):
+    """Raspa cada fonte isoladamente: uma fonte quebrada não esconde as outras."""
+    fontes = [
+        ("sympla", sympla, lambda: sympla.raspar(
+            city="brasilia", state="DF", location="Brasília", max_paginas=10)),
+        ("ingresse", ingresse, lambda: ingresse.raspar()),
+    ]
+    if incluir_shotgun:
+        fontes.append(("shotgun", shotgun,
+                       lambda: shotgun.raspar(city_slug="brasilia")))
+
+    resultados = {}
+    for nome, modulo, chamada in fontes:
+        print(f"\n[{nome}] raspando...")
+        try:
+            eventos = chamada()
+            store.upsert_eventos(con, eventos)
+            resultados[nome] = dict(modulo.ULTIMA_RASPAGEM)
+        except Exception as e:
+            traceback.print_exc()
+            resultados[nome] = {"erro": f"{type(e).__name__}: {e}"}
+            print(f"[{nome}] FALHOU — seguindo com as outras fontes.")
+    return resultados
+
+
+def _instante(iso):
+    dt = None
+    if iso:
+        try:
+            dt = datetime.fromisoformat(iso)
+        except ValueError:
+            return None
+    if dt and dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc) if dt else None
+
+
+def _relatorio(con, resultados, enriq, duracao):
+    agora = datetime.now(timezone.utc)
+    print("\n" + "=" * 64)
+    print(f"Saúde da base — {agora.strftime('%Y-%m-%d %H:%M UTC')}")
+    print("=" * 64)
+
+    # --- fontes / cobertura ---
+    print("\nFontes (coletados/total no site):")
+    if not resultados:
+        print("  raspagem pulada (--so-enriquecer)")
+    for nome, r in resultados.items():
+        if "erro" in r:
+            print(f"  {nome:<9} FALHOU: {r['erro']}")
+        else:
+            print(f"  {nome:<9} {r.get('coletados', '?')}/{r.get('total_site', '?')}")
+
+    # --- base: totais e janela futura por fonte ---
+    rows = con.execute("SELECT fonte, start_date, ruido FROM eventos").fetchall()
+    futuros = {}
+    for r in rows:
+        dt = _instante(r["start_date"])
+        if dt and dt >= agora and not r["ruido"]:
+            futuros.setdefault(r["fonte"], []).append(dt)
+    total = len(rows)
+    print(f"\nBase ({store.DB_PATH.name}): {total} eventos, "
+          f"{sum(len(v) for v in futuros.values())} futuros (sem contar ruído)")
+    print("  janela futura por fonte:")
+    for fonte in sorted(futuros):
+        ds = sorted(futuros[fonte])
+        print(f"    {fonte:<9} {ds[0].date()} → {ds[-1].date()}  ({len(ds)} eventos)")
+
+    # --- enriquecimento ---
+    ruido, grupos = enriq["ruido"], enriq["grupos"]
+    print(f"\nRuído marcado (some da consulta): {len(ruido)}")
+    for nome, termo in ruido:
+        print(f'  - "{nome[:70]}"  [{termo}]')
+    print(f"\nDuplicatas cross-fonte colapsadas: {len(grupos)} grupo(s)")
+    for grupo in grupos:
+        canon = grupo[0]
+        print(f'  - "{(canon["nome"] or "")[:60]}" [{canon["fonte"]}]  ←  ' +
+              "; ".join(f'"{(m["nome"] or "")[:45]}" [{m["fonte"]}]'
+                        for m in grupo[1:]))
+
+    print(f"\nÍndice de busca reconstruído. Duração: {duracao:.0f}s.")
+    print('Pronto — pergunte ao agente: "o que tem hoje em Brasília?"')
+
+
+def main():
+    inicio = time.monotonic()
+    so_enriquecer = "--so-enriquecer" in sys.argv
+
+    con = store.conectar()
+    _checar_schema(con)
+
+    resultados = {}
+    if not so_enriquecer:
+        resultados = _raspar(con, incluir_shotgun="--sem-shotgun" not in sys.argv)
+        if resultados and all("erro" in r for r in resultados.values()):
+            con.close()
+            sys.exit("Todas as fontes falharam — base não atualizada.")
+
+    enriq = enriquecer.aplicar(con)
+    store.reconstruir_fts(con)
+    _relatorio(con, resultados, enriq, time.monotonic() - inicio)
+    con.close()
+
+
+if __name__ == "__main__":
+    main()

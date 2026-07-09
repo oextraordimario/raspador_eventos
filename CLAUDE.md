@@ -25,9 +25,15 @@ considerado tranquilo). Prioridade nº 1 do usuário: validar/manter a raspagem.
 pip install -r requirements.txt
 python -m playwright install chromium          # necessário só p/ o Shotgun
 
-# Pipeline ponta a ponta (raspa as 3 fontes → grava data/eventos.db → roda consultas)
+# Atualização sob demanda — o comando da Fase 0 (raspa as 3 fontes → enriquece
+# com ruído/dedupe → FTS → relatório de saúde). Rodar antes de usar o agente.
+python src/atualizar.py
+python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
+python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
+
+# Demo da PoC (raspa e roda consultas de exemplo; mantida como registro)
 python src/demo.py
-python src/demo.py --sem-shotgun                # pula Shotgun (lento, usa navegador)
+python src/demo.py --sem-shotgun
 python src/demo.py --so-consultar               # só consulta o que já está na base
 
 # Camada de consulta isolada (roda exemplos de buscar_eventos)
@@ -36,15 +42,16 @@ python src/consulta.py
 # MCP server (normalmente quem executa é o cliente de IA; assim é só p/ depurar)
 python src/mcp_server.py
 
-# Teste de fumaça do MCP (age como cliente MCP real; exige base já populada)
-python tests/test_mcp_server.py
+# Testes de fumaça (scripts executáveis, sem framework)
+python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta (base descartável)
+python tests/test_mcp_server.py                 # age como cliente MCP real; exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
 python src/scrapers/discover_sympla.py          # gera capturas_sympla.json (na raiz)
 ```
 
-Não há suíte de testes formal nem linter — `tests/test_mcp_server.py` é um único
-smoke test executável. O interpretador usado no ambiente é `C:/Python313/python.exe`
+Não há suíte de testes formal nem linter — os testes são scripts executáveis em
+`tests/`. O interpretador usado no ambiente é `C:/Python313/python.exe`
 (referenciado em `.mcp.json`).
 
 ## Arquitetura
@@ -57,7 +64,8 @@ em `conectar()`):
 
 ```
 src/
-  store.py  consulta.py  mcp_server.py  demo.py   # núcleo + entrypoints (imports irmãos)
+  store.py  consulta.py  enriquecer.py            # núcleo (imports irmãos)
+  atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
     sympla.py  ingresse.py  shotgun.py  discover_sympla.py
 sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver)
@@ -82,9 +90,11 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
 - `src/scrapers/ingresse.py` — BFF FastAPI `api-site.ingresse.com/events/search`, sem auth,
   schema em `/openapi.json`. Catálogo de Brasília é pequeno.
 - `src/scrapers/shotgun.py` — **exige Playwright**: o site bloqueia HTTP puro (429) e renderiza
-  via RSC. Abre a página da cidade num Chromium headless, extrai slugs
-  `/events/<slug>` (links **relativos** — a regex tem que casar path relativo) e lê
-  o JSON-LD (`MusicEvent`) de cada evento.
+  via RSC. Pagina a listagem da cidade (`/pt/cities/<slug>?page=N`) até esgotar,
+  extrai slugs `/events/<slug>` (links **relativos** — a regex tem que casar path
+  relativo) e lê o JSON-LD (`MusicEvent`) de cada evento.
+- Cada scraper preenche `ULTIMA_RASPAGEM` (módulo) com `coletados`/`total_site`
+  ao fim de `raspar()` — é daí que o `atualizar.py` mede cobertura.
 - `src/scrapers/discover_sympla.py` — ferramenta de reconhecimento, não faz parte do pipeline:
   intercepta XHR/fetch num navegador para achar a API interna quando um site muda.
 
@@ -93,16 +103,23 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   `<fonte>:<id_nativo>` evita colisão) + índice FTS5 (`eventos_fts`) para busca textual.
   Depois de raspar, chame `reconstruir_fts(con)` (roda `sql/reconstruir_fts.sql`) para
   reindexar.
-- `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite)`,
-  todos os args opcionais, retorno JSON-serializável. Esta é a camada canônica de
-  consulta.
+- `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
+  (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas cross-fonte
+  (mesmo dia + nome/local similares). **Marca, não apaga** — quem esconde é a
+  consulta. `aplicar(con)` é idempotente: reseta e recalcula tudo, então mudar
+  regra não exige re-raspar (`python src/atualizar.py --so-enriquecer`).
+- `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite,
+  incluir_ruido)`, todos os args opcionais, retorno JSON-serializável. Por padrão
+  esconde ruído e não-canônicos de dedupe; o canônico traz `outras_urls` (links do
+  mesmo evento nas outras plataformas). Esta é a camada canônica de consulta.
 - `src/mcp_server.py` — FastMCP stdio expondo duas tools finas que delegam para
   `consulta.py`: `buscar_eventos` e `data_atual` (data/hora UTC + janela do fim de
   semana, para o agente montar filtros "hoje"/"neste fim de semana").
 
-Fluxo: `scraper.raspar()` → `store.upsert_eventos()` → `store.reconstruir_fts()` →
-`consulta.buscar_eventos()` → tool MCP → agente de IA. `demo.py` orquestra a parte
-de raspagem+consulta; `mcp_server.py` é o ponto de entrada em uso real.
+Fluxo: `scraper.raspar()` → `store.upsert_eventos()` → `enriquecer.aplicar()` →
+`store.reconstruir_fts()` → `consulta.buscar_eventos()` → tool MCP → agente de IA.
+`atualizar.py` orquestra tudo isso sob demanda; `mcp_server.py` é o ponto de
+entrada em uso real; `demo.py` é a demo da PoC.
 
 ## Convenções e armadilhas
 
@@ -115,9 +132,13 @@ de raspagem+consulta; `mcp_server.py` é o ponto de entrada em uso real.
   não volte a comparar `start_date` como string crua.
 - **Cidade no Shotgun** vem como bairro em `addressLocality`; a cidade é rotulada
   pelo parâmetro de busca (`cidade_label`), não pelo dado bruto.
-- **Ruído conhecido na base:** o filtro `themes=99` do Sympla ainda deixa passar
-  anúncios/cursos; `end_date` às vezes vem inconsistente na origem (filtre por
-  `start_date`). Ver `docs/PROXIMOS_PASSOS.md`.
+- **Ruído conhecido na base:** o filtro `themes=99` do Sympla deixa passar
+  anúncios/cursos — tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra
+  NÃO marca: falso positivo esconde festa real). `end_date` às vezes vem
+  inconsistente na origem (filtre por `start_date`). Ver `docs/PROXIMOS_PASSOS.md`.
+- **Schema mudou? A base é descartável.** `conectar()` só roda `IF NOT EXISTS`;
+  não há migração. Ao alterar `sql/schema.sql`, apague `data/eventos.db` e
+  re-raspe (`atualizar.py` detecta base antiga e instrui isso).
 - **MCP / FastMCP:** retorno `list` vira `structuredContent["result"]` + um content
   block por item; retorno `dict` vira content block único. `tests/test_mcp_server.py`
   lida com os dois formatos.
@@ -136,6 +157,6 @@ Não faça commit sem pedido. Mensagens em português.
 - `docs/PRD_POC.md` — registro histórico da prova de conceito (validação da raspagem).
 - `docs/PROXIMOS_PASSOS.md` — backlog priorizado (qualidade das respostas do agente,
   classificação de gênero, cobertura/frescor, migração p/ Postgres local).
-- `docs/specs/` — specs técnicas de implementação (o "como" de cada item, um arquivo
-  por spec). Ver `docs/specs/README.md`.
+- `docs/specs/` — specs técnicas de implementação (o "como" de cada item, uma pasta
+  datada por spec com `spec.md`). Ver `docs/specs/README.md`.
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.
