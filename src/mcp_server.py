@@ -3,7 +3,7 @@
 Transporte stdio — compatível com Claude Code, Claude Desktop e Codex.
 As tools são finas: delegam para a camada de consulta (consulta.py).
 
-Rodar manualmente (para depurar): python mcp_server.py
+Rodar manualmente (para depurar): python src/mcp_server.py
 Em uso normal, quem executa é o cliente de IA, via a config de MCP.
 """
 

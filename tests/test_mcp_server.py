@@ -14,7 +14,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 RAIZ = Path(__file__).resolve().parent.parent
-SERVER = RAIZ / "mcp_server.py"
+SERVER = RAIZ / "src" / "mcp_server.py"
 
 
 def dados(result):

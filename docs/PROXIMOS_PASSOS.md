@@ -30,7 +30,7 @@ conferências. Melhorias:
 - **Deduplicação cross-fonte**: o mesmo evento pode aparecer em duas plataformas.
 
 ## 4. Persistência em Postgres (Neon, na Fase 1)
-Migrar `store.py` de SQLite para **Postgres gerenciado (Neon, free tier)** — trocar o
+Migrar `src/store.py` de SQLite para **Postgres gerenciado (Neon, free tier)** — trocar o
 driver e o SQL (FTS5 → `tsvector`/`pg_trgm`; o `norm_ts` migra junto) e revalidar. É o
 **portão de entrada da Fase 1** do MVP: acontece junto com a subida do acesso remoto,
 quando a base precisa ficar online. Na Fase 0 o SQLite local segue como store. Ver
@@ -40,6 +40,6 @@ quando a base precisa ficar online. Na Fase 0 o SQLite local segue como store. V
 - `end_date` inconsistente em algum evento do Sympla (começa em 2025, "termina" em
   2035 — erro na origem). Não afeta consultas que filtram por `start_date`.
 - Datas em formatos mistos entre fontes (Sympla/Ingresse `+00:00` vs Shotgun
-  `.000Z`) — já tratado com normalização em `consulta.py`.
+  `.000Z`) — já tratado com normalização em `src/consulta.py`.
 - Shotgun grava o **bairro** em `addressLocality`; a cidade é rotulada pelo
-  parâmetro de busca no `shotgun.py`.
+  parâmetro de busca no `src/scrapers/shotgun.py`.

@@ -8,7 +8,8 @@ para consulta por texto/data/cidade, que e o que um agente de IA precisa.
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "eventos.db"
+# A base fica na raiz do repo (um nivel acima de src/), nao dentro do codigo-fonte.
+DB_PATH = Path(__file__).resolve().parent.parent / "eventos.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS eventos (

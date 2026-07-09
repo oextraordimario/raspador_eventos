@@ -1,6 +1,6 @@
 # Como testar a Frente B (MCP) com um agente de IA
 
-O `mcp_server.py` expõe a base de eventos como duas tools, via MCP (transporte
+O `src/mcp_server.py` expõe a base de eventos como duas tools, via MCP (transporte
 stdio) — compatível com **Claude Code**, **Claude Desktop** e **Codex**.
 
 Tools disponíveis:
@@ -16,7 +16,7 @@ Tools disponíveis:
 ```bash
 pip install -r requirements.txt
 python -m playwright install chromium   # se ainda não fez
-python demo.py                          # popula a base eventos.db
+python src/demo.py                      # popula a base eventos.db
 ```
 
 Verificação rápida de que o server está saudável (opcional):
@@ -58,7 +58,7 @@ Adicione o bloco `mcpServers`:
   "mcpServers": {
     "eventos-brasilia": {
       "command": "C:/Python313/python.exe",
-      "args": ["C:/Users/mgbju/Documents/GitHub/raspador_eventos/mcp_server.py"]
+      "args": ["C:/Users/mgbju/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
     }
   }
 }
@@ -76,7 +76,7 @@ Edite (crie se não existir) `C:\Users\mgbju\.codex\config.toml` e adicione:
 ```toml
 [mcp_servers.eventos-brasilia]
 command = "C:/Python313/python.exe"
-args = ["C:/Users/mgbju/Documents/GitHub/raspador_eventos/mcp_server.py"]
+args = ["C:/Users/mgbju/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
 ```
 
 Salve e reinicie o Codex.
@@ -102,6 +102,6 @@ O agente deve chamar `data_atual` (quando o período for relativo) e
 - **Server não conecta / "module not found: mcp":** o cliente está usando outro
   Python. Confirme que `C:/Python313/python.exe` é o que tem as dependências
   (`pip install -r requirements.txt` nesse interpretador).
-- **Respostas vazias:** a base pode estar vazia — rode `python demo.py`.
+- **Respostas vazias:** a base pode estar vazia — rode `python src/demo.py`.
 - **Datas erradas ("fim de semana"):** o agente deve chamar `data_atual` primeiro;
   se não chamar, peça explicitamente "considerando a data de hoje".

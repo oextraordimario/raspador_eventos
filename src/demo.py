@@ -4,18 +4,16 @@ Fontes: Sympla, Ingresse e Shotgun, unificadas no mesmo schema.
 Escopo do PoC: festas/baladas em Brasília.
 
 Uso:
-    python demo.py                 # raspa as 3 fontes e roda consultas de exemplo
-    python demo.py --sem-shotgun   # pula o Shotgun (lento, usa navegador)
-    python demo.py --so-consultar  # pula a raspagem, so consulta o que ja tem
+    python src/demo.py                 # raspa as 3 fontes e roda consultas de exemplo
+    python src/demo.py --sem-shotgun   # pula o Shotgun (lento, usa navegador)
+    python src/demo.py --so-consultar  # pula a raspagem, so consulta o que ja tem
 """
 
 import sys
 from datetime import datetime, timezone
 
 import store
-import sympla
-import ingresse
-import shotgun
+from scrapers import sympla, ingresse, shotgun
 
 
 def coletar(incluir_shotgun=True):

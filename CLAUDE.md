@@ -26,21 +26,21 @@ pip install -r requirements.txt
 python -m playwright install chromium          # necessário só p/ o Shotgun
 
 # Pipeline ponta a ponta (raspa as 3 fontes → grava eventos.db → roda consultas)
-python demo.py
-python demo.py --sem-shotgun                    # pula Shotgun (lento, usa navegador)
-python demo.py --so-consultar                   # só consulta o que já está na base
+python src/demo.py
+python src/demo.py --sem-shotgun                # pula Shotgun (lento, usa navegador)
+python src/demo.py --so-consultar               # só consulta o que já está na base
 
 # Camada de consulta isolada (roda exemplos de buscar_eventos)
-python consulta.py
+python src/consulta.py
 
 # MCP server (normalmente quem executa é o cliente de IA; assim é só p/ depurar)
-python mcp_server.py
+python src/mcp_server.py
 
 # Teste de fumaça do MCP (age como cliente MCP real; exige base já populada)
 python tests/test_mcp_server.py
 
 # Redescobrir a API interna do Sympla, se ela mudar
-python discover_sympla.py                       # gera capturas_sympla.json
+python src/scrapers/discover_sympla.py          # gera capturas_sympla.json (na raiz)
 ```
 
 Não há suíte de testes formal nem linter — `tests/test_mcp_server.py` é um único
@@ -51,27 +51,42 @@ smoke test executável. O interpretador usado no ambiente é `C:/Python313/pytho
 
 Duas frentes acopladas por uma base SQLite única (`eventos.db`, gitignorada):
 
-**Frente A — Raspagem.** Um módulo por fonte, cada um com uma função `raspar(...)`
-que devolve uma lista de dicts já normalizados para o schema unificado:
-- `sympla.py` — API JSON interna de descoberta (`discovery-bff/search`), sem
+Todo o código Python vive em `src/` (a base `eventos.db` fica na **raiz** do repo, um
+nível acima — resolvida via `Path(__file__).parent.parent` em `store.py`):
+
+```
+src/
+  store.py  consulta.py  mcp_server.py  demo.py   # núcleo + entrypoints (imports irmãos)
+  scrapers/
+    sympla.py  ingresse.py  shotgun.py  discover_sympla.py
+tests/   docs/
+```
+
+Rodar entrypoints a partir da **raiz** do repo (ex.: `python src/demo.py`); o
+`sys.path[0]` vira `src/`, então `import store`/`import consulta` resolvem como irmãos,
+e `demo.py` importa os scrapers via `from scrapers import ...`.
+
+**Frente A — Raspagem.** Um módulo por fonte em `src/scrapers/`, cada um com uma função
+`raspar(...)` que devolve uma lista de dicts já normalizados para o schema unificado:
+- `src/scrapers/sympla.py` — API JSON interna de descoberta (`discovery-bff/search`), sem
   navegador. Filtra por tema `99` ("Festas e Shows"). Paginado.
-- `ingresse.py` — BFF FastAPI `api-site.ingresse.com/events/search`, sem auth,
+- `src/scrapers/ingresse.py` — BFF FastAPI `api-site.ingresse.com/events/search`, sem auth,
   schema em `/openapi.json`. Catálogo de Brasília é pequeno.
-- `shotgun.py` — **exige Playwright**: o site bloqueia HTTP puro (429) e renderiza
+- `src/scrapers/shotgun.py` — **exige Playwright**: o site bloqueia HTTP puro (429) e renderiza
   via RSC. Abre a página da cidade num Chromium headless, extrai slugs
   `/events/<slug>` (links **relativos** — a regex tem que casar path relativo) e lê
   o JSON-LD (`MusicEvent`) de cada evento.
-- `discover_sympla.py` — ferramenta de reconhecimento, não faz parte do pipeline:
+- `src/scrapers/discover_sympla.py` — ferramenta de reconhecimento, não faz parte do pipeline:
   intercepta XHR/fetch num navegador para achar a API interna quando um site muda.
 
 **Frente B — Consulta por IA.**
-- `store.py` — schema SQLite unificado + `upsert_eventos` (chave `<fonte>:<id_nativo>`
+- `src/store.py` — schema SQLite unificado + `upsert_eventos` (chave `<fonte>:<id_nativo>`
   evita colisão) + índice FTS5 (`eventos_fts`) para busca textual. Depois de raspar,
   chame `reconstruir_fts(con)` para reindexar.
-- `consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite)`,
+- `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite)`,
   todos os args opcionais, retorno JSON-serializável. Esta é a camada canônica de
   consulta.
-- `mcp_server.py` — FastMCP stdio expondo duas tools finas que delegam para
+- `src/mcp_server.py` — FastMCP stdio expondo duas tools finas que delegam para
   `consulta.py`: `buscar_eventos` e `data_atual` (data/hora UTC + janela do fim de
   semana, para o agente montar filtros "hoje"/"neste fim de semana").
 
