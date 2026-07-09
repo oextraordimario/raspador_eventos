@@ -5,25 +5,31 @@
 -- ou no cliente sqlite3 apontando para data/eventos.db.
 --
 -- Idempotente: todo objeto usa "IF NOT EXISTS", entao rodar de novo nao quebra nada.
+--
+-- Descricoes de coluna: SQLite nao tem COMMENT ON / COMMENT inline como Postgres/MySQL.
+-- A forma idiomatica sao os comentarios "--" abaixo, que o SQLite preserva verbatim em
+-- sqlite_master.sql -- visiveis no DDL (DBeaver: aba DDL; cli: .schema). Como a tabela
+-- so guarda o CREATE de quando foi criada, alterar estas descricoes exige recriar a
+-- tabela para o banco ja existente refletir a mudanca.
 
 CREATE TABLE IF NOT EXISTS eventos (
-    id            TEXT PRIMARY KEY,   -- "<fonte>:<id_nativo>", evita colisao entre fontes
-    fonte         TEXT NOT NULL,      -- sympla | ingresse | shotgun
-    id_nativo     TEXT NOT NULL,
-    nome          TEXT NOT NULL,
-    start_date    TEXT,               -- ISO 8601
-    end_date      TEXT,               -- ISO 8601
-    cidade        TEXT,
-    estado        TEXT,
-    local_nome    TEXT,
-    endereco      TEXT,
-    lat           REAL,
-    lon           REAL,
-    categoria     TEXT,               -- tipo/tema quando disponivel
-    organizador   TEXT,
-    url           TEXT,
-    imagem        TEXT,
-    raspado_em    TEXT NOT NULL
+    id            TEXT PRIMARY KEY,   -- chave unica "<fonte>:<id_nativo>", evita colisao entre fontes
+    fonte         TEXT NOT NULL,      -- plataforma de origem: sympla | ingresse | shotgun
+    id_nativo     TEXT NOT NULL,      -- id do evento na plataforma de origem
+    nome          TEXT NOT NULL,      -- titulo do evento
+    start_date    TEXT,               -- inicio, ISO 8601 (formatos mistos entre fontes; normalizar antes de comparar)
+    end_date      TEXT,               -- fim, ISO 8601 (as vezes inconsistente na origem; filtrar por start_date)
+    cidade        TEXT,               -- cidade (no Shotgun vem do parametro de busca, nao do dado bruto)
+    estado        TEXT,               -- UF (ex.: DF)
+    local_nome    TEXT,               -- nome do local / casa de festa
+    endereco      TEXT,               -- endereco textual do local
+    lat           REAL,               -- latitude (quando disponivel)
+    lon           REAL,               -- longitude (quando disponivel)
+    categoria     TEXT,               -- tipo/tema informado pela fonte (quando disponivel)
+    organizador   TEXT,               -- produtor/organizador do evento
+    url           TEXT,               -- link do evento na plataforma de origem
+    imagem        TEXT,               -- URL da imagem / capa do evento
+    raspado_em    TEXT NOT NULL       -- timestamp ISO 8601 de quando foi raspado
 );
 
 CREATE INDEX IF NOT EXISTS idx_eventos_start ON eventos(start_date);
