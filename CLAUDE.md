@@ -134,8 +134,9 @@ entrada em uso real; `demo.py` é a demo da PoC.
   pelo parâmetro de busca (`cidade_label`), não pelo dado bruto.
 - **Ruído conhecido na base:** o filtro `themes=99` do Sympla deixa passar
   anúncios/cursos — tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra
-  NÃO marca: falso positivo esconde festa real). `end_date` às vezes vem
-  inconsistente na origem (filtre por `start_date`). Ver `docs/PROXIMOS_PASSOS.md`.
+  NÃO marca: falso positivo esconde festa real; termos já testados e descartados em
+  `docs/backlogs/rejeitado.yaml`). `end_date` às vezes vem inconsistente na origem
+  (filtre por `start_date`).
 - **Schema mudou? A base é descartável.** `conectar()` só roda `IF NOT EXISTS`;
   não há migração. Ao alterar `sql/schema.sql`, apague `data/eventos.db` e
   re-raspe (`atualizar.py` detecta base antiga e instrui isso).
@@ -155,8 +156,10 @@ Não faça commit sem pedido. Mensagens em português.
 - `docs/PRD_MVP.md` — **fonte da verdade atual**: visão do MVP, escopo, moat,
   modelo de distribuição (híbrido/invisível-first), roadmap por fases (0/1/2).
 - `docs/PRD_POC.md` — registro histórico da prova de conceito (validação da raspagem).
-- `docs/PROXIMOS_PASSOS.md` — backlog priorizado (qualidade das respostas do agente,
-  classificação de gênero, cobertura/frescor, migração p/ Postgres local).
+- `docs/backlogs/` — backlog em dois YAMLs filtráveis: `nao-iniciado.yaml` (itens
+  abertos, com campo `status`: pendente/não-iniciado) e `rejeitado.yaml` (testado e
+  descartado). Implementado de verdade sai da lista (git/spec registram). Substitui o
+  antigo `docs/PROXIMOS_PASSOS.md` (hoje só um ponteiro).
 - `docs/specs/` — specs técnicas de implementação (o "como" de cada item, uma pasta
   datada por spec com `spec.md`). Ver `docs/specs/README.md`.
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.

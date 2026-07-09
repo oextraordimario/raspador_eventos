@@ -1,0 +1,45 @@
+# Rejeitado — abordagens testadas e descartadas (fonte única)
+#
+# Mesmo schema do nao-iniciado.yaml, com duas diferenças:
+#   - sem `status` (o estágio É o arquivo) e sem prioridade/rank/esforco
+#     (não se prioriza o que foi descartado);
+#   - `data` = data da rejeição; o motivo vive no `detalhe`.
+# Item que veio do backlog mantém o código NI-##; rejeição que nasceu rejeitada
+# (testada direto e descartada) usa o namespace RJ-##.
+#
+# Registro pra não re-tentar sem motivo novo.
+
+- codigo: RJ-01
+  eixo: enriquecimento
+  fase: 0
+  titulo: "Termos de ruído descartados na calibração v1: lancamento, encontro, feira, culto"
+  resumo: "testados contra a base real (328 eventos) na execução da Fase 0 e rejeitados por marcarem vida noturna de verdade"
+  data: 2026-07-09
+  depende_de: []
+  relacionado: []
+  caso_real: ["'Lançamento do Álbum O Mago' (show) e 'Lançamento Grupo Bendito' (pagode) seriam marcados por 'lancamento'", "'Encontro de sambistas' seria marcado por 'encontro'", "'SEXTA-FEIRA' contém 'feira' mesmo com fronteira de palavra", "'Culto Confessions II' tem cara de festa/marca, não de culto religioso"]
+  detalhe: |
+    Política do filtro v1: falso positivo esconde festa real, é pior que deixar ruído
+    passar. Por termo:
+
+    - **lancamento** — o alvo real eram as pré-candidaturas políticas; **candidatura**
+      entrou no lugar e pega só elas.
+    - **encontro** — o caso que motivou ("Encontro de Clássicos" — carros antigos)
+      ficou sem marca, aceito como ruído residual.
+    - **feira** — impossível: o nome normalizado de "SEXTA-FEIRA" vira "sexta feira" e
+      a palavra casa sozinha.
+    - **culto** — na dúvida, não marcar.
+
+- codigo: RJ-02
+  eixo: consulta
+  fase: 0
+  titulo: "'dj' como termo de busca / sinal de música eletrônica"
+  resumo: "praticamente toda festa tem 'DJ Fulano' no nome; buscar 'dj' devolve piseiro e pagode — descartado como sinal de gênero"
+  data: 2026-07-09
+  depende_de: []
+  relacionado: [NI-05]
+  caso_real: ["dogfooding 2026-07-09: 'dj' retornou '...GALA DO PISEIRO - DJ EDDY VIANA' (piseiro) e 'Vem de pagode ... Dj Kaka' (pagode)"]
+  detalhe: |
+    Descartado no teste de "eletrônico no fim de semana". O caminho para gênero é o
+    campo classificado (NI-05), alimentado por descrição (NI-02/NI-03) e Instagram
+    (NI-06) — não heurística sobre o nome.
