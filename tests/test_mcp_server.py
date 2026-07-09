@@ -16,6 +16,9 @@ from mcp.client.stdio import stdio_client
 RAIZ = Path(__file__).resolve().parent.parent
 SERVER = RAIZ / "src" / "mcp_server.py"
 
+sys.path.insert(0, str(RAIZ / "src"))
+import enriquecer  # noqa: E402  (p/ conferir que ruído não vaza pela tool)
+
 
 def dados(result):
     """Extrai o payload de um CallToolResult, lidando com os dois formatos do
@@ -62,6 +65,13 @@ async def main():
                 {"data_inicio": fds["inicio"], "data_fim": fds["fim"], "limite": 100}))
             print(f"buscar_eventos(fim de semana {fds['inicio'][:10]}"
                   f"..{fds['fim'][:10]}): {len(fim_semana)} eventos")
+
+            # ruído (anúncio/curso) não pode vazar pela tool
+            vazados = [e["nome"] for e in eventos + fim_semana
+                       if enriquecer._RUIDO_RE.search(
+                           enriquecer._normalizar_texto(e["nome"]))]
+            assert not vazados, f"ruído vazou pela tool: {vazados}"
+            print("nenhum nome de ruído nas respostas (ok)")
 
             # caso vazio
             vazio = dados(await session.call_tool(

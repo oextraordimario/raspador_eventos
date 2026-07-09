@@ -35,8 +35,13 @@ def _norm_ts(iso):
 
 
 def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
-                   limite=20):
+                   limite=20, incluir_ruido=False):
     """Busca eventos na base unificada.
+
+    Por padrao esconde o que o enriquecimento v1 marcou: eventos com ruido=1
+    (anuncio/curso) e membros nao-canonicos de grupos de dedupe cross-fonte.
+    O canonico de um grupo carrega em `outras_urls` os links dos membros
+    colapsados (o mesmo evento nas outras plataformas).
 
     Args:
         texto: busca textual (FTS) sobre nome/categoria. Aceita a sintaxe do
@@ -45,6 +50,8 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
         data_inicio: limite inferior (ISO) sobre start_date, inclusivo.
         data_fim: limite superior (ISO) sobre start_date, inclusivo.
         limite: numero maximo de resultados (ordenados por start_date).
+        incluir_ruido: True devolve tambem os marcados como ruido (depuracao
+            das regras; nao exposto na tool MCP).
 
     Returns:
         Lista de dicts (nunca sqlite3.Row), ordenada por start_date.
@@ -54,6 +61,10 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     con.create_function("norm_ts", 1, _norm_ts, deterministic=True)
 
     where, params = [], []
+    if not incluir_ruido:
+        where.append("e.ruido = 0")
+    # Duplicata cross-fonte: so o canonico responde pelo grupo.
+    where.append("e.dedupe_canonico = 1")
     if texto:
         where.append("e.rowid IN (SELECT rowid FROM eventos_fts "
                      "WHERE eventos_fts MATCH ?)")
@@ -68,7 +79,11 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
         where.append("norm_ts(e.start_date) <= norm_ts(?)")
         params.append(data_fim)
 
-    sql = f"SELECT {', '.join(CAMPOS)} FROM eventos e"
+    # outras_urls: links do mesmo evento nas outras plataformas (NULL sem grupo).
+    outras = ("(SELECT GROUP_CONCAT(o.url) FROM eventos o "
+              "WHERE o.dedupe_grupo = e.dedupe_grupo AND o.id != e.id) "
+              "AS outras_urls")
+    sql = f"SELECT {', '.join(CAMPOS)}, {outras} FROM eventos e"
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY norm_ts(e.start_date) LIMIT ?"

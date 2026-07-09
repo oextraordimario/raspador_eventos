@@ -29,7 +29,14 @@ CREATE TABLE IF NOT EXISTS eventos (
     organizador   TEXT,               -- produtor/organizador do evento
     url           TEXT,               -- link do evento na plataforma de origem
     imagem        TEXT,               -- URL da imagem / capa do evento
-    raspado_em    TEXT NOT NULL       -- timestamp ISO 8601 de quando foi raspado
+    raspado_em    TEXT NOT NULL,      -- timestamp ISO 8601 de quando foi raspado
+
+    -- Colunas de enriquecimento v1 (preenchidas por src/enriquecer.py apos o upsert;
+    -- os scrapers nao escrevem aqui). Recalculadas do zero a cada atualizacao.
+    ruido           INTEGER NOT NULL DEFAULT 0,  -- 1 = nao e vida noturna (anuncio/curso/etc.); a consulta esconde
+    ruido_motivo    TEXT,                        -- regra que marcou (a palavra-chave), para auditoria
+    dedupe_grupo    TEXT,                        -- id do grupo de duplicatas cross-fonte (= id do evento canonico); NULL = sem duplicata
+    dedupe_canonico INTEGER NOT NULL DEFAULT 1   -- 1 = registro que representa o grupo na consulta
 );
 
 CREATE INDEX IF NOT EXISTS idx_eventos_start ON eventos(start_date);
