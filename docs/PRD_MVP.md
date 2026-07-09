@@ -4,7 +4,7 @@
 > vai a partir da PoC validada.
 > **Fonte da verdade:** este documento. O `docs/PRD_POC.md` vira registro histórico
 > da prova de conceito e não deve mais ser usado para planejar.
-> **Última atualização:** 2026-07-06
+> **Última atualização:** 2026-07-09
 
 ---
 
@@ -15,6 +15,15 @@ site em site** — Sympla, Ingresse, Shotgun, Instagram — cada um com sua busc
 capenga, sem linguagem natural, e no caso do Sympla com uma **UX sofrível**. Ninguém
 tem paciência de varrer tudo, então a pessoa vê só um pedaço do que está rolando e
 decide no escuro.
+
+**"Mas por que não simplesmente perguntar pro ChatGPT ou pro Claude?"** É a objeção
+óbvia — e hoje ela não se sustenta. Perguntar direto ao agente *"o que tem de festa em
+Brasília hoje?"* rende resultado fraco: ele **não acha tudo**, se confunde nas buscas,
+mistura datas e dá respostas **levemente erradas**. Não é burrice do agente — é que os
+dados nas plataformas são **desestruturados e não otimizados para IA**. O raspador é
+justamente o **meio-do-caminho**: trata os dados das fontes e os entrega num formato que
+o agente entende de primeira. Sem ele, o agente pesquisa no escuro; com ele, responde
+sobre uma base limpa e estruturada. **Essa é a razão de existir do produto.**
 
 A proposta do MVP é fazer isso **desaparecer dentro do agente de IA que a pessoa já
 usa**. Ela pergunta — *"quais festas de pagode tem neste fim de semana em Brasília?"* —
@@ -31,7 +40,13 @@ o conteúdo do jeito que já encontra qualquer coisa na web. Esse é o norte
 
 **Dentro (MVP lançado):**
 - **Cidade:** apenas **Brasília (DF)**.
-- **Tipo de evento:** **festas, baladas e shows** (vida noturna / música).
+- **Tipos de evento:**
+  - **festas, baladas e shows** (vida noturna / música) — **núcleo**;
+  - **filmes em cartaz nos cinemas** (Cinemark, Kinoplex, etc.) — entra como
+    **subetapa separada** por adicionar complexidade (novas fontes a raspar), mas faz
+    parte do MVP: descobrir *"o que está passando nos cinemas de Brasília hoje"* tem o
+    **mesmo problema de fundo** (dados espalhados, busca ruim) e é algo que o autor
+    quer usar no dogfooding.
 
 **Fora (por ora):**
 - Outras cidades. **Porém o schema nasce cidade-aware** — nada hardcoded para
@@ -75,11 +90,26 @@ antes de provar valor:
   (o `themes=99` do Sympla deixa passar anúncio/curso). Barato, sem LLM. Limitação
   conhecida: "festa de pagode" depende de o nome do evento conter a palavra —
   cobertura pior.
-- **v2 — LLM.** Um LLM barato (ex.: Haiku) na ingestão classifica **gênero/vibe**
-  (pagode, techno, sertanejo, funk, forró...), responde "isso é vida noturna de
-  verdade? sim/não" e ajuda no dedupe. É o que faz "festa de pagode" funcionar de
-  fato e o que alimenta a personalização. Entra quando já houver uso que justifique
-  o custo de LLM por evento.
+- **v2 — LLM.** Um LLM **capaz** roda na ingestão para classificar **gênero/vibe**
+  (pagode, techno, sertanejo, funk, forró...), responder "isso é vida noturna de
+  verdade? sim/não" e ajudar no dedupe. É o que faz "festa de pagode" funcionar de fato
+  e o que alimenta a personalização. Duas decisões travadas aqui:
+  - **Modelo: Sonnet, não Haiku.** Nos testes do autor em tarefas parecidas, o Haiku
+    entregou qualidade **bem pior** e a economia de custo foi **irrisória** — não
+    compensa.
+  - **Execução: por subagente no Claude Code CLI (ou equivalente), não por API paga.**
+    O autor já tem assinatura Anthropic; rodar via API dobraria o custo sem motivo.
+  Entra quando já houver uso/insumo que justifique — na prática, junto da etapa de
+  Instagram abaixo (é ali que o classificador ganha texto rico para trabalhar).
+
+- **Contexto externo — Instagram (fundamental, porém trabalhoso).** Muita festa tem
+  página **enxuta** na plataforma de ingressos: descrição pobre que não deixa claro o
+  estilo do evento. Na prática, para entender do que se trata, é preciso ir ao
+  **Instagram da festa e/ou da casa**. Sem esse contexto, o raspador dificilmente é
+  *realmente* útil para vida noturna — por isso precisa ser **testado já no MVP**. Mas
+  fica como **última etapa**, por dar bastante trabalho (achar o @ certo, raspar,
+  alimentar o classificador). O texto do Instagram é o principal insumo do
+  enriquecimento por LLM acima.
 
 ## 4. Modelo de distribuição
 
@@ -129,10 +159,11 @@ o alicerce é direção-agnóstico e as portas são camadas finas em cima dele.
 
 ```
   WRITE (raspagem — processo pesado, Playwright/Chromium)
-    [ Sympla ]  [ Ingresse ]  [ Shotgun ]
-         └───────────┬───────────┘
-                     ▼
-        raspar → normalizar → enriquecer (regras v1 / LLM v2)
+    eventos:   [ Sympla ] [ Ingresse ] [ Shotgun ]   [ Cinemark / Kinoplex … ]
+    contexto:  [ Instagram da festa / da casa ]  (última etapa — enriquecimento)
+         └────────────────────┬────────────────────┘
+                              ▼
+        raspar → normalizar → enriquecer (regras v1 / LLM v2: Sonnet via subagente)
                      │  UPSERT
                      ▼
   ┌─────────────────────────────────────────────┐
@@ -158,7 +189,9 @@ o alicerce é direção-agnóstico e as portas são camadas finas em cima dele.
 - **Read-path** é onde o serverless brilha (escala a zero, barato, sempre no ar).
 - **A técnica de raspagem** (herdada da PoC): interceptar a API JSON interna do
   front, não parsear HTML. Sympla e Ingresse via HTTP puro; **Shotgun exige
-  Playwright** (bloqueia HTTP puro com 429 e renderiza via RSC).
+  Playwright** (bloqueia HTTP puro com 429 e renderiza via RSC). **Cinemas** (Cinemark,
+  Kinoplex...) e **Instagram** são frentes novas, com técnica a mapear — Instagram em
+  especial é frágil e resistente à raspagem (por isso, última etapa).
 
 ## 6. Roadmap por fases
 
@@ -169,7 +202,8 @@ constrói a fase seguinte no escuro.
 
 A porta já existe: o **MCP stdio local**. O consumidor é o **próprio agente do autor**.
 - **Escopo:** melhorar cobertura/qualidade da raspagem das 3 fontes; regras v1 de
-  dedupe + filtro de ruído; rodar o scraper **na mão, 1x/dia**; base **SQLite local**.
+  dedupe + filtro de ruído; rodar o scraper **na mão, sob demanda** (só quando for
+  usar — sem cadência fixa); base **SQLite local**.
 - **Sem** GitHub Actions, **sem** serverless, **sem** porta pública, **sem** nuvem paga.
 - **Critério de sucesso:** nas próximas semanas, quando o autor quiser saber "o que tem
   hoje em Brasília", ele **abre o agente em vez de abrir o Sympla — e confia na
@@ -178,25 +212,49 @@ A porta já existe: o **MCP stdio local**. O consumidor é o **próprio agente d
 ### Fase 1 — Primeira porta pública (quando a Fase 0 provar valor)
 
 - **Escopo:** subir o alicerce hospedado — migrar a base de SQLite para **Postgres
-  gerenciado (Neon, free tier)**; automatizar a raspagem via **GitHub Actions**; expor
-  a base como **MCP remoto HTTP** (connector). Aumentar cadência se necessário.
+  gerenciado (Neon, free tier)**; automatizar a raspagem via **GitHub Actions** (aqui a
+  cadência passa a ser **1x/dia**); expor a base como **MCP remoto HTTP** (connector).
 - **Portão técnico:** a migração SQLite→Postgres (FTS5 → `tsvector`/`pg_trgm`;
   o `norm_ts` do `consulta.py` migra junto). Retrabalho pontual, mas real.
+- **Instrumentação (parte do escopo):** o MCP remoto precisa **registrar uso**
+  (quem/quando consultou, ainda que anonimizado) — sem medição não dá para saber se o
+  critério abaixo fechou. Instrumentar é requisito, não enfeite.
 - **Critério de sucesso:** **um conhecido** (amigo a quem o autor mostrou o sistema)
-  instala o MCP e passa a usar.
+  instala o MCP e passa a usar — **e o autor consegue comprovar esse uso pela
+  instrumentação**, não por "acho que ele usou".
 
 ### Fase 2 — Invisível-first de verdade (superfície achável)
 
 - **Escopo:** páginas públicas por evento e por lista (cidade/gênero/data) com **JSON-LD
   `schema.org/Event`**, `llms.txt` e sitemap, servidas pela camada serverless. Semear
   descoberta (diretórios, `llms.txt` divulgado, links).
+- **Instrumentação (parte do escopo):** medir **acesso de terceiros desconhecidos** —
+  analytics das páginas públicas e/ou logs do MCP que distingam um uso que não veio do
+  autor nem de conhecidos. Sem isso, "um estranho usou" é palpite.
 - **Critério de sucesso:** **um estranho** — alguém que o autor não conhece — descobre
-  o sistema organicamente (via busca do próprio agente) e usa.
+  o sistema organicamente (via busca do próprio agente) e usa, **com o acesso
+  registrado pela instrumentação**.
+
+### Trilha de dados (dentro do MVP, sequenciada por esforço)
+
+As fases 0/1/2 acima são o **eixo de distribuição** (quem descobre/usa). Em paralelo,
+a **cobertura de dados** cresce numa trilha própria, toda dogfoodada pelo autor e
+ordenada do mais barato ao mais trabalhoso:
+
+1. **Núcleo — festas/baladas/shows** (Sympla, Ingresse, Shotgun). É o que já existe;
+   base da Fase 0.
+2. **Cinema** (Cinemark, Kinoplex...): novas fontes, mesmo schema cidade-aware. Subetapa
+   separada por adicionar complexidade, mas ainda no MVP.
+3. **Instagram + classificação por LLM (última etapa do MVP):** raspar o Instagram da
+   festa/casa para suprir a descrição pobre da plataforma de ingressos, e classificar
+   gênero/vibe com **Sonnet via subagente** (é aqui que o enriquecimento v2 primeiro
+   entra em produção — dogfoodado). A mais trabalhosa, mas **necessária** para o
+   raspador ser de fato útil em vida noturna.
 
 ### Depois (fora do MVP)
 
-- **Enriquecimento por LLM (v2):** gênero/vibe, filtro de ruído fino, dedupe assistido
-  → destrava "festa de pagode" e a personalização.
+- **Escalar o enriquecimento por LLM** para todo o catálogo com cadência/custo
+  gerenciados (o v2 já terá estreado na trilha de dados acima, no recorte de Instagram).
 - **Expansão multi-cidade:** acender novas cidades no schema já cidade-aware.
 - **Cara própria** para humanos, se provar vantagem.
 - Aumento de frescor/cadência conforme o uso crescer.
@@ -209,11 +267,17 @@ A porta já existe: o **MCP stdio local**. O consumidor é o **próprio agente d
   (não antes — Actions substitui o "rodar na mão", não o precede).
 - **Serve:** serverless gerenciado (read-path). Write-path fica fora do serverless por
   causa do Playwright.
-- **Cadência:** **1x/dia** por ora; aumentar conforme o projeto crescer. Prioridade é
-  provar com dados reais, não frescor de minuto.
+- **Cadência:** **sob demanda** na Fase 0 (atualiza só quando for usar); **1x/dia** a
+  partir da Fase 1; aumentar conforme o projeto crescer. Prioridade é provar com dados
+  reais, não frescor de minuto.
 - **Custo:** só **free tier + soluções locais**. Nada de cloud paga nas próximas semanas.
-- **Enriquecimento:** faseado — regras na v1, LLM na v2.
-- **Escopo:** Brasília-only, festas/baladas/shows, schema cidade-aware.
+- **Enriquecimento:** faseado — regras na v1; LLM na v2 com **Sonnet** (não Haiku),
+  rodado **por subagente no Claude Code CLI** (aproveitando a assinatura), **não por
+  API paga**.
+- **Escopo:** Brasília-only; **festas/baladas/shows + cinema**; **Instagram** como fonte
+  de contexto na última etapa; schema cidade-aware.
+- **Medição de uso:** as Fases 1 e 2 só fecham com **instrumentação** que comprove uso
+  de terceiros — critério não vale por percepção.
 
 ## 8. Riscos e mitigações
 
@@ -234,17 +298,26 @@ A porta já existe: o **MCP stdio local**. O consumidor é o **próprio agente d
   vezes inconsistente na origem (filtrar por `start_date`). Mitigação: filtro v1 por
   regra, filtro v2 por LLM.
 - **Frescor vs. custo:** cadência que mantém útil sem abusar das fontes nem gerar custo.
-  Mitigação: 1x/dia é suficiente para vida noturna no MVP.
+  Mitigação: na Fase 0 basta atualizar **sob demanda**; 1x/dia a partir da Fase 1 é
+  suficiente para vida noturna.
+- **Instagram frágil/bloqueado:** é a fonte mais resistente à raspagem (login wall,
+  bloqueios, layout volátil). Mitigação: tratar como **última etapa**, com escopo
+  mínimo (só o suficiente para inferir o estilo) e tolerância a falha — se um perfil
+  não raspar, o evento ainda entra pela plataforma de ingressos.
+- **Uso de terceiros não medido:** sem instrumentação, "um conhecido/estranho usou"
+  vira achismo e as Fases 1 e 2 nunca fecham de verdade. Mitigação: instrumentação de
+  uso é escopo obrigatório dessas fases (seção 6).
 - **Legal / Termos de Uso:** raspagem de catálogo público vs. ToS de cada plataforma —
-  a avaliar antes de qualquer operação comercial.
+  a avaliar antes de qualquer operação comercial. Vale em dobro para o **Instagram**.
 
 ## 9. Não-objetivos (MVP)
 
 - Outras cidades além de Brasília no lançamento.
-- Outros tipos de evento além de festas/baladas/shows.
+- Outros tipos de evento além de festas/baladas/shows e cinema.
 - App ou site como produto principal (produto é invisível).
 - Compra de ingressos, contas de usuário, pagamentos.
-- LLM na ingestão no lançamento (é v2).
+- LLM na ingestão **no núcleo inicial** — ele só estreia na última etapa do MVP
+  (Instagram/gênero), não no lançamento de festas.
 - Automação de raspagem em nuvem nas primeiras semanas (é Fase 1).
 - Cobertura 100% garantida do catálogo desde o dia 1.
 
@@ -255,8 +328,14 @@ fechou:
 
 - **Fase 0 — eu:** o autor troca o Sympla pelo agente para descobrir a noite de
   Brasília, e confia na resposta.
-- **Fase 1 — um conhecido:** um amigo instala o MCP e usa de verdade.
-- **Fase 2 — um estranho:** alguém desconhecido descobre organicamente e usa.
+- **Fase 1 — um conhecido:** um amigo instala o MCP e usa de verdade — **comprovado por
+  instrumentação de uso**, não por percepção.
+- **Fase 2 — um estranho:** alguém desconhecido descobre organicamente e usa —
+  igualmente **medido** (analytics das páginas públicas / logs do MCP que distingam o
+  terceiro).
+
+As Fases 1 e 2 exigem, portanto, instrumentação como parte do escopo (seção 6): sem
+medir, não há como afirmar que o anel fechou.
 
 Sinais qualitativos de apoio (não são o gatilho de fase): as respostas do agente batem
 com o que está realmente à venda (precisão) e cobrem o que deveriam (recall). Quando o

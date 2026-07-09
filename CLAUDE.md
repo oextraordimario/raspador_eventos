@@ -8,9 +8,12 @@ PoC que raspa eventos de três plataformas (Sympla, Ingresse, Shotgun), unifica 
 schema único em SQLite e expõe a base para agentes de IA via MCP, para responder
 perguntas em linguagem natural (ex.: *"quais festas de pagode neste fim de semana?"*).
 
-**Escopo deliberadamente estreito:** só **Brasília (DF)** e só **festas/baladas**
-(vida noturna). Outras cidades e tipos de evento estão fora por ora. Ao mexer nos
-scrapers ou nas consultas, não generalize além disso sem pedido explícito.
+**Escopo deliberadamente estreito:** só **Brasília (DF)**. O código hoje cobre
+**festas/baladas/shows** (vida noturna). O roadmap do MVP prevê ainda **cinema**
+(Cinemark/Kinoplex) e o **Instagram** como fonte de contexto/enriquecimento — ambos
+**planejados, não implementados** (ver `docs/PRD_MVP.md`). Outras cidades seguem fora.
+Ao mexer nos scrapers ou nas consultas, não generalize além do escopo do PRD sem
+pedido explícito.
 
 A hipótese de risco central do produto é a **raspagem** (se ela funciona, o resto é
 considerado tranquilo). Prioridade nº 1 do usuário: validar/manter a raspagem.
