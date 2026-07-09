@@ -5,7 +5,10 @@ renderiza os eventos via React Server Components — não há API JSON interna
 simples de chamar. A técnica que funciona:
 
   1. Carregar a página da cidade num navegador real (Playwright) e extrair os
-     slugs dos eventos (links /events/<slug>).
+     slugs dos eventos (links /events/<slug>). A página é paginada via
+     ?page=N (descoberto em 2026-07-09; só a página 1 com scroll dava um
+     horizonte de ~3 dias — o catálogo completo tinha 77 eventos em 5 páginas).
+     Iteramos as páginas até nenhuma trazer slug inédito.
   2. Para cada evento, carregar a página e ler o JSON-LD (schema.org/MusicEvent),
      que traz nome, datas e local de forma estruturada e estável.
 
@@ -83,24 +86,45 @@ def _futuro(ld):
         return False
 
 
+# Estatísticas da última chamada a raspar(), para o relatório de cobertura
+# do atualizar.py (total_site = slugs achados na listagem da cidade).
+ULTIMA_RASPAGEM = {}
+
+
 def raspar(city_slug="brasilia", cidade_label="Brasília", estado_label="DF",
-           max_eventos=40, apenas_futuros=True):
-    """Raspa eventos de uma cidade no Shotgun e normaliza para o schema unificado."""
+           max_paginas=20, max_eventos=200, apenas_futuros=True):
+    """Raspa eventos de uma cidade no Shotgun e normaliza para o schema unificado.
+
+    max_paginas/max_eventos são tetos de segurança, bem acima do catálogo
+    conhecido (~77 eventos em 5 páginas) — o loop para sozinho quando uma
+    página não traz slug inédito.
+    """
     eventos = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         ctx = browser.new_context(user_agent=UA, locale="pt-BR")
         page = ctx.new_page()
 
-        page.goto(f"{BASE}/pt/cities/{city_slug}", wait_until="networkidle",
-                  timeout=60000)
-        for _ in range(3):
-            page.mouse.wheel(0, 6000)
-            page.wait_for_timeout(1200)
-        slugs = sorted(set(re.findall(r'/events/([a-z0-9-]+)', page.content())))
-        print(f"  {len(slugs)} eventos encontrados em '{city_slug}'")
+        # 1) coleta de slugs, paginando a listagem da cidade até esgotar.
+        vistos = []
+        for n in range(1, max_paginas + 1):
+            page.goto(f"{BASE}/pt/cities/{city_slug}?page={n}",
+                      wait_until="networkidle", timeout=60000)
+            for _ in range(4):  # rolagens p/ disparar o lazy render da página
+                page.mouse.wheel(0, 8000)
+                page.wait_for_timeout(700)
+            # links relativos (/events/<slug>) — a regex casa path relativo.
+            achados = re.findall(r'/events/([a-z0-9-]+)', page.content())
+            novos = [s for s in dict.fromkeys(achados) if s not in vistos]
+            vistos.extend(novos)
+            print(f"  pagina {n}: +{len(novos)} slugs ineditos | "
+                  f"acumulado: {len(vistos)}")
+            if not novos:
+                break
+        print(f"  {len(vistos)} eventos encontrados em '{city_slug}'")
 
-        for slug in slugs[:max_eventos]:
+        # 2) uma página por evento, lendo o JSON-LD.
+        for slug in vistos[:max_eventos]:
             try:
                 page.goto(f"{BASE}/en/events/{slug}", wait_until="domcontentloaded",
                           timeout=45000)
@@ -112,7 +136,9 @@ def raspar(city_slug="brasilia", cidade_label="Brasília", estado_label="DF",
             if apenas_futuros and not _futuro(ld):
                 continue
             eventos.append(_normalizar(ld, slug, cidade_label, estado_label))
+            page.wait_for_timeout(300)  # ritmo educado (o site já deu 429)
 
         browser.close()
     print(f"  {len(eventos)} eventos futuros normalizados")
+    ULTIMA_RASPAGEM.update(total_site=len(vistos), coletados=len(eventos))
     return eventos

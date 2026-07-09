@@ -78,10 +78,16 @@ def _futuro(ev):
         return False
 
 
+# Estatísticas da última chamada a raspar(), para o relatório de cobertura
+# do atualizar.py (total_site = pagination.total reportado pela API).
+ULTIMA_RASPAGEM = {}
+
+
 def raspar(iso_code=ISO_BRASILIA, title=None, max_paginas=10, tam=40,
            pausa=1.0, apenas_futuros=True):
     """Raspa eventos de uma localidade (ou busca por texto) e normaliza."""
     vistos = {}
+    pg = {}
     for page in range(max_paginas):
         params = {"iso_code": iso_code, "size": tam, "offset": page * tam}
         if title:
@@ -105,4 +111,5 @@ def raspar(iso_code=ISO_BRASILIA, title=None, max_paginas=10, tam=40,
         if page + 1 >= (pg.get("total_pages") or 1):
             break
         time.sleep(pausa)
+    ULTIMA_RASPAGEM.update(total_site=pg.get("total"), coletados=len(vistos))
     return list(vistos.values())

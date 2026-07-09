@@ -79,6 +79,11 @@ def _futuro(ev):
         return False
 
 
+# Estatísticas da última chamada a raspar(), para o relatório de cobertura
+# do atualizar.py (total_site = campo "total" reportado pela API).
+ULTIMA_RASPAGEM = {}
+
+
 def raspar(city="brasilia", state="DF", location="Brasília",
            tema=TEMA_FESTAS_SHOWS, q=None, max_paginas=10, pausa=1.0,
            apenas_futuros=True):
@@ -122,4 +127,5 @@ def raspar(city="brasilia", state="DF", location="Brasília",
         if len(data) < params["limit"]:
             break
         time.sleep(pausa)
+    ULTIMA_RASPAGEM.update(total_site=total, coletados=len(vistos))
     return list(vistos.values())
