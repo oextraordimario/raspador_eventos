@@ -141,6 +141,11 @@ gênero no nome.
   não volte a comparar `start_date` como string crua.
 - **Cidade no Shotgun** vem como bairro em `addressLocality`; a cidade é rotulada
   pelo parâmetro de busca (`cidade_label`), não pelo dado bruto.
+- **URLs do Bileto (`bileto.sympla.com.br`) não passam pelo "descrever":** o id no
+  fim delas é de OUTRO namespace, e o BFF de página devolveria um evento alheio sem
+  erro HTTP (bug NI-17, achado no spike da Bronze). Além do filtro de URL, o
+  `_descrever` valida o nome devolvido (`_mesmo_nome`) antes de gravar — não remova
+  essa guarda.
 - **Ruído conhecido na base:** o filtro `themes=99` do Sympla deixa passar
   anúncios/cursos — tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra
   NÃO marca: falso positivo esconde festa real; termos já testados e descartados em

@@ -66,8 +66,11 @@ def raspar_descricao(id_url):
     """Busca descricao (texto limpo) e categoria real de um evento no BFF da pagina.
 
     id_url: id numerico no fim da URL publica (ex.: 3488482). Retorna dict
-    {"descricao", "categoria"} (valores podem ser None); levanta excecao em erro
-    de rede/HTTP — o chamador decide tolerar.
+    {"descricao", "categoria", "nome"} (descricao/categoria podem ser None);
+    levanta excecao em erro de rede/HTTP — o chamador decide tolerar.
+    "nome" e o nome que o BFF devolveu: o chamador DEVE conferi-lo contra o
+    nome que ja tem, porque um id de outro namespace (ex.: Bileto) devolve
+    outro evento valido sem erro HTTP (bug NI-17).
     """
     ev = _get_url(f"{BFF_EVENTO}{id_url}")
     cat = ev.get("eventsCategory")
@@ -77,6 +80,7 @@ def raspar_descricao(id_url):
         "descricao": _limpar_html(ev.get("detail")) or
                      _limpar_html(ev.get("strippedDetail")),
         "categoria": cat if isinstance(cat, str) and cat.strip() else None,
+        "nome": ev.get("name"),
     }
 
 

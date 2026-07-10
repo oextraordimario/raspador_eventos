@@ -55,6 +55,23 @@ def _raspar(con, incluir_shotgun=True):
     return resultados
 
 
+def _mesmo_nome(a, b):
+    """Confere se dois nomes de evento são o mesmo (caixa/espaços à parte).
+
+    Proteção contra id trocado (NI-17): o BFF do Sympla devolve um evento
+    VÁLIDO de outro namespace (Bileto) — e às vezes de URL comum — sem erro
+    HTTP; sem esta checagem, descrição e categoria alheias entram caladas na
+    base. Aceita relação de prefixo (até 20 chars) nos dois sentidos porque a
+    página pode usar um nome mais curto que o catálogo ("DOMINGÃO" vs
+    "DOMINGÃO | PARTE 2" — caso real de 2026-07-10). Calibrada no spike da
+    Bronze (tests/spike_bronze/) + primeira rodada em produção.
+    """
+    na, nb = (re.sub(r"\s+", " ", (s or "").casefold()).strip() for s in (a, b))
+    if not na or not nb:
+        return False
+    return na.startswith(nb[:20]) or nb.startswith(na[:20])
+
+
 def _descrever(con, pausa=0.4):
     """Busca a descrição dos eventos que ainda não têm (incremental: o upsert
     preserva descrição já colhida, então só os novos custam requisição).
@@ -62,14 +79,16 @@ def _descrever(con, pausa=0.4):
     Shotgun já traz descrição na raspagem (JSON-LD); Sympla e Ingresse têm
     endpoints de evento individual (ver raspar_descricao de cada scraper).
     """
+    # URLs do Bileto (bileto.sympla.com.br) ficam de fora: o id no fim delas é
+    # de outro namespace e o BFF de página devolveria outro evento (NI-17).
     pendentes = con.execute(
-        "SELECT id, fonte, url FROM eventos "
+        "SELECT id, fonte, nome, url FROM eventos "
         "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse') "
-        "AND url IS NOT NULL").fetchall()
+        "AND url IS NOT NULL AND url NOT LIKE '%bileto.sympla.com.br%'").fetchall()
     if not pendentes:
         return {"buscadas": 0, "falhas": 0}
     print(f"\n[descrever] {len(pendentes)} eventos sem descrição...")
-    buscadas = falhas = 0
+    buscadas = falhas = trocados = 0
     for i, r in enumerate(pendentes, 1):
         try:
             if r["fonte"] == "sympla":
@@ -79,6 +98,9 @@ def _descrever(con, pausa=0.4):
                     falhas += 1
                     continue
                 d = sympla.raspar_descricao(m.group(1))
+                if not _mesmo_nome(r["nome"], d["nome"]):
+                    trocados += 1
+                    continue
                 con.execute(
                     "UPDATE eventos SET descricao = ?, "
                     "categoria = COALESCE(?, categoria) WHERE id = ?",
@@ -95,8 +117,10 @@ def _descrever(con, pausa=0.4):
             print(f"  {i}/{len(pendentes)}...")
         time.sleep(pausa)
     con.commit()
-    print(f"  {buscadas} descrições gravadas | {falhas} falhas/sem descrição")
-    return {"buscadas": buscadas, "falhas": falhas}
+    print(f"  {buscadas} descrições gravadas | {falhas} falhas/sem descrição"
+          + (f" | {trocados} descartadas por nome divergente (id trocado?)"
+             if trocados else ""))
+    return {"buscadas": buscadas, "falhas": falhas, "trocados": trocados}
 
 
 def _instante(iso):
