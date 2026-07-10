@@ -1,6 +1,6 @@
 # Spec — Alinhamento à Constituição: observabilidade da rodada, evento sumido, utilitários únicos e janela do precificar (NI-19)
 
-> **Status:** especificada em 2026-07-10 (implementação na sequência, mesmo dia).
+> **Status:** especificada e implementada em 2026-07-10.
 > **O quê/por quê:** leitura da Constituição de Engenharia de Dados do CFOx
 > (`CFOx/Programa/pipeline_cfox/docs/constituicao.md`, v1) contra este projeto.
 > Valores já bem atendidos aqui: transformação como fim (valor 1), seleção/

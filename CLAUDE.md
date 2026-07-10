@@ -25,10 +25,13 @@ considerado tranquilo). Prioridade nº 1 do usuário: validar/manter a raspagem.
 pip install -r requirements.txt
 python -m playwright install chromium          # necessário só p/ o Shotgun
 
-# Atualização sob demanda — o comando da Fase 0 (raspa as 3 fontes → enriquece
-# com ruído/dedupe → FTS → relatório de saúde). Rodar antes de usar o agente.
+# Atualização sob demanda — o comando da Fase 0 (raspa as 3 fontes → marca sumidos
+# → descreve/precifica → deriva → enriquece com ruído/dedupe → FTS → relatório de
+# saúde com comparação vs. rodada anterior → grava a rodada em `execucoes`).
+# Rodar antes de usar o agente.
 python src/atualizar.py
 python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
+python src/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: janela de 30 dias)
 python src/atualizar.py --so-derivar            # não raspa; re-deriva do payload bruto + regras + FTS
 python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
 
@@ -46,6 +49,7 @@ python src/mcp_server.py
 # Testes de fumaça (scripts executáveis, sem framework)
 python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta (base descartável)
 python tests/test_bronze.py                     # camadas Bronze/Prata (eventos_raw, lotes, derivação, detalhar_evento) e guarda anti-Bileto (base descartável)
+python tests/test_observabilidade.py            # execucoes + sumido + janela do precificar (base descartável)
 python tests/test_mcp_server.py                 # age como cliente MCP real; exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
@@ -66,7 +70,7 @@ em `conectar()`):
 
 ```
 src/
-  store.py  consulta.py  enriquecer.py  derivar.py  # núcleo (imports irmãos)
+  store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
     sympla.py  ingresse.py  shotgun.py  discover_sympla.py
@@ -124,8 +128,9 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   novo do bruto = função aqui + `--so-derivar`, **sem re-raspar**. Idempotente como
   o enriquecer. Os payloads de tickets (Sympla/Ingresse) vêm do passo "precificar"
   do `atualizar.py` — **não incremental** (preço/lote é volátil; refeito a cada
-  rodada), e no Sympla só para eventos com descrição validada (âncora da guarda
-  NI-17 — o endpoint de tickets não devolve nome). Specs:
+  rodada, mas só para eventos na **janela de 30 dias** — `--precificar-tudo` cobre
+  todos os futuros), e no Sympla só para eventos com descrição validada (âncora da
+  guarda NI-17 — o endpoint de tickets não devolve nome). Specs:
   `docs/specs/20260710_camada-bronze/`, `20260710_camada-prata/` e
   `20260710_lotes-ingressos/`.
 - `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
@@ -135,7 +140,8 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   regra não exige re-raspar (`python src/atualizar.py --so-enriquecer`).
 - `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite,
   incluir_ruido)`, todos os args opcionais, retorno JSON-serializável. Por padrão
-  esconde ruído, não-canônicos de dedupe e **cancelados**; esgotado NÃO some (é
+  esconde ruído, não-canônicos de dedupe, **cancelados** e **sumidos** (evento
+  futuro que não reapareceu no catálogo da fonte); esgotado NÃO some (é
   resposta útil). O canônico traz `outras_urls` (links do mesmo evento nas outras
   plataformas). `detalhar_evento(url)` aprofunda UM evento: descrição INTEIRA (a
   busca corta em `DESCRICAO_MAX`) + lista de lotes — a condição do lote ("CORTESIA
@@ -147,10 +153,15 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   fim de semana, para o agente montar filtros "hoje"/"neste fim de semana").
 
 Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
-descrever (busca incremental da descrição p/ Sympla/Ingresse; upsert usa COALESCE p/
-nunca zerá-la) → precificar (tickets/lotes p/ a Bronze, refeito a cada rodada) →
+marcar sumidos (evento futuro que não reapareceu no catálogo de fonte raspada SEM
+erro → `sumido=1`; a consulta esconde) → descrever (busca incremental da descrição
+p/ Sympla/Ingresse; upsert usa COALESCE p/ nunca zerá-la) → precificar (tickets/
+lotes p/ a Bronze, refeito a cada rodada na janela de 30 dias) →
 `derivar.aplicar()` → `enriquecer.aplicar()` →
-`store.reconstruir_fts()` → `consulta.buscar_eventos()` →
+`store.reconstruir_fts()` → relatório (compara coleta com a rodada anterior e
+ALERTA queda > 50% — detector de scraper quebrado) → `store.registrar_execucao()`
+(tabela `execucoes`: uma linha por rodada, com erros POR evento) →
+`consulta.buscar_eventos()` →
 tool MCP → agente de IA. `atualizar.py` orquestra tudo isso sob demanda;
 `mcp_server.py` é o ponto de entrada em uso real; `demo.py` é a demo da PoC.
 O FTS indexa nome/categoria/atracoes/**descricao** — "eletrônica" acha evento sem o
@@ -162,9 +173,13 @@ gênero no nome.
   em `sql/schema.sql` (`id`, `fonte`, `nome`, `start_date`, `cidade`, `url`, etc.) antes
   de gravar. Ao adicionar uma fonte, siga o mesmo `_normalizar(...)` → dict.
 - **Datas em formatos mistos.** Sympla/Ingresse usam `+00:00`, Shotgun usa `.000Z`.
-  Comparação lexical de strings falha entre eles. `consulta.py` normaliza toda data
-  via `_norm_ts` (registrada como função SQL `norm_ts`) antes de comparar/ordenar —
-  não volte a comparar `start_date` como string crua.
+  Comparação lexical de strings falha entre eles. O parse mora em UM lugar:
+  `src/tempo.py` (`instante` → datetime UTC; `norm_ts` → texto ISO comparável,
+  registrada como função SQL pela `consulta.py`). Não reimplemente parse de data
+  local nem volte a comparar `start_date` como string crua.
+- **`raspado_em` é a âncora do `sumido`:** só o upsert do catálogo o atualiza
+  (descrever/precificar mexem em outras colunas). Não atualize `raspado_em` fora
+  do upsert, ou a detecção de evento sumido quebra.
 - **Cidade no Shotgun** vem como bairro em `addressLocality`; a cidade é rotulada
   pelo parâmetro de busca (`cidade_label`), não pelo dado bruto.
 - **URLs do Bileto (`bileto.sympla.com.br`) não passam pelo "descrever":** o id no

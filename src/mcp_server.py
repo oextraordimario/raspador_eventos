@@ -26,7 +26,8 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
     """Busca festas, baladas e shows em Brasília na base unificada (Sympla,
     Ingresse e Shotgun). Use para responder o que há de festa/balada/show numa
     cidade e período. Todos os argumentos são opcionais. A base já vem limpa:
-    anúncios/cursos e eventos cancelados são filtrados, e o mesmo evento
+    anúncios/cursos, eventos cancelados e eventos que sumiram do catálogo da
+    fonte (provável cancelamento silencioso) são filtrados, e o mesmo evento
     publicado em mais de uma plataforma vem colapsado num único resultado
     (campo outras_urls traz os links dele nas demais plataformas, quando
     houver).

@@ -46,6 +46,20 @@ CAMPOS = ("name,start_date,end_date,images,event_type,location,id,url,"
 # recorte do PoC. Descoberto capturando a categoria show-musica-festa do site.
 TEMA_FESTAS_SHOWS = 99
 
+# URLs deste host NAO passam pelos BFFs de pagina/tickets: o id no fim delas e
+# de OUTRO namespace, e o BFF devolveria um evento alheio sem erro HTTP (NI-17).
+BILETO_HOST = "bileto.sympla.com.br"
+
+
+def id_da_url(url):
+    """Id numerico no FIM da URL publica (difere do id do catalogo!), usado
+    pelos BFFs de pagina e tickets. None se a URL nao tem id no fim ou se e do
+    Bileto (outro namespace — ver BILETO_HOST/NI-17)."""
+    if not url or BILETO_HOST in url:
+        return None
+    m = re.search(r"/(\d+)/?$", url)
+    return m.group(1) if m else None
+
 
 def _get_url(url):
     req = urllib.request.Request(

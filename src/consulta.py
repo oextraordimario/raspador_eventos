@@ -7,12 +7,14 @@ Pegadinha tratada aqui: as fontes gravam datas ISO em formatos diferentes
 (Sympla/Ingresse usam "+00:00", Shotgun usa ".000Z"). A comparacao lexical
 de strings falha entre esses formatos -- por exemplo, um evento Shotgun no
 mesmo instante que um limite superior "+00:00" seria excluido por engano.
-Por isso normalizamos toda data para um instante canonico antes de comparar.
+Por isso toda data passa por tempo.norm_ts (registrada como funcao SQL)
+antes de comparar/ordenar.
 """
 
 from datetime import datetime, timezone
 
 import store
+import tempo
 
 # Campos uteis expostos ao agente (subconjunto enxuto da tabela).
 # preco_min = menor lote PAGO em R$ (total, com taxa); tem_gratis 1 = ha lote
@@ -30,28 +32,14 @@ CAMPOS = ["nome", "fonte", "start_date", "end_date", "cidade", "estado",
 DESCRICAO_MAX = 300
 
 
-def _norm_ts(iso):
-    """Normaliza uma data ISO (qualquer formato das fontes) para um texto
-    comparavel/ordenavel de forma consistente. Retorna None se nao parsear."""
-    if not iso:
-        return None
-    try:
-        dt = datetime.fromisoformat(iso)
-    except ValueError:
-        return None
-    # Sem timezone: assume UTC. Com timezone: converte para UTC.
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).isoformat()
-
-
 def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
                    limite=20, incluir_ruido=False):
     """Busca eventos na base unificada.
 
     Por padrao esconde o que o enriquecimento v1 marcou — eventos com ruido=1
     (anuncio/curso) e membros nao-canonicos de grupos de dedupe cross-fonte —
-    e tambem eventos cancelados na origem (cancelado=1, derivado da Bronze).
+    e tambem eventos cancelados na origem (cancelado=1, derivado da Bronze) e
+    sumidos do catalogo da fonte (sumido=1, provavel remocao silenciosa).
     Esgotado NAO some: "esta esgotado" e resposta util (campo `esgotado`).
     O canonico de um grupo carrega em `outras_urls` os links dos membros
     colapsados (o mesmo evento nas outras plataformas).
@@ -63,20 +51,21 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
         data_inicio: limite inferior (ISO) sobre start_date, inclusivo.
         data_fim: limite superior (ISO) sobre start_date, inclusivo.
         limite: numero maximo de resultados (ordenados por start_date).
-        incluir_ruido: True devolve tambem os marcados como ruido e os
-            cancelados (depuracao das regras; nao exposto na tool MCP).
+        incluir_ruido: True devolve tambem os marcados como ruido, os
+            cancelados e os sumidos (depuracao; nao exposto na tool MCP).
 
     Returns:
         Lista de dicts (nunca sqlite3.Row), ordenada por start_date.
     """
     con = store.conectar()
     # Funcao SQL para comparar datas normalizadas (contorna os formatos mistos).
-    con.create_function("norm_ts", 1, _norm_ts, deterministic=True)
+    con.create_function("norm_ts", 1, tempo.norm_ts, deterministic=True)
 
     where, params = [], []
     if not incluir_ruido:
         where.append("e.ruido = 0")
         where.append("(e.cancelado IS NULL OR e.cancelado = 0)")
+        where.append("e.sumido = 0")
     # Duplicata cross-fonte: so o canonico responde pelo grupo.
     where.append("e.dedupe_canonico = 1")
     if texto:
@@ -168,7 +157,8 @@ if __name__ == "__main__":
     _mostrar("Proximos eventos (sem texto, so futuros)", proximos[:8])
     fontes = sorted({e["fonte"] for e in proximos})
     passados = [e for e in proximos
-                if _norm_ts(e["start_date"]) and _norm_ts(e["start_date"]) < agora]
+                if tempo.norm_ts(e["start_date"])
+                and tempo.norm_ts(e["start_date"]) < agora]
     print(f"    fontes presentes: {fontes} | eventos passados que vazaram: {len(passados)}")
 
     # 3) um genero (funk OR techno).

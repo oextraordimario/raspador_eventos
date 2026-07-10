@@ -73,6 +73,31 @@ def upsert_eventos(con, eventos):
     return len(eventos)
 
 
+def registrar_execucao(con, iniciada_em, duracao_s, modo, fontes, passos, erros):
+    """Grava o resumo de uma rodada do atualizar.py (observabilidade, NI-19).
+
+    fontes/passos/erros são estruturas Python; viram JSON aqui.
+    """
+    con.execute(
+        "INSERT INTO execucoes (iniciada_em, duracao_s, modo, fontes, passos, "
+        "erros) VALUES (?, ?, ?, ?, ?, ?)",
+        (iniciada_em, duracao_s, modo,
+         *(json.dumps(x, ensure_ascii=False) for x in (fontes, passos, erros))))
+    con.commit()
+
+
+def ultima_execucao(con):
+    """Última rodada registrada (dict com fontes/passos/erros já desserializados)
+    ou None. É a base da comparação 'vs. rodada anterior' do relatório."""
+    r = con.execute("SELECT * FROM execucoes ORDER BY id DESC LIMIT 1").fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    for k in ("fontes", "passos", "erros"):
+        d[k] = json.loads(d[k]) if d[k] else None
+    return d
+
+
 def gravar_raw(con, evento_id, origem, payload, raspado_em, commit=True):
     """Guarda o payload bruto de um evento na camada Bronze (último vence)."""
     con.execute(

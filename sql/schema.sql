@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS eventos (
     organizador   TEXT,               -- produtor/organizador do evento
     url           TEXT,               -- link do evento na plataforma de origem
     imagem        TEXT,               -- URL da imagem / capa do evento
-    raspado_em    TEXT NOT NULL,      -- timestamp ISO 8601 de quando foi raspado
+    raspado_em    TEXT NOT NULL,      -- ISO 8601 da última vez que o evento apareceu na raspagem do CATÁLOGO da fonte
+                                      -- (só o upsert do catálogo atualiza; descrever/precificar não mexem aqui).
+                                      -- É a âncora da coluna sumido — não atualizar fora do upsert.
 
     -- Campos ricos da fonte (Etapa 5 da spec da Fase 0). Podem chegar depois do
     -- catalogo (passo incremental "descrever" do atualizar.py); por isso o upsert
@@ -48,6 +50,13 @@ CREATE TABLE IF NOT EXISTS eventos (
     esgotado      INTEGER,            -- 1 = sem ingressos disponiveis (tickets/offers); NULL = fonte nao informou
     cancelado     INTEGER,            -- 1 = evento cancelado na origem; a consulta esconde por padrao
     tem_gratis    INTEGER,            -- 1 = ha lote gratis NAO esgotado (cortesia etc.); com preco_min NULL = evento gratis; NULL = sem info de lotes
+
+    -- Marcada por atualizar._marcar_sumidos apos cada raspagem BEM-SUCEDIDA da fonte:
+    -- evento FUTURO cujo raspado_em ficou para tras nao reapareceu no catalogo —
+    -- provavel remocao/cancelamento silencioso. A consulta esconde por padrao
+    -- (marcar, nao apagar). Evento passado nunca e marcado (catalogo so lista
+    -- futuros). Spec: docs/specs/20260710_alinhamento-constituicao/spec.md.
+    sumido        INTEGER NOT NULL DEFAULT 0,
 
     -- Colunas de enriquecimento v1 (preenchidas por src/enriquecer.py apos o upsert;
     -- os scrapers nao escrevem aqui). Recalculadas do zero a cada atualizacao.
@@ -90,6 +99,22 @@ CREATE TABLE IF NOT EXISTS lotes (
     esgotado   INTEGER             -- 1 = lote sem estoque / vendas encerradas
 );
 CREATE INDEX IF NOT EXISTS idx_lotes_evento ON lotes(evento_id);
+
+-- Observabilidade da rodada: uma linha por execucao do atualizar.py, para o
+-- relatorio comparar com a rodada anterior e alertar queda de coleta (scraper
+-- quebrado em silencio — a hipotese de risco nº 1 do produto). Campos compostos
+-- ficam como JSON em TEXT de proposito: tabelas relacionais seriam custo de
+-- schema sem consulta que o justifique (quem le e gente depurando + o proprio
+-- relatorio). Spec: docs/specs/20260710_alinhamento-constituicao/spec.md.
+CREATE TABLE IF NOT EXISTS execucoes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    iniciada_em TEXT NOT NULL,   -- ISO 8601 UTC do inicio da rodada
+    duracao_s   REAL,            -- duracao total em segundos
+    modo        TEXT NOT NULL,   -- completo | sem-shotgun | so-derivar | so-enriquecer
+    fontes      TEXT,            -- JSON {fonte: {coletados, total_site} | {erro}}
+    passos      TEXT,            -- JSON {descrever, precificar, derivado, ruido, dedupe_grupos, sumidos}
+    erros       TEXT             -- JSON [{passo, evento_id, erro}] — falha POR EVENTO
+);
 
 -- Indice de busca textual (nome/categoria/atracoes/descricao) para as consultas em
 -- linguagem natural. Tabela de conteudo externo (content='eventos'): reindexada via

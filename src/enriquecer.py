@@ -13,8 +13,9 @@ Políticas (ver docs/specs/20260709_mvp-fase-0/spec.md):
 
 import re
 import unicodedata
-from datetime import datetime, timezone
 from difflib import SequenceMatcher
+
+import tempo
 
 # Termos que denunciam não-evento (anúncio, curso, corporativo). Casados por
 # fronteira de palavra sobre o nome normalizado (sem acento/pontuação), então
@@ -59,19 +60,6 @@ def _normalizar_texto(s):
 
 _RUIDO_RE = re.compile(
     r"\b(" + "|".join(re.escape(t) for t in RUIDO_TERMOS) + r")\b")
-
-
-def _instante(iso):
-    """Parseia ISO das fontes (formatos mistos, ver CLAUDE.md) em datetime UTC."""
-    if not iso:
-        return None
-    try:
-        dt = datetime.fromisoformat(iso)
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
 
 
 # Datas embutidas no nome ("05/07", "2026") inflam a similaridade entre eventos
@@ -123,7 +111,7 @@ def _agrupar_duplicatas(con):
 
     por_dia = {}
     for r in rows:
-        dt = _instante(r["start_date"])
+        dt = tempo.instante(r["start_date"])
         if dt is None:
             continue
         r["nome_cmp"] = _nome_comparavel(r["nome"])
