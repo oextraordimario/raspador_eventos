@@ -4,7 +4,9 @@
 > vai a partir da PoC validada.
 > **Fonte da verdade:** este documento. O `docs/PRD_POC.md` vira registro histórico
 > da prova de conceito e não deve mais ser usado para planejar.
-> **Última atualização:** 2026-07-09
+> **Última atualização:** 2026-07-10 — a Fase 0 ganhou a subetapa **0b (consulta na
+> nuvem)**: o dogfooding mostrou que a consulta não pode depender do PC do autor
+> estar ligado. Read-path hospedado antecipa-se da Fase 1; raspagem segue manual.
 
 ---
 
@@ -155,7 +157,16 @@ Um anel só faz sentido depois que o de dentro fechou.
 **Duas portas, uma base.** Seja qual porta vencer, ambas leem do mesmo lugar. Por isso
 o alicerce é direção-agnóstico e as portas são camadas finas em cima dele.
 
-**Separação write-path × read-path** (imposta pela escolha de serverless gerenciado):
+**Restrição de disponibilidade** (achado do dogfooding de 2026-07-10): o read-path
+**não pode depender do computador do autor estar ligado**. O momento de uso típico da
+vida noturna é na rua, à noite, só com o celular — atualizar às 9h de sexta não serve
+de nada se às 21h a base estiver num PC desligado. Logo, a base e a camada de consulta
+precisam viver na nuvem **já no dogfooding** (Fase 0b). O write-path pode continuar
+manual e local: quem raspa é o PC do autor, quando ele quiser; quem serve é a nuvem,
+sempre.
+
+**Separação write-path × read-path** (imposta pela escolha de serverless gerenciado —
+e agora também pela restrição de disponibilidade acima):
 
 ```
   WRITE (raspagem — processo pesado, Playwright/Chromium)
@@ -167,8 +178,8 @@ o alicerce é direção-agnóstico e as portas são camadas finas em cima dele.
                      │  UPSERT
                      ▼
   ┌─────────────────────────────────────────────┐
-  │  BASE unificada + índice textual             │   Fase 0: SQLite local
-  │  (schema cidade-aware, chave <fonte>:<id>)   │   Fase 1+: Postgres (Neon)
+  │  BASE unificada + índice textual             │   Fase 0a: SQLite local
+  │  (schema cidade-aware, chave <fonte>:<id>)   │   Fase 0b+: Postgres (Neon)
   └─────────────────────────────────────────────┘
                      │  SELECT
                      ▼
@@ -176,17 +187,20 @@ o alicerce é direção-agnóstico e as portas são camadas finas em cima dele.
     ┌──────────────────────┐   ┌──────────────────────────┐
     │ Porta A: MCP          │   │ Porta B: páginas públicas │
     │ (stdio local → HTTP   │   │ JSON-LD + llms.txt        │
-    │  remoto na Fase 1)    │   │ (Fase 2)                  │
+    │  remoto na Fase 0b)   │   │ (Fase 2)                  │
     └──────────────────────┘   └──────────────────────────┘
                      ▼
           ChatGPT / Claude / qualquer agente
 ```
 
-- **Write-path** roda onde há runtime completo para o Chromium do Shotgun. Fase 0: na
-  mão, local. Fase 1: **GitHub Actions agendado** (cron gerenciado, roda Playwright,
-  faz UPSERT no Postgres — sem VPS para cuidar). Serverless **não** serve para o
-  write por causa do navegador.
-- **Read-path** é onde o serverless brilha (escala a zero, barato, sempre no ar).
+- **Write-path** roda onde há runtime completo para o Chromium do Shotgun. Fases
+  0a/0b: na mão, local — na 0b o `atualizar.py` continua rodando no PC do autor, mas
+  o UPSERT vai direto para a base remota. Fase 1: **GitHub Actions agendado** (cron
+  gerenciado, roda Playwright, faz UPSERT no Postgres — sem VPS para cuidar).
+  Serverless **não** serve para o write por causa do navegador.
+- **Read-path** é onde o serverless brilha (escala a zero, barato, sempre no ar) — e
+  o "sempre no ar" é exatamente o que a restrição de disponibilidade exige; por isso
+  ele sobe já na Fase 0b, não na Fase 1.
 - **A técnica de raspagem** (herdada da PoC): interceptar a API JSON interna do
   front, não parsear HTML. Sympla e Ingresse via HTTP puro; **Shotgun exige
   Playwright** (bloqueia HTTP puro com 429 e renderiza via RSC). **Cinemas** (Cinemark,
@@ -198,24 +212,46 @@ o alicerce é direção-agnóstico e as portas são camadas finas em cima dele.
 Cada fase tem escopo enxuto e um **critério de sucesso binário e honesto** — nunca se
 constrói a fase seguinte no escuro.
 
-### Fase 0 — Validação local (próximas semanas, custo zero)
+### Fase 0 — Validação pelo autor (dogfooding)
 
-A porta já existe: o **MCP stdio local**. O consumidor é o **próprio agente do autor**.
-- **Escopo:** melhorar cobertura/qualidade da raspagem das 3 fontes; regras v1 de
-  dedupe + filtro de ruído; rodar o scraper **na mão, sob demanda** (só quando for
-  usar — sem cadência fixa); base **SQLite local**.
-- **Sem** GitHub Actions, **sem** serverless, **sem** porta pública, **sem** nuvem paga.
-- **Critério de sucesso:** nas próximas semanas, quando o autor quiser saber "o que tem
-  hoje em Brasília", ele **abre o agente em vez de abrir o Sympla — e confia na
-  resposta**. Dogfooding de um usuário só, o mais exigente.
+O consumidor é o **próprio agente do autor**. O dogfooding de 2026-07-09/10 mostrou
+que a fase tem **duas subetapas**: a validação local funcionou, mas esbarrou num
+limite físico — com a base no computador do autor, **desligou o PC, morreu a
+consulta**. E o momento real de uso é justamente fora de casa, à noite, só com o
+celular. Sem consulta na nuvem, o critério da fase não fecha.
+
+**Fase 0a — validação local (feita, em uso):**
+- MCP **stdio local**; base **SQLite local**; raspar **na mão, sob demanda** (só
+  quando for usar — sem cadência fixa); regras v1 de dedupe + filtro de ruído.
+- Validou a raspagem das 3 fontes, o schema unificado, o enriquecimento v1 e a
+  conexão com o agente — e revelou a restrição de disponibilidade (seção 5).
+
+**Fase 0b — consulta na nuvem (próximo passo):**
+- **Escopo:** migrar a base para **Postgres gerenciado (Neon, free tier)** e expor a
+  consulta como **MCP remoto (HTTP)** hospedado em serverless free tier, plugável
+  como connector no agente que o autor usa **no celular**. O read-path inteiro passa
+  a viver na nuvem.
+- **A raspagem continua manual e local:** o `atualizar.py` roda no PC do autor quando
+  ele quiser (ex.: 9h de sexta) e faz UPSERT **direto na base remota**. Atualização
+  manual não conflita com disponibilidade: o dado das 9h serve o autor às 21h com o
+  PC desligado.
+- **Portão técnico:** a migração SQLite→Postgres (FTS5 → `tsvector`/`pg_trgm`; o
+  `norm_ts` do `consulta.py` migra junto). Antecipado da antiga Fase 1 — retrabalho
+  pontual, mas real.
+- **Sem** GitHub Actions (automação é Fase 1), **sem** instrumentação de terceiros,
+  **sem** porta divulgada: o MCP remoto nasce protegido por segredo/token simples,
+  para uso próprio.
+- **Critério de sucesso (o da fase):** o autor, **fora de casa e com o computador
+  desligado**, pergunta ao agente "o que tem hoje em Brasília" — **e confia na
+  resposta em vez de abrir o Sympla**. Dogfooding de um usuário só, o mais exigente.
 
 ### Fase 1 — Primeira porta pública (quando a Fase 0 provar valor)
 
-- **Escopo:** subir o alicerce hospedado — migrar a base de SQLite para **Postgres
-  gerenciado (Neon, free tier)**; automatizar a raspagem via **GitHub Actions** (aqui a
-  cadência passa a ser **1x/dia**); expor a base como **MCP remoto HTTP** (connector).
-- **Portão técnico:** a migração SQLite→Postgres (FTS5 → `tsvector`/`pg_trgm`;
-  o `norm_ts` do `consulta.py` migra junto). Retrabalho pontual, mas real.
+A base hospedada e o MCP remoto **já existem desde a Fase 0b**; a Fase 1 é abrir a
+porta para terceiros e tirar o humano da cadência:
+- **Escopo:** automatizar a raspagem via **GitHub Actions** (a cadência passa a ser
+  **1x/dia**, substituindo o rodar-na-mão); transformar o MCP remoto de segredo de
+  uso próprio em **connector instalável por um conhecido** (auth adequada).
 - **Instrumentação (parte do escopo):** o MCP remoto precisa **registrar uso**
   (quem/quando consultou, ainda que anonimizado) — sem medição não dá para saber se o
   critério abaixo fechou. Instrumentar é requisito, não enfeite.
@@ -262,14 +298,20 @@ ordenada do mais barato ao mais trabalhoso:
 ## 7. Decisões técnicas travadas
 
 - **Distribuição:** híbrido, invisível-first; cara própria opcional.
-- **Banco:** **SQLite** na Fase 0; **Postgres no Neon** (free tier) a partir da Fase 1.
-- **Automação de raspagem:** **na mão** na Fase 0; **GitHub Actions** a partir da Fase 1
-  (não antes — Actions substitui o "rodar na mão", não o precede).
-- **Serve:** serverless gerenciado (read-path). Write-path fica fora do serverless por
-  causa do Playwright.
-- **Cadência:** **sob demanda** na Fase 0 (atualiza só quando for usar); **1x/dia** a
-  partir da Fase 1; aumentar conforme o projeto crescer. Prioridade é provar com dados
-  reais, não frescor de minuto.
+- **Disponibilidade:** o read-path (base + consulta) vive na nuvem **desde a Fase
+  0b** — a consulta não pode depender do computador do autor estar ligado (achado do
+  dogfooding de 2026-07-10).
+- **Banco:** **SQLite** na Fase 0a; **Postgres no Neon** (free tier) a partir da
+  **Fase 0b** (antecipado da Fase 1 pela decisão de disponibilidade acima).
+- **Automação de raspagem:** **na mão** nas Fases 0a/0b (na 0b, o `atualizar.py`
+  local grava na base remota); **GitHub Actions** a partir da Fase 1 (não antes —
+  Actions substitui o "rodar na mão", não o precede).
+- **Serve:** serverless gerenciado (read-path), a partir da Fase 0b. Write-path fica
+  fora do serverless por causa do Playwright.
+- **Cadência:** **sob demanda** nas Fases 0a/0b (atualiza só quando for usar —
+  atualização manual e disponibilidade da consulta são eixos independentes); **1x/dia**
+  a partir da Fase 1; aumentar conforme o projeto crescer. Prioridade é provar com
+  dados reais, não frescor de minuto.
 - **Custo:** só **free tier + soluções locais**. Nada de cloud paga nas próximas semanas.
 - **Enriquecimento:** faseado — regras na v1; LLM na v2 com **Sonnet** (não Haiku),
   rodado **por subagente no Claude Code CLI** (aproveitando a assinatura), **não por
@@ -300,6 +342,12 @@ ordenada do mais barato ao mais trabalhoso:
 - **Frescor vs. custo:** cadência que mantém útil sem abusar das fontes nem gerar custo.
   Mitigação: na Fase 0 basta atualizar **sob demanda**; 1x/dia a partir da Fase 1 é
   suficiente para vida noturna.
+- **MCP remoto exposto na internet** (a partir da Fase 0b): endpoint público antes de
+  o produto ser público. Mitigação: na 0b, segredo/token simples e URL não divulgada
+  (só o autor usa); auth de verdade quando abrir a conhecidos (Fase 1).
+- **Limites do free tier** (Neon hiberna/limita, serverless com cold start): pode dar
+  latência ou indisponibilidade pontual. Aceitável para um usuário na 0b; medir antes
+  de prometer a terceiros na Fase 1.
 - **Instagram frágil/bloqueado:** é a fonte mais resistente à raspagem (login wall,
   bloqueios, layout volátil). Mitigação: tratar como **última etapa**, com escopo
   mínimo (só o suficiente para inferir o estilo) e tolerância a falha — se um perfil
@@ -327,7 +375,8 @@ A métrica do MVP **é a escada de anéis** — cada fase só avança quando o a
 fechou:
 
 - **Fase 0 — eu:** o autor troca o Sympla pelo agente para descobrir a noite de
-  Brasília, e confia na resposta.
+  Brasília, e confia na resposta — **inclusive fora de casa, com o computador
+  desligado** (celular + MCP remoto, Fase 0b).
 - **Fase 1 — um conhecido:** um amigo instala o MCP e usa de verdade — **comprovado por
   instrumentação de uso**, não por percepção.
 - **Fase 2 — um estranho:** alguém desconhecido descobre organicamente e usa —
@@ -345,5 +394,5 @@ têm a palavra no nome**.
 ## 11. Documentos de referência
 
 - `docs/PRD_POC.md` — registro histórico da prova de conceito (validação da raspagem).
-- `docs/PROXIMOS_PASSOS.md` — backlog priorizado.
+- `docs/backlogs/` — backlog priorizado (`nao-iniciado.yaml` + `rejeitado.yaml`).
 - `docs/TESTE_MCP.md` — como plugar o MCP nos clientes de IA.

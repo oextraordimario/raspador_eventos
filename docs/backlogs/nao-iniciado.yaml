@@ -274,24 +274,33 @@
 # Testes em tests/test_observabilidade.py. Base descartada e re-raspada.
 
 - codigo: NI-09
-  status: nao-iniciado
-  prioridade: media
-  rank: 2
+  status: pendente
+  prioridade: alta
+  rank: 1
   esforco: M
   eixo: infra
-  fase: 1
+  fase: 0
   titulo: "Migração SQLite → Postgres gerenciado (Neon, free tier)"
-  resumo: "portão de entrada da Fase 1: trocar driver e SQL (FTS5 → tsvector/pg_trgm; norm_ts migra junto) quando a base precisar ficar online"
+  resumo: "portão de entrada da Fase 0b (antecipado da Fase 1 em 2026-07-10): a base precisa ficar online pra consulta funcionar com o PC do autor desligado — trocar driver e SQL (FTS5 → tsvector/pg_trgm; norm_ts migra junto)"
   data: 2026-07-09
   depende_de: []
-  relacionado: [NI-10, NI-11]
-  caso_real: []
+  relacionado: [NI-10, NI-11, NI-20]
+  caso_real: ["dogfooding 2026-07-10: o autor precisou consultar fora de casa, PC desligado — base local inacessível; atualizar às 9h de sexta não serve se às 21h a base está num PC apagado"]
   detalhe: |
-    Herdado do antigo PROXIMOS_PASSOS.md item 4; PRD §6/§7. Só quando a Fase 0 provar
-    valor — acontece junto da subida do acesso remoto. Retrabalho pontual mas real:
-    FTS5 → tsvector/pg_trgm, funções SQL registradas em runtime (norm_ts) → função SQL
+    Herdado do antigo PROXIMOS_PASSOS.md item 4; PRD §5/§6/§7. ANTECIPADO da Fase 1
+    para a Fase 0b em 2026-07-10: a restrição de disponibilidade (read-path não pode
+    depender do PC do autor ligado) faz da base hospedada um pré-requisito do próprio
+    dogfooding, não da porta pública. Retrabalho pontual mas real: FTS5 →
+    tsvector/pg_trgm, funções SQL registradas em runtime (norm_ts) → função SQL
     ou coluna normalizada, executescript → migrações. As colunas de enriquecimento
-    migram junto. Merece spec própria.
+    migram junto. O write continua local: atualizar.py roda no PC e faz UPSERT na
+    base remota (connection string em env/segredo local).
+
+    **A reavaliar na spec (sem destravar a decisão à toa):** a decisão travada é Neon;
+    com a antecipação, vale 30 min de análise se um SQLite gerenciado (ex. Turso/
+    libSQL, que mantém dialeto e FTS5) reduziria o retrabalho a quase zero — trocar
+    só se o ganho for gritante, senão seguir com Neon. Merece spec própria, junto
+    com NI-20 (é a mesma entrega na prática).
 
 - codigo: NI-10
   status: nao-iniciado
@@ -310,7 +319,34 @@
     PRD §5/§6: write-path fora do serverless por causa do Chromium; Actions agendado é
     o cron sem VPS. Cadência 1x/dia na Fase 1 (suficiente para vida noturna). Atenção:
     instalar chromium do Playwright no runner, segredos da connection string,
-    tolerância a falha por fonte já existe no atualizar.py.
+    tolerância a falha por fonte já existe no atualizar.py. Nota (2026-07-10): desde
+    a Fase 0b (NI-09/NI-20) o atualizar.py já grava na base remota rodando local —
+    este item só tira o humano da cadência, não muda o destino dos dados.
+
+- codigo: NI-20
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: M
+  eixo: infra
+  fase: 0
+  titulo: "Consulta na nuvem — MCP remoto (HTTP) para uso do próprio autor"
+  resumo: "hospedar a camada de consulta em serverless free tier e plugar como connector no agente do celular; raspagem segue manual/local gravando na base remota — sem isso o critério da Fase 0 não fecha (PC desligado = consulta morta)"
+  data: 2026-07-10
+  depende_de: [NI-09]
+  relacionado: [NI-10, NI-11]
+  caso_real: ["dogfooding 2026-07-10: fora de casa com o PC desligado, o autor não tem como perguntar 'o que tem hoje' — o MCP stdio local morre junto com a máquina"]
+  detalhe: |
+    PRD §5 (restrição de disponibilidade) e §6 Fase 0b. Escopo mínimo de uso próprio:
+    (a) MCP remoto HTTP (a consulta.py já é a camada canônica; o mcp_server.py troca
+    stdio por transporte HTTP) hospedado em serverless free tier, lendo do Postgres
+    do NI-09; (b) protegido por segredo/token simples e URL não divulgada — auth de
+    verdade só quando abrir a conhecido (NI-11); (c) plugado como connector no app
+    do agente que o autor usa no celular; (d) SEM instrumentação de terceiros e SEM
+    GitHub Actions — atualização continua na mão (ex.: 9h de sexta), e o dado fica
+    servível às 21h com o PC desligado. Bônus já conhecido do dogfooding: no stdio
+    local, mudou código = reconectar o cliente; no remoto, o deploy resolve.
+    Merece spec própria junto com NI-09 (mesma entrega na prática).
 
 - codigo: NI-11
   status: nao-iniciado
@@ -319,15 +355,15 @@
   esforco: M
   eixo: distribuicao
   fase: 1
-  titulo: "MCP remoto (HTTP) com instrumentação de uso"
-  resumo: "expor a base como connector remoto e registrar quem/quando consultou — sem medição o critério da Fase 1 ('um conhecido usa') não fecha"
+  titulo: "Abrir o MCP remoto a conhecidos + instrumentação de uso"
+  resumo: "transformar o MCP remoto de uso próprio (NI-20) em connector instalável por terceiro, com auth adequada e registro de quem/quando consultou — sem medição o critério da Fase 1 ('um conhecido usa') não fecha"
   data: 2026-07-09
-  depende_de: [NI-09]
+  depende_de: [NI-20]
   relacionado: [NI-10]
   caso_real: []
   detalhe: |
-    PRD §6 Fase 1: porta A pública. Instrumentação é requisito, não enfeite (PRD §10):
-    o critério de fase só fecha com uso de terceiro comprovado por registro. Lição do
-    dogfooding de 2026-07-09 que a versão local já ensinou: o servidor stdio carrega o
-    código na conexão — mudou código, precisa reconectar o cliente; no remoto o deploy
-    resolve isso.
+    PRD §6 Fase 1: porta A pública. Reescopado em 2026-07-10: o MCP remoto em si
+    virou NI-20 (Fase 0b, uso próprio); o que resta aqui é a abertura a terceiros —
+    auth adequada (o token único de uso próprio não distingue pessoas) e
+    instrumentação. Instrumentação é requisito, não enfeite (PRD §10): o critério de
+    fase só fecha com uso de terceiro comprovado por registro.
