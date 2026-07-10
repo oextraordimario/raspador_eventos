@@ -10,6 +10,7 @@
 #   status      pendente      = defeito/limitação conhecido com correção já desenhada
 #                               (o TODO real, intenção de fazer)
 #               nao-iniciado  = ideia exploratória ou de fase futura, sem compromisso
+#               em-andamento  = spec/implementação em curso (sai da lista ao concluir)
 #   prioridade  critica | alta | media | baixa  — importância/urgência, NÃO esforço.
 #   rank        0=critica 1=alta 2=media 3=baixa — só pra ordenar por severidade.
 #   esforco     P | M | G  (pequeno/médio/grande) — pra cruzar "alta + esforço baixo".
@@ -281,7 +282,7 @@
         `tests/test_mcp_server.py`.
 
 - codigo: NI-18
-  status: pendente
+  status: em-andamento
   prioridade: alta
   rank: 1
   esforco: M
