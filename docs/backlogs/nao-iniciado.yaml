@@ -213,33 +213,37 @@
     caminho que o Shotgun. Gratuito vs. esgotado vs. sem-informação precisam ser
     distinguíveis (0 ≠ null). Sem re-raspar não resolve (é dado de origem).
 
-- codigo: NI-14
-  status: nao-iniciado
-  prioridade: media
-  rank: 2
-  esforco: G
+# NI-14 (spike da camada Bronze) foi EXECUTADO e APROVADO em 2026-07-10:
+# medições em tests/spike_bronze/RESULTADO.md, implementação especificada em
+# docs/specs/20260710_camada-bronze/spec.md — saiu desta lista (git/spec registram).
+
+- codigo: NI-17
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: P
   eixo: raspagem
   fase: 0
-  titulo: "Spike: camada Bronze (raspar payload na íntegra e tratar a partir dele)"
-  resumo: "checar viabilidade e ganho de guardar o JSON bruto de cada fonte como camada crua (Bronze) e derivar o schema unificado dela, em vez de normalizar direto no scraper — foco em completude e corretude"
+  titulo: "Bug: eventos do Bileto recebem descrição/categoria de OUTRO evento no descrever"
+  resumo: "o _descrever extrai o id numérico do fim da URL, mas URLs bileto.sympla.com.br usam outro namespace de id — o BFF de página devolve um evento alheio e a base grava descrição/categoria erradas (e o FTS indexa o texto errado)"
   data: 2026-07-10
   depende_de: []
-  relacionado: [NI-12, NI-13]
-  caso_real: ["dogfooding 2026-07-10: campos que existiam no payload (preço, descrição inteira) se perderam no `_normalizar` porque o scraper só extrai o subconjunto que o schema pede — NI-12/NI-13 são sintomas disso"]
+  relacionado: [NI-13]
+  caso_real: ["spike da camada Bronze 2026-07-10 (tests/spike_bronze/): 'The Beatles Abbey Road' (bileto, id 115970) está na base como curso-workshop com a descrição do 'Polvo Na Cozinha' (Rio, 2017) — 5 eventos Bileto contaminados"]
   detalhe: |
-    Hipótese: hoje cada scraper normaliza direto (payload → dict do schema), então
-    tudo que o `_normalizar` não mapeia é descartado na origem. NI-12 (preço) e NI-13
-    (descrição) são exatamente isso — o dado existia e sumiu. Uma camada Bronze
-    (guardar o JSON/JSON-LD bruto por evento, ex.: coluna `raw` ou tabela própria)
-    permitiria re-derivar campos novos SEM re-raspar, e auditar corretude contra a
-    origem.
+    Encontrado auditando payload vs. base no spike da Bronze. Em src/atualizar.py,
+    _descrever assume que o número no fim da URL pública é o id do BFF de página
+    (event-page.svc); para URLs bileto.sympla.com.br/event/<id> o id é de outro
+    namespace e o BFF devolve OUTRO evento válido — sem erro HTTP, o dado errado
+    entra calado. A categoria trocada pode até enganar o filtro de ruído
+    (curso-workshop num show real), e a busca textual acha o evento pelo texto alheio.
 
-    **É um spike, não um compromisso.** Avaliar: (a) ganho real vs. custo (peso da
-    base, complexidade de ter duas camadas numa PoC de uma cidade); (b) se o UPSERT
-    incremental (NI-15) e a re-derivação a seco (hoje `--so-enriquecer`) já cobrem 80%
-    do benefício sem Bronze formal; (c) formato — `raw` como TEXT/JSON no próprio
-    `eventos` vs. tabela `eventos_raw`. Decidir com base em: quantas vezes já
-    quisemos um campo que tínhamos jogado fora. Se aprovado, vira spec própria.
+    **Correção desenhada:** pular URLs bileto.* no _descrever (ficam sem descrição,
+    o que é honesto) e/ou validar o nome devolvido pelo BFF contra o da base antes
+    de gravar (proteção geral contra id trocado — preferível). Limpar os 5 registros
+    contaminados: base é descartável (apagar e re-raspar) ou UPDATE pontual zerando
+    descricao/categoria dos bileto. A spec da Bronze trata este bug como
+    pré-requisito lógico (senão a Bronze eterniza payload alheio).
 
 - codigo: NI-15
   status: nao-iniciado
