@@ -105,6 +105,7 @@ def _normalizar(ld, slug, cidade_label, estado_label):
         "descricao": (ld.get("description") or "").strip() or None,
         "atracoes": _atracoes(ld),
         "preco_min": _preco_min(ld),
+        "_raw": ld,  # JSON-LD bruto -> eventos_raw (camada Bronze)
     }
 
 

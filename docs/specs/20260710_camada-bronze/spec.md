@@ -1,7 +1,11 @@
 # Spec — Camada Bronze: payload bruto por evento
 
-> **Status:** especificada em 2026-07-10, a partir do spike do NI-14
-> (**aprovado** — medições e veredito em [`tests/spike_bronze/RESULTADO.md`](../../../tests/spike_bronze/RESULTADO.md)).
+> **Status:** **implementada** em 2026-07-10 (mesmo dia da spec): `eventos_raw`
+> no schema, `_raw` nos 3 scrapers, `src/derivar.py` + `--so-derivar` no
+> pipeline; teste de fumaça em `tests/test_bronze.py`. O bug do Bileto (NI-17)
+> foi corrigido antes, como pré-requisito (§2). Spike de origem (NI-14,
+> **aprovado**): medições e veredito em
+> [`tests/spike_bronze/RESULTADO.md`](../../../tests/spike_bronze/RESULTADO.md).
 > **O quê/por quê:** guardar o JSON/JSON-LD bruto que cada fonte devolve, por
 > evento, para (1) re-derivar campos novos **sem re-raspar** e (2) auditar a
 > corretude da base contra a origem. Esta spec é o **como**.

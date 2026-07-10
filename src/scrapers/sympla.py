@@ -9,9 +9,13 @@ Parametros uteis:
   city      slug da cidade (ex.: "sao-paulo")
   state     UF (ex.: "SP")
   location  nome da cidade para exibicao (ex.: "São Paulo")
-  only      campos retornados (reduz payload)
   limit     itens por pagina (usamos 100)
   page      pagina (1-based)
+
+A API aceita ainda `only` (reduz o payload aos campos pedidos), mas NAO usamos:
+a camada Bronze guarda o payload completo (~1,2 KB/evento), que e onde moram
+campos como location.neighborhood e global_score — ver
+docs/specs/20260710_camada-bronze/spec.md.
 """
 
 import html
@@ -31,6 +35,10 @@ API = "https://www.sympla.com.br/api/discovery-bff/search/category-type"
 BFF_EVENTO = "https://event-page.svc.sympla.com.br/api/event-bff/purchase/event/"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+
+# Registro dos campos que _normalizar consome do catalogo. Ja foi o valor do
+# parametro `only` da API; hoje a chamada vem sem `only` (payload completo, p/
+# a camada Bronze) e a lista fica como documentacao do subconjunto mapeado.
 CAMPOS = ("name,start_date,end_date,images,event_type,location,id,url,"
           "organizer,type")
 
@@ -66,11 +74,12 @@ def raspar_descricao(id_url):
     """Busca descricao (texto limpo) e categoria real de um evento no BFF da pagina.
 
     id_url: id numerico no fim da URL publica (ex.: 3488482). Retorna dict
-    {"descricao", "categoria", "nome"} (descricao/categoria podem ser None);
-    levanta excecao em erro de rede/HTTP — o chamador decide tolerar.
-    "nome" e o nome que o BFF devolveu: o chamador DEVE conferi-lo contra o
-    nome que ja tem, porque um id de outro namespace (ex.: Bileto) devolve
-    outro evento valido sem erro HTTP (bug NI-17).
+    {"descricao", "categoria", "nome", "payload"} (descricao/categoria podem ser
+    None); levanta excecao em erro de rede/HTTP — o chamador decide tolerar.
+    "nome" e o nome que o BFF devolveu: o chamador DEVE conferi-lo contra o nome
+    que ja tem, porque um id de outro namespace (ex.: Bileto) devolve outro
+    evento valido sem erro HTTP (bug NI-17). "payload" e o JSON bruto, para a
+    camada Bronze.
     """
     ev = _get_url(f"{BFF_EVENTO}{id_url}")
     cat = ev.get("eventsCategory")
@@ -81,6 +90,7 @@ def raspar_descricao(id_url):
                      _limpar_html(ev.get("strippedDetail")),
         "categoria": cat if isinstance(cat, str) and cat.strip() else None,
         "nome": ev.get("name"),
+        "payload": ev,
     }
 
 
@@ -107,6 +117,7 @@ def _normalizar(ev):
         "url": ev.get("url"),
         "imagem": imgs.get("lg") or imgs.get("original") or None,
         "raspado_em": datetime.now(timezone.utc).isoformat(),
+        "_raw": ev,  # payload bruto -> eventos_raw (camada Bronze)
     }
 
 
@@ -142,7 +153,7 @@ def raspar(city="brasilia", state="DF", location="Brasília",
         params = {
             "service": "/v4/search",
             "city": city, "state": state, "location": location,
-            "only": CAMPOS, "sort": "month-trending-score",
+            "sort": "month-trending-score",
             "location_score": "month-trending-score",
             "limit": 100, "page": page,
         }

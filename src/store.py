@@ -8,6 +8,7 @@ O DDL vive em sql/schema.sql (fonte unica, tambem rodavel no DBeaver); este
 modulo so o carrega e aplica.
 """
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -46,7 +47,12 @@ _COLS_PRESERVAR = {"descricao", "atracoes", "preco_min"}
 
 
 def upsert_eventos(con, eventos):
-    """Insere ou atualiza uma lista de eventos normalizados (dicts)."""
+    """Insere ou atualiza uma lista de eventos normalizados (dicts).
+
+    A chave reservada "_raw" (payload bruto que o _normalizar do scraper
+    recebeu) não é coluna de eventos: vai para eventos_raw como origem
+    'catalogo' (camada Bronze). Dicts sem "_raw" seguem funcionando.
+    """
     cols = ["id", "fonte", "id_nativo", "nome", "start_date", "end_date",
             "cidade", "estado", "local_nome", "endereco", "lat", "lon",
             "categoria", "organizador", "url", "imagem", "raspado_em",
@@ -59,5 +65,21 @@ def upsert_eventos(con, eventos):
     sql = (f"INSERT INTO eventos ({','.join(cols)}) VALUES ({placeholders}) "
            f"ON CONFLICT(id) DO UPDATE SET {updates}")
     con.executemany(sql, [[e.get(c) for c in cols] for e in eventos])
+    for e in eventos:
+        if e.get("_raw") is not None:
+            gravar_raw(con, e["id"], "catalogo", e["_raw"], e["raspado_em"],
+                       commit=False)
     con.commit()
     return len(eventos)
+
+
+def gravar_raw(con, evento_id, origem, payload, raspado_em, commit=True):
+    """Guarda o payload bruto de um evento na camada Bronze (último vence)."""
+    con.execute(
+        "INSERT INTO eventos_raw (evento_id, origem, payload, raspado_em) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(evento_id, origem) DO UPDATE SET "
+        "payload = excluded.payload, raspado_em = excluded.raspado_em",
+        (evento_id, origem, json.dumps(payload, ensure_ascii=False), raspado_em))
+    if commit:
+        con.commit()

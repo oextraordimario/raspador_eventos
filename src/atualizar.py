@@ -1,12 +1,15 @@
 """Atualização sob demanda da base de eventos — o comando único da Fase 0.
 
-Fluxo: raspa as 3 fontes (tolerante a falha por fonte) → upsert → descrever
-(busca incremental da descrição p/ eventos sem ela) → enriquecimento v1 (ruído +
-dedupe, recalculado do zero) → reconstrói o FTS → relatório de saúde.
+Fluxo: raspa as 3 fontes (tolerante a falha por fonte) → upsert (guardando o
+payload bruto na camada Bronze) → descrever (busca incremental da descrição p/
+eventos sem ela) → derivar (colunas calculadas do bruto, sem rede) →
+enriquecimento v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS →
+relatório de saúde.
 
 Uso (da raiz do repo):
     python src/atualizar.py                  # pipeline completo
     python src/atualizar.py --sem-shotgun    # pula o Shotgun (lento, usa navegador)
+    python src/atualizar.py --so-derivar     # não raspa; re-deriva do bruto + regras + FTS
     python src/atualizar.py --so-enriquecer  # não raspa; só reaplica regras + FTS
 """
 
@@ -16,18 +19,18 @@ import time
 import traceback
 from datetime import datetime, timezone
 
+import derivar
 import enriquecer
 import store
 from scrapers import ingresse, shotgun, sympla
 
 
 def _checar_schema(con):
-    """Base criada antes das colunas de enriquecimento não é migrada: é descartável."""
+    """Base criada antes de uma mudança de schema não é migrada: é descartável."""
     cols = {r[1] for r in con.execute("PRAGMA table_info(eventos)")}
-    if "ruido" not in cols:
-        sys.exit("A base data/eventos.db é de um schema antigo (sem as colunas de "
-                 "enriquecimento).\nNa Fase 0 a base é descartável: apague o arquivo "
-                 "e rode de novo para re-raspar.")
+    if "ruido" not in cols or "bairro" not in cols:
+        sys.exit("A base data/eventos.db é de um schema antigo.\nNa Fase 0 a base "
+                 "é descartável: apague o arquivo e rode de novo para re-raspar.")
 
 
 def _raspar(con, incluir_shotgun=True):
@@ -100,7 +103,7 @@ def _descrever(con, pausa=0.4):
                 d = sympla.raspar_descricao(m.group(1))
                 if not _mesmo_nome(r["nome"], d["nome"]):
                     trocados += 1
-                    continue
+                    continue  # payload suspeito não entra nem na Bronze
                 con.execute(
                     "UPDATE eventos SET descricao = ?, "
                     "categoria = COALESCE(?, categoria) WHERE id = ?",
@@ -110,6 +113,9 @@ def _descrever(con, pausa=0.4):
                 d = ingresse.raspar_descricao(slug)
                 con.execute("UPDATE eventos SET descricao = ? WHERE id = ?",
                             (d["descricao"], r["id"]))
+            store.gravar_raw(con, r["id"], "detalhe", d["payload"],
+                             datetime.now(timezone.utc).isoformat(),
+                             commit=False)
             buscadas += 1 if d["descricao"] else 0
         except Exception:
             falhas += 1
@@ -135,7 +141,7 @@ def _instante(iso):
     return dt.astimezone(timezone.utc) if dt else None
 
 
-def _relatorio(con, resultados, enriq, duracao):
+def _relatorio(con, resultados, derivado, enriq, duracao):
     agora = datetime.now(timezone.utc)
     print("\n" + "=" * 64)
     print(f"Saúde da base — {agora.strftime('%Y-%m-%d %H:%M UTC')}")
@@ -144,7 +150,7 @@ def _relatorio(con, resultados, enriq, duracao):
     # --- fontes / cobertura ---
     print("\nFontes (coletados/total no site):")
     if not resultados:
-        print("  raspagem pulada (--so-enriquecer)")
+        print("  raspagem pulada (--so-derivar/--so-enriquecer)")
     for nome, r in resultados.items():
         if "erro" in r:
             print(f"  {nome:<9} FALHOU: {r['erro']}")
@@ -173,6 +179,15 @@ def _relatorio(con, resultados, enriq, duracao):
             "FROM eventos GROUP BY fonte ORDER BY fonte"):
         print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
 
+    # --- camada Bronze: payloads brutos e colunas derivadas ---
+    raws = con.execute("SELECT origem, COUNT(*) FROM eventos_raw "
+                       "GROUP BY origem ORDER BY origem").fetchall()
+    print("  payloads brutos (Bronze): " +
+          (", ".join(f"{origem}: {n}" for origem, n in raws) or "nenhum"))
+    if derivado is not None:
+        print("  colunas derivadas do bruto: " +
+              ", ".join(f"{c}: {n} eventos" for c, n in derivado.items()))
+
     # --- enriquecimento ---
     ruido, grupos = enriq["ruido"], enriq["grupos"]
     print(f"\nRuído marcado (some da consulta): {len(ruido)}")
@@ -192,21 +207,26 @@ def _relatorio(con, resultados, enriq, duracao):
 def main():
     inicio = time.monotonic()
     so_enriquecer = "--so-enriquecer" in sys.argv
+    so_derivar = "--so-derivar" in sys.argv
 
     con = store.conectar()
     _checar_schema(con)
 
     resultados = {}
-    if not so_enriquecer:
+    if not (so_enriquecer or so_derivar):
         resultados = _raspar(con, incluir_shotgun="--sem-shotgun" not in sys.argv)
         if resultados and all("erro" in r for r in resultados.values()):
             con.close()
             sys.exit("Todas as fontes falharam — base não atualizada.")
         _descrever(con)
 
+    # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
+    # o fluxo normal e o --so-derivar recalculam as derivadas a partir da Bronze.
+    derivado = None if so_enriquecer else derivar.aplicar(con)
+
     enriq = enriquecer.aplicar(con)
     store.reconstruir_fts(con)
-    _relatorio(con, resultados, enriq, time.monotonic() - inicio)
+    _relatorio(con, resultados, derivado, enriq, time.monotonic() - inicio)
     con.close()
 
 

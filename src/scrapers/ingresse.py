@@ -64,7 +64,8 @@ def raspar_descricao(slug):
     rede/HTTP — o chamador decide tolerar.
     """
     ev = _get_url(f"{API_EVENTO}{urllib.parse.quote(slug)}")
-    return {"descricao": _limpar_html(ev.get("description"))}
+    return {"descricao": _limpar_html(ev.get("description")),
+            "payload": ev}  # JSON bruto, p/ a camada Bronze
 
 
 def _normalizar(ev):
@@ -92,6 +93,7 @@ def _normalizar(ev):
         "url": f"https://www.ingresse.com/{ev.get('slug')}" if ev.get("slug") else None,
         "imagem": poster.get("large") or poster.get("medium") or None,
         "raspado_em": datetime.now(timezone.utc).isoformat(),
+        "_raw": ev,  # payload bruto -> eventos_raw (camada Bronze)
     }
 
 

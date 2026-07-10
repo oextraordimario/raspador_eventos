@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS eventos (
     atracoes      TEXT,               -- line-up ("; "-separado) quando a fonte entrega (Shotgun: performer)
     preco_min     REAL,               -- menor preco anunciado, quando a fonte entrega (Shotgun: offers)
 
+    -- Colunas derivadas da camada Bronze (preenchidas por src/derivar.py a partir
+    -- de eventos_raw, apos o upsert; os scrapers nao escrevem aqui). Recalculadas
+    -- do zero a cada atualizacao — ver docs/specs/20260710_camada-bronze/spec.md.
+    bairro        TEXT,               -- bairro do local (Sympla: location.neighborhood do payload bruto)
+
     -- Colunas de enriquecimento v1 (preenchidas por src/enriquecer.py apos o upsert;
     -- os scrapers nao escrevem aqui). Recalculadas do zero a cada atualizacao.
     ruido           INTEGER NOT NULL DEFAULT 0,  -- 1 = nao e vida noturna (anuncio/curso/etc.); a consulta esconde
@@ -48,6 +53,20 @@ CREATE TABLE IF NOT EXISTS eventos (
 
 CREATE INDEX IF NOT EXISTS idx_eventos_start ON eventos(start_date);
 CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON eventos(cidade);
+
+-- Camada Bronze: o payload bruto (JSON/JSON-LD) de cada evento, como veio da
+-- fonte. Permite re-derivar campos novos SEM re-raspar (src/derivar.py) e
+-- auditar a base contra a origem. Sympla tem DOIS payloads por evento (catalogo
+-- + BFF da pagina do evento) — por isso tabela propria com origem na chave, e
+-- nao uma coluna raw em eventos. Ultimo payload vence (UPSERT na PK).
+-- Spec: docs/specs/20260710_camada-bronze/spec.md.
+CREATE TABLE IF NOT EXISTS eventos_raw (
+    evento_id  TEXT NOT NULL,   -- eventos.id ("<fonte>:<id_nativo>")
+    origem     TEXT NOT NULL,   -- qual payload: 'catalogo' | 'detalhe'
+    payload    TEXT NOT NULL,   -- JSON bruto (json.dumps ensure_ascii=False)
+    raspado_em TEXT NOT NULL,   -- timestamp ISO 8601 de quando foi raspado
+    PRIMARY KEY (evento_id, origem)
+);
 
 -- Indice de busca textual (nome/categoria/atracoes/descricao) para as consultas em
 -- linguagem natural. Tabela de conteudo externo (content='eventos'): reindexada via

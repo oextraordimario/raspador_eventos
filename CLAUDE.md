@@ -29,6 +29,7 @@ python -m playwright install chromium          # necessário só p/ o Shotgun
 # com ruído/dedupe → FTS → relatório de saúde). Rodar antes de usar o agente.
 python src/atualizar.py
 python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
+python src/atualizar.py --so-derivar            # não raspa; re-deriva do payload bruto + regras + FTS
 python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
 
 # Demo da PoC (raspa e roda consultas de exemplo; mantida como registro)
@@ -44,6 +45,7 @@ python src/mcp_server.py
 
 # Testes de fumaça (scripts executáveis, sem framework)
 python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta (base descartável)
+python tests/test_bronze.py                     # camada Bronze (eventos_raw + derivação) e guarda anti-Bileto (base descartável)
 python tests/test_mcp_server.py                 # age como cliente MCP real; exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
@@ -64,7 +66,7 @@ em `conectar()`):
 
 ```
 src/
-  store.py  consulta.py  enriquecer.py            # núcleo (imports irmãos)
+  store.py  consulta.py  enriquecer.py  derivar.py  # núcleo (imports irmãos)
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
     sympla.py  ingresse.py  shotgun.py  discover_sympla.py
@@ -108,7 +110,14 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
 - `src/store.py` — aplica o schema (`sql/schema.sql`) + `upsert_eventos` (chave
   `<fonte>:<id_nativo>` evita colisão) + índice FTS5 (`eventos_fts`) para busca textual.
   Depois de raspar, chame `reconstruir_fts(con)` (roda `sql/reconstruir_fts.sql`) para
-  reindexar.
+  reindexar. A chave reservada `_raw` do dict normalizado (payload bruto da fonte) vai
+  para a **camada Bronze** (`eventos_raw`, PK `evento_id+origem` — Sympla tem 2 payloads
+  por evento: catálogo e detalhe), junto com `gravar_raw(...)` para o payload do
+  "descrever".
+- `src/derivar.py` — derivação a seco: (re)calcula colunas de `eventos` a partir de
+  `eventos_raw`, sem rede (hoje: `bairro`, do catálogo do Sympla). Campo novo do bruto =
+  função aqui + `--so-derivar`, **sem re-raspar**. Idempotente como o enriquecer.
+  Spec: `docs/specs/20260710_camada-bronze/spec.md`.
 - `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
   (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas cross-fonte
   (mesmo dia + nome/local similares). **Marca, não apaga** — quem esconde é a
@@ -122,9 +131,10 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   `consulta.py`: `buscar_eventos` e `data_atual` (data/hora UTC + janela do fim de
   semana, para o agente montar filtros "hoje"/"neste fim de semana").
 
-Fluxo: `scraper.raspar()` → `store.upsert_eventos()` → descrever (busca incremental
-da descrição p/ Sympla/Ingresse; upsert usa COALESCE p/ nunca zerá-la) →
-`enriquecer.aplicar()` → `store.reconstruir_fts()` → `consulta.buscar_eventos()` →
+Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
+descrever (busca incremental da descrição p/ Sympla/Ingresse; upsert usa COALESCE p/
+nunca zerá-la) → `derivar.aplicar()` → `enriquecer.aplicar()` →
+`store.reconstruir_fts()` → `consulta.buscar_eventos()` →
 tool MCP → agente de IA. `atualizar.py` orquestra tudo isso sob demanda;
 `mcp_server.py` é o ponto de entrada em uso real; `demo.py` é a demo da PoC.
 O FTS indexa nome/categoria/atracoes/**descricao** — "eletrônica" acha evento sem o
