@@ -1,0 +1,34 @@
+{
+  "id": 89750,
+  "createdAt": "2026-01-03T16:25:30.643017+00:00",
+  "slug": "passaporte-festa-da-lili-21-anos",
+  "title": "Passaporte 3 DIAS - Festa da Lili 21 anos",
+  "poster": {
+    "small": "https://kraken.ingresse.com/event/posters/89750/small/1767996524.60834.jpg",
+    "medium": "https://kraken.ingresse.com/event/posters/89750/medium/1767996524.7731667.jpg",
+    "large": "https://kraken.ingresse.com/event/posters/89750/large/1767996524.9404705.jpg",
+    "xLarge": "https://kraken.ingresse.com/event/posters/89750/xLarge/1767996525.2100928.jpg"
+  },
+  "session": {
+    "dateTime": "2026-08-15T01:00:00+00:00",
+    "id": 128871,
+    "status": "available",
+    "timezone": "America/Sao_Paulo"
+  },
+  "delta": 1.0,
+  "place": {
+    "country": "BRA",
+    "city": "Brasília",
+    "id": 54957,
+    "name": "Brasília",
+    "state": "DF",
+    "street": "",
+    "location": {
+      "lat": -15.79752,
+      "lon": -47.89189
+    },
+    "zip": "",
+    "externalId": "ChIJdeKa3xg9WpMRJEp1aeRwhHM",
+    "origin": "googleMaps"
+  }
+}

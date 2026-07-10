@@ -1,0 +1,47 @@
+{
+  "end_date": "2026-07-12T10:00:00+00:00",
+  "images": {
+    "original": "https://images.sympla.com.br/6a442518f0dab.png",
+    "xs": "https://images.sympla.com.br/6a442518f0dab-xs.png",
+    "lg": "https://images.sympla.com.br/6a442518f0dab-lg.png"
+  },
+  "global_score": 387143,
+  "duration_type": "single",
+  "type": "NORMAL",
+  "url": "https://www.sympla.com.br/evento/house-club-13-anos/3459772",
+  "start_date_formats": {
+    "pt": "Sab, 11 Jul - 2026 · 22:00",
+    "en": "Sat, 11 Jul - 2026 · 22:00",
+    "es": "Sab, 11 Jul - 2026 · 22:00"
+  },
+  "organizer": {
+    "image": "",
+    "name": "Cuscus Estréia",
+    "id": "1845380",
+    "url": "",
+    "email": "cuscusestreia10@gmail.com"
+  },
+  "end_date_formats": {
+    "pt": "Dom, 12 Jul - 2026 · 07:00",
+    "en": "Sun, 12 Jul - 2026 · 07:00",
+    "es": "Dom, 12 Jul - 2026 · 07:00"
+  },
+  "name": "HOUSE CLUB 13 ANOS",
+  "company": "sympla",
+  "location": {
+    "country": "BRASIL",
+    "address": "SAAN Quadra 2",
+    "address_alt": "",
+    "city": "Brasília",
+    "address_num": "45",
+    "name": "Anexo BZ",
+    "lon": -47.9374282,
+    "state": "DF",
+    "neighborhood": "",
+    "zip_code": "70632-200",
+    "lat": -15.7693354
+  },
+  "id": 3459772,
+  "start_date": "2026-07-12T01:00:00+00:00",
+  "event_type": "NORMAL"
+}

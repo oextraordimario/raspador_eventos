@@ -1,0 +1,70 @@
+{
+  "@context": "https://schema.org",
+  "@type": "MusicEvent",
+  "name": "Infinu Recebe Leoa Em Brasília: Lançamento Original Malokera",
+  "url": "https://shotgun.live/en/events/leoaembsb",
+  "image": "https://res.cloudinary.com/shotgun/image/upload/c_limit,w_1200,h_630/f_jpg/q_auto/production/artworks/WhatsApp_Image_2026-06-02_at_09.55.05_jx7b3y.jpg",
+  "startDate": "2026-07-12T00:00:00.000Z",
+  "doorTime": "2026-07-12T00:00:00.000Z",
+  "endDate": "2026-07-12T02:59:00.000Z",
+  "eventStatus": "https://schema.org/EventScheduled",
+  "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+  "location": {
+    "@type": "Place",
+    "name": "Infinu Comunidade Criativa",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "CRS 506 Bloco A Loja 67 ao lado Praça das Avós - SHCS CRS 506 - Asa Sul, Brasília - DF, 70350-515, Brasil",
+      "addressLocality": "Asa Sul",
+      "postalCode": "70350-515",
+      "addressCountry": "BR"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": -15.8091221,
+      "longitude": -47.9014552
+    }
+  },
+  "description": "O aguardado primeiro álbum solo de LEOA, intitulado \"Original Malokera\", é uma obra pop, cosmopolita e tropical que reflete a alma inquieta da artista e sua incessante busca por identidade através da música. Com 15 faixas, o disco costura de forma intrincada ritmos da América Latina, do Caribe e do Nordeste brasileiro, onde o som de paredão se entrelaça com batidas caribenhas e cadências latinas, revelando a profundidade e a ousadia de sua pesquisa musical. \n\n\"Original Malokera\" é também uma carta de amor ao Rio Grande do Norte, terra que moldou a sensibilidade e o olhar artístico de LEOA. As raízes potiguares emergem em cada faixa, seja nos timbres, nas imagens ou nas histórias, como ecos de sua vivência. Nas letras, LEOA percorre temas como o romantismo, os altos e baixos dos relacionamentos, a jornada de quem escolhe a arte como ofício e a incansável busca por autenticidade. \n\nEm cada canção, a artista se revela em múltiplas camadas: ora doce e etérea, com vocais suaves que acariciam o ouvido; ora feroz e direta, disparando versos com flow veloz e afiado, mostrando sua força lírica e presença. Essa dualidade é uma das marcas mais potentes do disco, um reflexo da complexidade de ser mulher, artista e nordestina no mundo contemporâneo. Fiel à sua natureza plural, LEOA brinca com os idiomas como quem navega entre mundos: o português é a base, mas há respiros e expressões em inglês, espanhol e francês, que ampliam o alcance poético e cultural do álbum. \n\nEste disco não é apenas uma estreia solo; é um rito de passagem, uma afirmação de liberdade criativa e o início de um novo capítulo na carreira de LEOA, que deixa para trás a coletividade da banda para se lançar em voo próprio, com garras afiadas, coração aberto e um som que pulsa como um manifesto\n\n| SERVIÇO |\n\nInfinu recebe LEOA \n- Data: sábado, 11 de julho de 2026\n- Horário: 21h (abertura do salão) 21h30 (show)\n- Local: Infinu Comunidade Criativa  | CRS 506 Bloco A Loja 67 ao lado Praça das Avós, SHCS, Brasília - DF, 70350-515\n- Classificação: 18 anos. Menores apenas acompanhados pelos pais ou responsáveis legais. Caso os pais não possam acompanhar, necessário que eles preencham documento disponibilizado no link abaixo apontando o responsável maior de idade que o fará. https://www.infinu.com.br/modelo-autorizacao\nObs: Necessário levar impresso com firma reconhecida em cartório ou enviar o documento digital com assinatura do Gov.br\n\n| Ingressos |\n\nSolidário* / Meia-entrada\n\nPromocional Solidário* / Meia-entrada - R$ 40,00\n1st Lote Solidário* / Meia-entrada - R$ 50,00\n2st Lote Solidário* / Meia-entrada - R$ 60,00\n\nInteira\n\nPromocional Inteira - R$80,00\n1st Lote Inteira - R$ 100,00\n2st Lote Inteira - R$ 120,00\n\n* Solidário - Valor reduzido, mediante doação de 1kg de alimento não perecível (NÃO ACEITAMOS FARINHA DE TRIGO ou SAL). As doações deverão ser entregues na entrada do evento, ao retirar sua pulseira. Modalidade válida para todos os públicos. \nObs: no dia do evento, pode-se optar tb por apresentar comprovante de consumação nas lojas de nossa galeria (valor min. R$30, gastronomia ou moda ou #picnikcollab). A consumação deve ser feita antes de retirar a pulseira, apresentando comprovante junto a bilheteria (serve NF ou extrato maquineta cartão).\n\n** Meia-entrada - Para o benefício da meia-entrada de estudante, professor, profissional saúde etc (50% de desconto), é necessária a apresentação da Carteira de Identificação Estudantil (CIE) ou respectivo documento original comprobatório na entrada do evento. Todos os documentos válidos para esse benefício são determinados pela Lei Federal 12.933/13.\n\nPolítica de devolução de ingressos: Seguindo o Código de Defesa do Consumidor, a Shotgun garante seu direito de desistência da compra em até 7 dias corridos após a data de confirmação da mesma, mas desde que solicitada em até 48 horas antes do início do evento. Se a opção não aparece para você isso significa que sua compra não está elegível para cancelamento. Lembra-se de que você pode revender seu ingresso de forma segura diretamente pelo aplicativo do Shotgun.",
+  "organizer": {
+    "@type": "LocalBusiness",
+    "name": "Infinu Comunidade Criativa",
+    "url": "https://shotgun.live/en/venues/infinu-comunidade-criativa"
+  },
+  "performer": [
+    {
+      "@type": "MusicGroup",
+      "name": "Luísa e os Alquimistas",
+      "url": "https://shotgun.live/en/artists/luisaeosalquimistas"
+    }
+  ],
+  "offers": [
+    {
+      "@type": "Offer",
+      "availability": "https://schema.org/SoldOut",
+      "name": "Promocional Solidário* / Meia-entrada",
+      "price": 40,
+      "priceCurrency": "BRL",
+      "validFrom": "2026-06-02T12:51:28.000Z",
+      "url": "https://shotgun.live/en/events/leoaembsb"
+    },
+    {
+      "@type": "Offer",
+      "availability": "https://schema.org/InStock",
+      "name": "Promocional Inteira",
+      "price": 80,
+      "priceCurrency": "BRL",
+      "validFrom": "2026-06-02T12:51:28.000Z",
+      "url": "https://shotgun.live/en/events/leoaembsb"
+    },
+    {
+      "@type": "Offer",
+      "availability": "https://schema.org/InStock",
+      "name": "1st Lote Solidário* / Meia-entrada",
+      "price": 50,
+      "priceCurrency": "BRL",
+      "validFrom": "2026-06-02T12:51:28.000Z",
+      "url": "https://shotgun.live/en/events/leoaembsb"
+    }
+  ]
+}

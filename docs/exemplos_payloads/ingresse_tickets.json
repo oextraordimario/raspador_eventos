@@ -1,0 +1,1352 @@
+{
+  "detail": {
+    "responseData": [
+      {
+        "id": 1687576,
+        "name": "Passaporte Camarote Open Bar Premium",
+        "description": null,
+        "salable": true,
+        "status": "available",
+        "faceRecognition": false,
+        "transferMandatoryFaceRecognition": false,
+        "type": [
+          {
+            "id": 1687606,
+            "name": "Camarote Open Bar",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26.",
+            "price": 590,
+            "validationCpfTicket": false,
+            "tax": 59,
+            "beginSales": "2026-01-12T15:00:00+00:00",
+            "endSales": "2026-01-15T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 210,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1700030,
+            "name": "1º Lote - Camarote Open Bar Premium (meia-entrada por lei)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 660,
+            "validationCpfTicket": false,
+            "tax": 66,
+            "beginSales": "2026-01-19T15:00:00+00:00",
+            "endSales": "2026-02-11T03:01:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 261,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1700031,
+            "name": "1º Lote - Camarote Open Bar Premium (meia social)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lembre-se de levar 1kg de alimento não perecível para validar a meia solidária.",
+            "price": 670,
+            "validationCpfTicket": false,
+            "tax": 67,
+            "beginSales": "2026-01-19T15:00:00+00:00",
+            "endSales": "2026-02-11T03:01:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 239,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1722658,
+            "name": "2º Lote - Camarote Open Bar Premium (meia-entrada por lei)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 730,
+            "validationCpfTicket": false,
+            "tax": 73,
+            "beginSales": "2026-02-11T03:01:00+00:00",
+            "endSales": "2026-04-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 252,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1722659,
+            "name": "2º Lote - Camarote Open Bar Premium (meia social)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lembre-se de levar 1kg de alimento não perecível para validar a meia solidária.",
+            "price": 760,
+            "validationCpfTicket": false,
+            "tax": 76,
+            "beginSales": "2026-02-11T03:01:00+00:00",
+            "endSales": "2026-04-16T02:58:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 249,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1781336,
+            "name": "3º Lote - Camarote Open Bar Premium (meia-entrada por lei)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 780,
+            "validationCpfTicket": false,
+            "tax": 78,
+            "beginSales": "2026-04-16T14:00:00+00:00",
+            "endSales": "2026-06-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 239,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1693683,
+            "name": "Camarote Open Bar (Inteira)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26",
+            "price": 1180,
+            "validationCpfTicket": false,
+            "tax": 118,
+            "beginSales": "2026-01-12T15:00:00+00:00",
+            "endSales": "2026-01-15T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 43,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 2,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1700029,
+            "name": "1º Lote - Camarote Open Bar Premium (Inteira)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26",
+            "price": 1320,
+            "validationCpfTicket": false,
+            "tax": 132,
+            "beginSales": "2026-01-19T15:00:00+00:00",
+            "endSales": "2026-02-11T03:01:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 47,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 5,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1722660,
+            "name": "2º Lote - Camarote Open Bar Premium (Inteira)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26",
+            "price": 1460,
+            "validationCpfTicket": false,
+            "tax": 146,
+            "beginSales": "2026-02-11T03:01:00+00:00",
+            "endSales": "2026-04-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 47,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 8,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1848036,
+            "name": "4º Lote - Camarote Open Bar Premium (meia-entrada por lei)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 820,
+            "validationCpfTicket": false,
+            "tax": 82,
+            "beginSales": "2026-06-16T03:01:00+00:00",
+            "endSales": "2026-07-16T02:59:00+00:00",
+            "status": "available",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 284,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "2",
+              "name": "Meia-entrada"
+            },
+            "order": 9,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1848044,
+            "name": "4º Lote - Camarote Open Bar Premium (meia social)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lembre-se de levar 1kg de alimento não perecível para validar a meia solidária.",
+            "price": 850,
+            "validationCpfTicket": false,
+            "tax": 85,
+            "beginSales": "2026-06-16T03:01:00+00:00",
+            "endSales": "2026-07-16T02:59:00+00:00",
+            "status": "available",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 280,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 10,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1848047,
+            "name": "4º Lote - Camarote Open Bar Premium (Inteira)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26",
+            "price": 1640,
+            "validationCpfTicket": false,
+            "tax": 164,
+            "beginSales": "2026-06-16T03:01:00+00:00",
+            "endSales": "2026-07-16T02:59:00+00:00",
+            "status": "available",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 48,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 11,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1781338,
+            "name": "3º Lote - Camarote Open Bar Premium (Inteira)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26",
+            "price": 1560,
+            "validationCpfTicket": false,
+            "tax": 156,
+            "beginSales": "2026-04-16T14:00:00+00:00",
+            "endSales": "2026-06-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 47,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 12,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1781337,
+            "name": "3º Lote - Camarote Open Bar Premium (meia social)",
+            "description": "Camarote Open bar apenas no sábado dia 15/08/26. Lembre-se de levar 1kg de alimento não perecível para validar a meia solidária.",
+            "price": 790,
+            "validationCpfTicket": false,
+            "tax": 79,
+            "beginSales": "2026-04-16T14:00:00+00:00",
+            "endSales": "2026-06-16T02:58:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 203,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 13,
+            "comboExclusiveSales": false
+          }
+        ],
+        "quantityInStock": 99,
+        "order": 0
+      },
+      {
+        "id": 1687575,
+        "name": "Passaporte PISTA",
+        "description": null,
+        "salable": true,
+        "status": "available",
+        "faceRecognition": false,
+        "transferMandatoryFaceRecognition": false,
+        "type": [
+          {
+            "id": 1687603,
+            "name": "Pista",
+            "description": "",
+            "price": 400,
+            "validationCpfTicket": false,
+            "tax": 40,
+            "beginSales": "2026-01-12T15:00:00+00:00",
+            "endSales": "2026-01-15T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 168,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1700501,
+            "name": "1º Lote Pista (meia-entrada por lei)",
+            "description": "Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 450,
+            "validationCpfTicket": false,
+            "tax": 45,
+            "beginSales": "2026-01-19T15:00:00+00:00",
+            "endSales": "2026-02-11T03:01:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 1150,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "2",
+              "name": "Meia-entrada"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1700502,
+            "name": "1º Lote Pista (meia-social)",
+            "description": "Válido mediante a entrega de 1kg de alimento não perecível na entrada do evento.",
+            "price": 460,
+            "validationCpfTicket": false,
+            "tax": 46,
+            "beginSales": "2026-01-19T15:00:00+00:00",
+            "endSales": "2026-02-11T03:01:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 1110,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1722655,
+            "name": "2º Lote Pista (meia-entrada por lei)",
+            "description": "Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 480,
+            "validationCpfTicket": false,
+            "tax": 48,
+            "beginSales": "2026-02-11T03:01:00+00:00",
+            "endSales": "2026-04-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 1081,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "2",
+              "name": "Meia-entrada"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1722656,
+            "name": "2º Lote Pista (meia-social)",
+            "description": "Válido mediante a entrega de 1kg de alimento não perecível na entrada do evento.",
+            "price": 510,
+            "validationCpfTicket": false,
+            "tax": 51,
+            "beginSales": "2026-02-11T03:01:00+00:00",
+            "endSales": "2026-04-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 1073,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1781332,
+            "name": "3º Lote Pista (meia-entrada por lei)",
+            "description": "Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 500,
+            "validationCpfTicket": false,
+            "tax": 50,
+            "beginSales": "2026-04-16T15:00:00+00:00",
+            "endSales": "2026-06-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 1067,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "2",
+              "name": "Meia-entrada"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1781334,
+            "name": "3º Lote Pista (meia-social)",
+            "description": "Válido mediante a entrega de 1kg de alimento não perecível na entrada do evento.",
+            "price": 510,
+            "validationCpfTicket": false,
+            "tax": 51,
+            "beginSales": "2026-04-16T14:00:00+00:00",
+            "endSales": "2026-06-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 1018,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1848049,
+            "name": "4º Lote Pista (meia-entrada por lei)",
+            "description": "Lei Federal nº 12.933/2013, beneficiando estudantes, idosos, jovens de baixa renda e pessoas com deficiência, além de leis locais que incluem profissionais da saúde e educação do DF, garantindo 50% de desconto no ingresso inteira. Necessário comprovação.",
+            "price": 540,
+            "validationCpfTicket": false,
+            "tax": 54,
+            "beginSales": "2026-06-16T03:01:00+00:00",
+            "endSales": "2026-07-16T02:59:00+00:00",
+            "status": "available",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 920,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "2",
+              "name": "Meia-entrada"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1848051,
+            "name": "4º Lote Pista (meia-social)",
+            "description": "Válido mediante a entrega de 1kg de alimento não perecível na entrada do evento.",
+            "price": 570,
+            "validationCpfTicket": false,
+            "tax": 57,
+            "beginSales": "2026-06-16T03:01:00+00:00",
+            "endSales": "2026-07-16T02:59:00+00:00",
+            "status": "available",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 1125,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "10",
+              "name": "Promocional"
+            },
+            "order": 0,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1693685,
+            "name": "Pista (Inteira)",
+            "description": "",
+            "price": 800,
+            "validationCpfTicket": false,
+            "tax": 80,
+            "beginSales": "2026-01-12T15:00:00+00:00",
+            "endSales": "2026-01-15T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 999,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 2,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1700503,
+            "name": "1º Lote Pista (inteira)",
+            "description": "",
+            "price": 900,
+            "validationCpfTicket": false,
+            "tax": 90,
+            "beginSales": "2026-01-19T15:00:00+00:00",
+            "endSales": "2026-02-11T03:01:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 50,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 5,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1722657,
+            "name": "2º Lote Pista (inteira)",
+            "description": "",
+            "price": 960,
+            "validationCpfTicket": false,
+            "tax": 96,
+            "beginSales": "2026-02-11T03:01:00+00:00",
+            "endSales": "2026-04-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 47,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 8,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1848066,
+            "name": "4º Lote Pista (inteira)",
+            "description": "",
+            "price": 1080,
+            "validationCpfTicket": false,
+            "tax": 108,
+            "beginSales": "2026-06-16T03:01:00+00:00",
+            "endSales": "2026-07-16T02:59:00+00:00",
+            "status": "available",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 41,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 11,
+            "comboExclusiveSales": false
+          },
+          {
+            "id": 1781335,
+            "name": "3º Lote Pista (inteira)",
+            "description": "",
+            "price": 1000,
+            "validationCpfTicket": false,
+            "tax": 100,
+            "beginSales": "2026-04-16T14:00:00+00:00",
+            "endSales": "2026-06-16T02:59:00+00:00",
+            "status": "finished",
+            "restrictions": {
+              "minimum": 1,
+              "maximum": 3
+            },
+            "hidden": false,
+            "dates": [
+              {
+                "id": 128871,
+                "date": "15/08/2026",
+                "time": "01:00:00",
+                "datetime": "2026-08-15T01:00:00+00:00"
+              },
+              {
+                "id": 128872,
+                "date": "16/08/2026",
+                "time": "02:00:00",
+                "datetime": "2026-08-16T02:00:00+00:00"
+              },
+              {
+                "id": 128873,
+                "date": "16/08/2026",
+                "time": "18:00:00",
+                "datetime": "2026-08-16T18:00:00+00:00"
+              }
+            ],
+            "quantityInStock": 46,
+            "hasCoupon": false,
+            "coupon": null,
+            "isTransferableGuestType": true,
+            "isDependents": false,
+            "category": {
+              "id": "1",
+              "name": "Inteira"
+            },
+            "order": 12,
+            "comboExclusiveSales": false
+          }
+        ],
+        "quantityInStock": 1095,
+        "order": 1000004
+      }
+    ],
+    "responseDetails": "OK",
+    "responseError": null,
+    "responseStatus": 200,
+    "ResponseSessionStatus": "available"
+  }
+}

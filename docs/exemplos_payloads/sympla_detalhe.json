@@ -1,0 +1,294 @@
+{
+  "logoUrl": "https://images.sympla.com.br/6a442518f0dab.png",
+  "eventsAddress": {
+    "id": 994836,
+    "name": "Anexo BZ",
+    "address": "SAAN Quadra 2",
+    "addressNum": "45",
+    "addressAlt": "",
+    "neighborhood": "",
+    "city": "Brasília",
+    "state": "DF",
+    "zipCode": "70632-200",
+    "country": "BRASIL",
+    "location": "POINT(-15.769335 -47.937428)",
+    "geolocation": {
+      "latitude": -15.7693354,
+      "longitude": -47.9374282
+    }
+  },
+  "showInstallmentsInfo": true,
+  "eventClientCodes": {
+    "header": [],
+    "beginBody": [],
+    "endBody": []
+  },
+  "eventPaymentOptions": {
+    "creditCard": true,
+    "creditCardInternational": true,
+    "debit": false,
+    "boleto": false,
+    "applePay": true,
+    "paypal": false,
+    "debitBanks": [],
+    "pix": true,
+    "googlePay": false,
+    "nuPay": true,
+    "ifoodBeneficios": true
+  },
+  "eventOption": {
+    "hideLabelInstallments": false,
+    "isBeta": false,
+    "hideFbComments": false
+  },
+  "integrations": {
+    "rdStation": {
+      "publicToken": null
+    },
+    "facebook": {
+      "authToken": "751264028574857",
+      "subdomain": "pixel.beneficiosvip.com.br",
+      "events": {
+        "PageView": true,
+        "AddToCart": false,
+        "InitiateCheckout": false,
+        "AddPaymentInfo": false,
+        "Lead": true,
+        "Purchase": true
+      }
+    },
+    "googleAds": {
+      "conversionId": null,
+      "conversionLabel": null
+    }
+  },
+  "courseInfo": null,
+  "hasCertificate": false,
+  "onlineInfo": null,
+  "eventPolicies": [
+    {
+      "title": "Cancelamento de pedidos pagos",
+      "titles": {
+        "pt": {
+          "hasInfo": true,
+          "text": "Cancelamento de pedidos pagos",
+          "lang": "PT"
+        },
+        "en": {
+          "hasInfo": true,
+          "text": "Cancellation of paid orders",
+          "lang": "EN"
+        },
+        "es": {
+          "hasInfo": true,
+          "text": "Cancelamiento de pedidos pagos",
+          "lang": "ES"
+        },
+        "default": "PT"
+      },
+      "description": "Cancelamentos de pedidos serão aceitos até 7 dias após a compra, desde que a solicitação seja enviada até 48 horas antes do início do evento.",
+      "descriptions": {
+        "pt": {
+          "hasInfo": true,
+          "text": "Cancelamentos de pedidos serão aceitos até 7 dias após a compra, desde que a solicitação seja enviada até 48 horas antes do início do evento.",
+          "lang": "PT"
+        },
+        "en": {
+          "hasInfo": true,
+          "text": "You may cancel your order up to 7 (seven) days after purchase, provided your request is submitted before 48 hours of the start of the event.\r\n",
+          "lang": "EN"
+        },
+        "es": {
+          "hasInfo": true,
+          "text": "Usted podrá cancelar el pedido hasta 7 (días) después de la compra, desde que su solicitación sea enviada hasta 48 horas antes del inicio del evento. ",
+          "lang": "ES"
+        },
+        "default": "PT"
+      },
+      "policyLinkLabel": "Saiba mais sobre o cancelamento",
+      "policyLinkLabels": {
+        "pt": {
+          "hasInfo": true,
+          "text": "Saiba mais sobre o cancelamento",
+          "lang": "PT"
+        },
+        "en": {
+          "hasInfo": false,
+          "text": null,
+          "lang": "EN"
+        },
+        "es": {
+          "hasInfo": false,
+          "text": null,
+          "lang": "ES"
+        },
+        "default": "PT"
+      },
+      "policyLink": "https://ajuda.sympla.com.br/hc/pt-br/articles/6484108930580-Como-fa%C3%A7o-para-cancelar-meu-ingresso",
+      "policyLinkZendeskId": "360034832712",
+      "type": "PAID_ORDER_CANCELATION",
+      "options": {
+        "visible": 1,
+        "feature_enabled": 1
+      }
+    },
+    {
+      "title": "Edição de participantes",
+      "titles": {
+        "pt": {
+          "hasInfo": true,
+          "text": "Edição de participantes",
+          "lang": "PT"
+        },
+        "en": {
+          "hasInfo": false,
+          "text": null,
+          "lang": "EN"
+        },
+        "es": {
+          "hasInfo": false,
+          "text": null,
+          "lang": "ES"
+        },
+        "default": "PT"
+      },
+      "description": "Você poderá editar o participante de um ingresso apenas uma vez. Essa opção ficará disponível até 24 horas antes do início do evento.",
+      "descriptions": {
+        "pt": {
+          "hasInfo": true,
+          "text": "Você poderá editar o participante de um ingresso apenas uma vez. Essa opção ficará disponível até 24 horas antes do início do evento.",
+          "lang": "PT"
+        },
+        "en": {
+          "hasInfo": true,
+          "text": "You may edit a ticket participant once. This option will be available up to 24 hours before the start of the event..",
+          "lang": "EN"
+        },
+        "es": {
+          "hasInfo": true,
+          "text": "Usted podrá editar el participante de la entrada apenas una vez. Esta opción estará disponible hasta 24 horas antes del inicio del evento.",
+          "lang": "ES"
+        },
+        "default": "PT"
+      },
+      "policyLinkLabel": "Saiba como editar participantes",
+      "policyLinkLabels": {
+        "pt": {
+          "hasInfo": true,
+          "text": "Saiba como editar participantes",
+          "lang": "PT"
+        },
+        "en": {
+          "hasInfo": false,
+          "text": null,
+          "lang": "EN"
+        },
+        "es": {
+          "hasInfo": false,
+          "text": null,
+          "lang": "ES"
+        },
+        "default": "PT"
+      },
+      "policyLink": "https://ajuda.sympla.com.br/hc/pt-br/articles/205685879-Como-posso-solicitar-a-troca-de-titularidade-do-meu-ingresso-ou-inscri%C3%A7%C3%A3o-",
+      "policyLinkZendeskId": "360000888986",
+      "type": "PARTICIPANT_ALTERATION",
+      "options": {
+        "visible": 1,
+        "feature_enabled": 1
+      }
+    }
+  ],
+  "paymentEventType": "paid",
+  "id": 3459772,
+  "name": "HOUSE CLUB 13 ANOS",
+  "startDate": "2026-07-11 22:00:00",
+  "endDate": "2026-07-12 07:00:00",
+  "detail": "<div>A HOUSE CLUB está de volta!</div><div>&nbsp;11 de julho - (B-Day Cuscus)</div><div>Evento Limitado com Sold Out!&nbsp;</div><div><br></div><div>Tapete vermelho para receber nossa próxima House Club! </div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\"><br></span></div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\">A arte de viver é um processo contínuo de transformação, onde cada passo nos aproxima da essência da felicidade.&nbsp;</span><br></div><div><br></div><div>HOUSE CLUB 13 ANOS&nbsp;</div><div>SÁBADO 11/07 - 22:00 Horas</div><div>ANEXO BZ SAAN&nbsp;</div><div>(Local Inédito no espaço)</div><div><br></div><div>Lounge, Bistrô Antecipado e Aniversariantes Mês pelo número:&nbsp;</div><div>(61) 98644-8048</div><div><br></div><div>IDADE MININA 18 ANOS</div>",
+  "details": {
+    "pt": {
+      "hasInfo": true,
+      "text": "<div>A HOUSE CLUB está de volta!</div><div>&nbsp;11 de julho - (B-Day Cuscus)</div><div>Evento Limitado com Sold Out!&nbsp;</div><div><br></div><div>Tapete vermelho para receber nossa próxima House Club! </div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\"><br></span></div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\">A arte de viver é um processo contínuo de transformação, onde cada passo nos aproxima da essência da felicidade.&nbsp;</span><br></div><div><br></div><div>HOUSE CLUB 13 ANOS&nbsp;</div><div>SÁBADO 11/07 - 22:00 Horas</div><div>ANEXO BZ SAAN&nbsp;</div><div>(Local Inédito no espaço)</div><div><br></div><div>Lounge, Bistrô Antecipado e Aniversariantes Mês pelo número:&nbsp;</div><div>(61) 98644-8048</div><div><br></div><div>IDADE MININA 18 ANOS</div>",
+      "lang": "PT"
+    },
+    "en": {
+      "hasInfo": false,
+      "text": null,
+      "lang": "EN"
+    },
+    "es": {
+      "hasInfo": false,
+      "text": null,
+      "lang": "ES"
+    },
+    "default": "PT"
+  },
+  "strippedDetail": "A HOUSE CLUB está de volta!&nbsp;11 de julho - (B-Day Cuscus)Evento Limitado com Sold Out!&nbsp;Tapete vermelho para receber nossa próxima House Club! A arte de viver é um processo contínuo de transformação, onde cada passo nos aproxima da essência da felicidade.&nbsp;HOUSE CLUB 13 ANOS&nbsp;SÁBADO 11/07 - 22:00 HorasANEXO BZ SAAN&nbsp;(Local Inédito no espaço)Lounge, Bistrô Antecipado e Aniversariantes Mês pelo número:&nbsp;(61) 98644-8048IDADE MININA 18 ANOS",
+  "images": {
+    "logoFileName": "6a442518f0dab.png",
+    "logoUrl": "https://images.sympla.com.br/6a442518f0dab.png",
+    "logoLarge": "https://images.sympla.com.br/6a442518f0dab-lg.png",
+    "logoSmall": "https://images.sympla.com.br/6a442518f0dab-xs.png",
+    "logoCover": "https://images.sympla.com.br/6a442518f0dab-cover.png",
+    "logoProfile": "https://images.sympla.com.br/6a442518f0dab-profile.png"
+  },
+  "oldUrl": "https://www.sympla.com.br/house-club-13-anos__3459772",
+  "newUrl": "https://beta.sympla.com.br/evento/house-club-13-anos/3459772",
+  "slug": "house-club-13-anos",
+  "logoType": "BANNER_16_9",
+  "bannerAltText": "Banner do evento HOUSE CLUB 13 ANOS",
+  "published": true,
+  "cancelled": false,
+  "visible": true,
+  "eventType": "NORMAL",
+  "eventSubType": "NORMAL",
+  "ticketsNomenclature": "TICKETING",
+  "isClosed": false,
+  "uniqueHash": "Y1hNWNHFPoyIns1AwRX0x6yAJRZIIMJLk6skscjMJw%3D%3D",
+  "eventsCategory": {
+    "id": 27,
+    "name": "musica",
+    "description": "Música",
+    "vertical": "ENTRETENIMENTO",
+    "slug": "musica"
+  },
+  "eventsHost": {
+    "id": 476436,
+    "name": "Cuscus Estréia",
+    "description": "",
+    "image": null,
+    "url": null,
+    "organizerId": 1845380,
+    "organizerPageSlug": null
+  },
+  "headerContent": null,
+  "headerEnabled": false,
+  "pageTemplateCssBg": "",
+  "pageTemplateCssBgFilename": "",
+  "pageTemplateCssBgRepeat": false,
+  "privateEvent": false,
+  "multiLanguage": false,
+  "googleAnalyticsCode": null,
+  "rdStationCode": null,
+  "scriptBody": null,
+  "scriptHead": null,
+  "qtyMaxInstallments": 12,
+  "qtyMinInstallments": 1,
+  "hasInstallments": true,
+  "serviceFee": 10,
+  "showMaps": true,
+  "hasActiveDiscounts": true,
+  "logoFileName": "6a442518f0dab.png",
+  "startDateMultiFormat": {
+    "ptBR": "11/07/2026 22:00:00",
+    "default": "2026-07-11 22:00:00",
+    "ISO8601": "2026-07-11T22:00:00-03:00"
+  },
+  "endDateMultiFormat": {
+    "ptBR": "12/07/2026 07:00:00",
+    "default": "2026-07-12 07:00:00",
+    "ISO8601": "2026-07-12T07:00:00-03:00"
+  },
+  "_source": "db",
+  "hasSymplaStore": false
+}

@@ -1,0 +1,398 @@
+{
+  "tickets": [
+    {
+      "id": 10774754,
+      "name": "CORTESIA FEMININA DA COPA ATÉ 00H",
+      "description": "",
+      "availableQty": 2,
+      "serviceFeeIncluded": false,
+      "show": true,
+      "startDate": "2026-07-09 06:25:00",
+      "endDate": "2026-07-11 22:00:00",
+      "maxQty": 2,
+      "minQty": 1,
+      "invitationToken": "316eddfcf51033fe2fb3a819d67aa650",
+      "status": "STARTED",
+      "isPrivate": false,
+      "discountApplied": false,
+      "isFree": true,
+      "currentAvailableQty": 2,
+      "installments": [
+        {
+          "installments": 1,
+          "price": {
+            "decimal": 0,
+            "integer": 0
+          }
+        }
+      ],
+      "salePriceMonetary": {
+        "decimal": 0,
+        "integer": 0
+      },
+      "salePriceWithDiscountMonetary": {
+        "decimal": 0,
+        "integer": 0
+      },
+      "netValueMonetary": {
+        "decimal": 0,
+        "integer": 0
+      },
+      "netValueWithDiscountMonetary": {
+        "decimal": 0,
+        "integer": 0
+      },
+      "feeMonetary": {
+        "decimal": 0,
+        "integer": 0
+      },
+      "feeWithDiscountMonetary": {
+        "decimal": 0,
+        "integer": 0
+      },
+      "showInstallmentsInfo": false,
+      "expirationTime": null,
+      "qtyInstallmentsAbsorvedByOrganizer": 1,
+      "showOrder": 0,
+      "binRestriction": {
+        "requiredBin": false,
+        "restrictionGroup": null,
+        "ruleBinName": null
+      },
+      "senseOfUrgency": {
+        "isLastTickets": false,
+        "isTicketsFlyingTag": false,
+        "isLastIndividualTicket": false
+      }
+    },
+    {
+      "id": 10629025,
+      "name": "HOUSE CLUB MASCULINO 2º LOTE",
+      "description": "",
+      "availableQty": 5,
+      "serviceFeeIncluded": false,
+      "show": true,
+      "startDate": "2026-06-09 22:00:00",
+      "endDate": "2026-07-12 07:00:00",
+      "maxQty": 5,
+      "minQty": 1,
+      "invitationToken": "c6ca07ebaaa9e0fa97098b1dffe7bd12",
+      "status": "STARTED",
+      "isPrivate": false,
+      "discountApplied": false,
+      "isFree": false,
+      "currentAvailableQty": 5,
+      "installments": [
+        {
+          "installments": 1,
+          "price": {
+            "decimal": 49.5,
+            "integer": 4950
+          }
+        },
+        {
+          "installments": 2,
+          "price": {
+            "decimal": 26.05,
+            "integer": 2605
+          }
+        },
+        {
+          "installments": 3,
+          "price": {
+            "decimal": 17.66,
+            "integer": 1766
+          }
+        },
+        {
+          "installments": 4,
+          "price": {
+            "decimal": 13.47,
+            "integer": 1347
+          }
+        },
+        {
+          "installments": 5,
+          "price": {
+            "decimal": 10.96,
+            "integer": 1096
+          }
+        },
+        {
+          "installments": 6,
+          "price": {
+            "decimal": 9.29,
+            "integer": 929
+          }
+        },
+        {
+          "installments": 10,
+          "price": {
+            "decimal": 5.95,
+            "integer": 595
+          }
+        },
+        {
+          "installments": 12,
+          "price": {
+            "decimal": 5.12,
+            "integer": 512
+          }
+        }
+      ],
+      "salePriceMonetary": {
+        "decimal": 49.5,
+        "integer": 4950
+      },
+      "salePriceWithDiscountMonetary": {
+        "decimal": 49.5,
+        "integer": 4950
+      },
+      "netValueMonetary": {
+        "decimal": 45,
+        "integer": 4500
+      },
+      "netValueWithDiscountMonetary": {
+        "decimal": 45,
+        "integer": 4500
+      },
+      "feeMonetary": {
+        "decimal": 4.5,
+        "integer": 450
+      },
+      "feeWithDiscountMonetary": {
+        "decimal": 4.5,
+        "integer": 450
+      },
+      "showInstallmentsInfo": true,
+      "expirationTime": null,
+      "qtyInstallmentsAbsorvedByOrganizer": 1,
+      "showOrder": 1,
+      "binRestriction": {
+        "requiredBin": false,
+        "restrictionGroup": null,
+        "ruleBinName": null
+      },
+      "senseOfUrgency": {
+        "isLastTickets": false,
+        "isTicketsFlyingTag": false,
+        "isLastIndividualTicket": false
+      }
+    },
+    {
+      "id": 10629026,
+      "name": "HOUSE CLUB FEMININO 2º LOTE",
+      "description": "",
+      "availableQty": 5,
+      "serviceFeeIncluded": false,
+      "show": true,
+      "startDate": "2026-06-09 22:00:00",
+      "endDate": "2026-07-12 07:00:00",
+      "maxQty": 5,
+      "minQty": 1,
+      "invitationToken": "89e2e0c3abdc4e163f8508a3a85b1fd5",
+      "status": "STARTED",
+      "isPrivate": false,
+      "discountApplied": false,
+      "isFree": false,
+      "currentAvailableQty": 5,
+      "installments": [
+        {
+          "installments": 1,
+          "price": {
+            "decimal": 38.99,
+            "integer": 3899
+          }
+        },
+        {
+          "installments": 2,
+          "price": {
+            "decimal": 20.52,
+            "integer": 2052
+          }
+        },
+        {
+          "installments": 3,
+          "price": {
+            "decimal": 13.91,
+            "integer": 1391
+          }
+        },
+        {
+          "installments": 4,
+          "price": {
+            "decimal": 10.61,
+            "integer": 1061
+          }
+        },
+        {
+          "installments": 5,
+          "price": {
+            "decimal": 8.63,
+            "integer": 863
+          }
+        },
+        {
+          "installments": 6,
+          "price": {
+            "decimal": 7.31,
+            "integer": 731
+          }
+        }
+      ],
+      "salePriceMonetary": {
+        "decimal": 38.99,
+        "integer": 3899
+      },
+      "salePriceWithDiscountMonetary": {
+        "decimal": 38.99,
+        "integer": 3899
+      },
+      "netValueMonetary": {
+        "decimal": 35,
+        "integer": 3500
+      },
+      "netValueWithDiscountMonetary": {
+        "decimal": 35,
+        "integer": 3500
+      },
+      "feeMonetary": {
+        "decimal": 3.99,
+        "integer": 399
+      },
+      "feeWithDiscountMonetary": {
+        "decimal": 3.99,
+        "integer": 399
+      },
+      "showInstallmentsInfo": true,
+      "expirationTime": null,
+      "qtyInstallmentsAbsorvedByOrganizer": 1,
+      "showOrder": 2,
+      "binRestriction": {
+        "requiredBin": false,
+        "restrictionGroup": null,
+        "ruleBinName": null
+      },
+      "senseOfUrgency": {
+        "isLastTickets": false,
+        "isTicketsFlyingTag": false,
+        "isLastIndividualTicket": false
+      }
+    },
+    {
+      "id": 10629027,
+      "name": "BISTRÔ ANTECIPADO + 4 ENTRADAS VIP",
+      "description": "",
+      "availableQty": 5,
+      "serviceFeeIncluded": false,
+      "show": true,
+      "startDate": "2026-06-09 22:00:00",
+      "endDate": "2026-07-12 07:00:00",
+      "maxQty": 5,
+      "minQty": 1,
+      "invitationToken": null,
+      "status": "STARTED",
+      "isPrivate": false,
+      "discountApplied": false,
+      "isFree": false,
+      "currentAvailableQty": 5,
+      "installments": [
+        {
+          "installments": 1,
+          "price": {
+            "decimal": 418,
+            "integer": 41800
+          }
+        },
+        {
+          "installments": 2,
+          "price": {
+            "decimal": 220,
+            "integer": 22000
+          }
+        },
+        {
+          "installments": 3,
+          "price": {
+            "decimal": 149.17,
+            "integer": 14917
+          }
+        },
+        {
+          "installments": 4,
+          "price": {
+            "decimal": 113.77,
+            "integer": 11377
+          }
+        },
+        {
+          "installments": 5,
+          "price": {
+            "decimal": 92.55,
+            "integer": 9255
+          }
+        },
+        {
+          "installments": 6,
+          "price": {
+            "decimal": 78.42,
+            "integer": 7842
+          }
+        },
+        {
+          "installments": 10,
+          "price": {
+            "decimal": 50.24,
+            "integer": 5024
+          }
+        },
+        {
+          "installments": 12,
+          "price": {
+            "decimal": 43.23,
+            "integer": 4323
+          }
+        }
+      ],
+      "salePriceMonetary": {
+        "decimal": 418,
+        "integer": 41800
+      },
+      "salePriceWithDiscountMonetary": {
+        "decimal": 418,
+        "integer": 41800
+      },
+      "netValueMonetary": {
+        "decimal": 380,
+        "integer": 38000
+      },
+      "netValueWithDiscountMonetary": {
+        "decimal": 380,
+        "integer": 38000
+      },
+      "feeMonetary": {
+        "decimal": 38,
+        "integer": 3800
+      },
+      "feeWithDiscountMonetary": {
+        "decimal": 38,
+        "integer": 3800
+      },
+      "showInstallmentsInfo": true,
+      "expirationTime": null,
+      "qtyInstallmentsAbsorvedByOrganizer": 1,
+      "showOrder": 3,
+      "binRestriction": {
+        "requiredBin": false,
+        "restrictionGroup": null,
+        "ruleBinName": null
+      },
+      "senseOfUrgency": {
+        "isLastTickets": false,
+        "isTicketsFlyingTag": false,
+        "isLastIndividualTicket": false
+      }
+    }
+  ],
+  "groups": []
+}
