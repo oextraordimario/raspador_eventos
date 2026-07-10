@@ -1,0 +1,5 @@
+# assets regeráveis da captura/análise (rode capturar.py + analisar.py + rederivar.py)
+*.jsonl
+analise.json
+rederivacao.json
+captura_meta.json
