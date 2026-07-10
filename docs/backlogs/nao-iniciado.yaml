@@ -110,6 +110,34 @@
     depender do FTS no nome. Medida de sucesso já definida no PRD §10: "festa de
     pagode" retornar pagodes SEM a palavra no nome.
 
+- codigo: NI-16
+  status: nao-iniciado
+  prioridade: media
+  rank: 2
+  esforco: G
+  eixo: enriquecimento
+  fase: dados
+  titulo: "Base de locais/organizadores como entidade própria (Externa, Fora do Eixo...)"
+  resumo: "averiguar raspar e modelar uma tabela de locais e/ou organizadores recorrentes pra enriquecer o evento (vibe/estilo da casa, redes, histórico) em vez de só o texto solto do evento"
+  data: 2026-07-10
+  depende_de: []
+  relacionado: [NI-06, NI-05]
+  caso_real: ["dogfooding 2026-07-10: 'Complexo Fora do Eixo' e 'P.House' aparecem como string solta em local_nome; a casa carrega o estilo (Fora do Eixo = eletrônica/underground) que hoje não é dado, só conhecimento externo"]
+  detalhe: |
+    Casas e produtores recorrentes (Externa, Fora do Eixo, P.House, LAH...) carregam
+    sinal forte de vibe/público que hoje vive só como string em `local_nome`/
+    `organizador`. Modelar como entidade própria (tabela `locais` e/ou
+    `organizadores`, com FK dos eventos) permitiria enriquecer: estilo típico, @ do
+    Instagram (casa cola com NI-06), endereço canônico, histórico de eventos.
+
+    **A averiguar:** (a) vale a normalização numa PoC de uma cidade, ou é over-
+    engineering agora? (b) resolução de entidade é o custo real — mesma casa vem com
+    grafias diferentes entre fontes ('Fora do Eixo' x 'Complexo Fora Do Eixo'); (c)
+    de onde vêm os atributos da casa (Instagram/Maps/curadoria manual do recorte de
+    Brasília, que é pequeno). Casa como âncora do classificador de gênero (NI-05) e
+    ponto de entrada do Instagram (NI-06). Se aprovado, spec própria + decisão de
+    schema (tabela nova exige apagar/recriar a base — ver CLAUDE.md).
+
 # ─────────────────────────── Raspagem ───────────────────────────
 
 - codigo: NI-06
@@ -154,6 +182,92 @@
     (filme × sessão × sala); ver se o schema atual comporta ou se pede tabela própria.
     Merece spec própria em docs/specs/.
 
+- codigo: NI-12
+  status: pendente
+  prioridade: critica
+  rank: 0
+  esforco: M
+  eixo: raspagem
+  fase: 0
+  titulo: "Preço faltando em Sympla e Ingresse (só Shotgun captura preco_min)"
+  resumo: "a Etapa 5 marcou 'preço capturado das 3 fontes', mas só o Shotgun preenche preco_min (JSON-LD offers); Sympla e Ingresse vêm sempre null — sem preço o agente não ajuda a decidir"
+  data: 2026-07-10
+  depende_de: []
+  relacionado: [NI-13]
+  caso_real: ["dogfooding 2026-07-10, teste do MCP: 'VÉRTICE - House 10/07' (Sympla) veio com preco_min=null; ao tentar o valor na página, o Sympla joga numa fila anti-bot (queue-it) — o raspador não alcança o preço por HTTP simples"]
+  detalhe: |
+    Achado no teste do MCP em 2026-07-10 (fim de semana 10–12/07). Regressão de
+    escopo da Etapa 5: `_preco_min` existe só em `src/scrapers/shotgun.py` (lê
+    `offers.lowPrice/price` do JSON-LD). O `raspar_descricao` do Sympla
+    (`event-page.svc`) devolve só descricao+categoria; o do Ingresse (`GET /events/
+    {slug}`) idem. Nenhum dos dois popula `preco_min`.
+
+    **Complicação (Sympla):** a página pública redireciona pra sala de espera
+    anti-bot (queue-it) sob pico — HTTP puro não passa. Investigar se o BFF de
+    catálogo (`discovery-bff/search`) ou o de página (`event-page.svc`) traz preço/
+    lote no JSON (o valor mais barato costuma vir no payload da API, sem passar pela
+    fila). Ingresse: checar `offers`/preço no `GET /events/{slug}` e no search.
+
+    **Correção desenhada:** achar o campo de preço no payload JSON de cada BFF
+    (Sympla e Ingresse) e mapear pro `preco_min` já existente no schema — mesmo
+    caminho que o Shotgun. Gratuito vs. esgotado vs. sem-informação precisam ser
+    distinguíveis (0 ≠ null). Sem re-raspar não resolve (é dado de origem).
+
+- codigo: NI-14
+  status: nao-iniciado
+  prioridade: media
+  rank: 2
+  esforco: G
+  eixo: raspagem
+  fase: 0
+  titulo: "Spike: camada Bronze (raspar payload na íntegra e tratar a partir dele)"
+  resumo: "checar viabilidade e ganho de guardar o JSON bruto de cada fonte como camada crua (Bronze) e derivar o schema unificado dela, em vez de normalizar direto no scraper — foco em completude e corretude"
+  data: 2026-07-10
+  depende_de: []
+  relacionado: [NI-12, NI-13]
+  caso_real: ["dogfooding 2026-07-10: campos que existiam no payload (preço, descrição inteira) se perderam no `_normalizar` porque o scraper só extrai o subconjunto que o schema pede — NI-12/NI-13 são sintomas disso"]
+  detalhe: |
+    Hipótese: hoje cada scraper normaliza direto (payload → dict do schema), então
+    tudo que o `_normalizar` não mapeia é descartado na origem. NI-12 (preço) e NI-13
+    (descrição) são exatamente isso — o dado existia e sumiu. Uma camada Bronze
+    (guardar o JSON/JSON-LD bruto por evento, ex.: coluna `raw` ou tabela própria)
+    permitiria re-derivar campos novos SEM re-raspar, e auditar corretude contra a
+    origem.
+
+    **É um spike, não um compromisso.** Avaliar: (a) ganho real vs. custo (peso da
+    base, complexidade de ter duas camadas numa PoC de uma cidade); (b) se o UPSERT
+    incremental (NI-15) e a re-derivação a seco (hoje `--so-enriquecer`) já cobrem 80%
+    do benefício sem Bronze formal; (c) formato — `raw` como TEXT/JSON no próprio
+    `eventos` vs. tabela `eventos_raw`. Decidir com base em: quantas vezes já
+    quisemos um campo que tínhamos jogado fora. Se aprovado, vira spec própria.
+
+- codigo: NI-15
+  status: nao-iniciado
+  prioridade: media
+  rank: 2
+  esforco: M
+  eixo: raspagem
+  fase: 0
+  titulo: "Salvaguarda: refresh incremental (não re-raspar evento já conhecido por inteiro)"
+  resumo: "checar estratégia de, para evento que já existe na base, re-raspar só os campos voláteis (lote/preço/esgotado) em vez do payload inteiro — economiza tempo/carga, sobretudo no Shotgun (Playwright)"
+  data: 2026-07-10
+  depende_de: []
+  relacionado: [NI-12, NI-10]
+  caso_real: []
+  detalhe: |
+    Hoje o UPSERT (chave `<fonte>:<id_nativo>`) já evita duplicar, mas o pipeline
+    ainda raspa e reescreve TUDO a cada rodada. Campos estáveis (nome, data, local)
+    quase nunca mudam; o que muda com frequência é preço/lote/lotação. O Shotgun é o
+    caso caro (navegador por evento) — revisitar cada página toda vez não escala p/ a
+    automação diária (NI-10).
+
+    **A checar:** (a) o catálogo/listagem já dá pra decidir "novo vs. conhecido" antes
+    de abrir a página de detalhe? (b) faz sentido um TTL por campo — detalhe pesado
+    (descrição) raspado 1x, voláteis (preço) revalidados a cada rodada? (c) o COALESCE
+    do upsert (que hoje protege a descrição de ser zerada) já é meio-caminho — formalizar.
+    Cuidado com corretude: evento pode ser DESmarcado/adiado; não pode ficar preso a
+    dado velho só por já existir. Medir o ganho antes de complicar o `atualizar.py`.
+
 # ─────────────────────────── Consulta / MCP ───────────────────────────
 
 - codigo: NI-08
@@ -175,6 +289,37 @@
     "fim de semana", casa específica) com gabarito montado olhando os sites; rodar
     contra a tool MCP e anotar precisão/recall; repetir quando regra/fonte mudar.
     Vira o "teste de regressão de produto" do projeto.
+
+- codigo: NI-13
+  status: pendente
+  prioridade: critica
+  rank: 0
+  esforco: P
+  eixo: consulta
+  fase: 0
+  titulo: "Descrição completa não chega ao agente (consulta trunca em 300 chars)"
+  resumo: "o texto inteiro está na base, mas buscar_eventos devolve só substr(descricao,1,300); o agente não consegue detalhar um evento sob demanda — falta o 'do que se trata' completo"
+  data: 2026-07-10
+  depende_de: []
+  relacionado: [NI-12]
+  caso_real: ["dogfooding 2026-07-10, teste do MCP: pedido 'traz a descrição dessa Vértice' — a tool cortou em '...Programação: Abertura 22h 22h A', sem o line-up nem os detalhes que vinham depois"]
+  detalhe: |
+    NÃO é bug de raspagem: `descricao` completa já está gravada (Etapa 5, cobertura
+    94–100% por fonte). É decisão de `src/consulta.py`: `DESCRICAO_MAX = 300` e
+    `substr(e.descricao, 1, 300) AS descricao`, feita de propósito pra não encher o
+    contexto do agente com dezenas de descrições inteiras numa busca ampla.
+
+    **Tensão real:** o trecho basta numa listagem de N eventos, mas trava o
+    aprofundamento de UM evento ("me conta mais dessa festa"). Não é só aumentar o
+    limite — isso reintroduz o peso morto que motivou o corte.
+
+    **Correção desenhada (opções, decidir na implementação):**
+    (a) tool MCP nova `detalhar_evento(id/url)` que devolve a descricao inteira de um
+        evento só — separa "listar" de "aprofundar", mantém a busca enxuta; ou
+    (b) parâmetro `descricao_completa: bool` (default false) em `buscar_eventos`,
+        aplicado quando o resultado é 1 evento; ou
+    (c) elevar o trecho e paginar. Preferência inicial: (a). Testar em
+        `tests/test_mcp_server.py`.
 
 # ─────────────────────────── Infra / Distribuição (Fase 1) ───────────────────────────
 
