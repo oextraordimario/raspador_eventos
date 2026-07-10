@@ -260,7 +260,51 @@
 # seco da Bronze), preco_min = menor lote PAGO e coluna nova tem_gratis (lote
 # grátis não esgotado). O nome do lote fica cru — quem o interpreta é o agente.
 
-# ─────────────────────────── Infra / Distribuição (Fase 1) ───────────────────────────
+# ─────────────────────────── Infra / Distribuição ───────────────────────────
+
+- codigo: NI-19
+  status: em-andamento
+  prioridade: alta
+  rank: 1
+  esforco: M
+  eixo: infra
+  fase: 0
+  titulo: "Alinhamento à Constituição: observabilidade da rodada + evento sumido da fonte + utilitários únicos + janela do precificar"
+  resumo: "análise da arquitetura contra a Constituição de Engenharia de Dados do CFOx (2026-07-10) rendeu 4 correções num pacote: histórico de execuções com alerta de queda de coleta, marcar evento futuro que sumiu do catálogo da fonte, unificar o parse de data triplicado e limitar o precificar a uma janela temporal"
+  data: 2026-07-10
+  depende_de: []
+  relacionado: [NI-15, NI-08, NI-10]
+  caso_real: ["o relatório de saúde é print efêmero: se o Sympla mudar a API e a coleta cair de ~290 p/ 12, não há rodada anterior gravada p/ comparar — e a raspagem é a hipótese de risco nº 1 do produto", "_descrever/_precificar engolem exceção num contador (falhas += 1) sem registrar QUAL evento falhou nem por quê", "_instante/_norm_ts implementados 3x (atualizar.py, enriquecer.py, consulta.py); filtro Bileto + regex de id Sympla duplicados no atualizar.py", "evento que a fonte tira do ar segue respondendo consulta como se estivesse de pé (cancelamento silencioso não derivável do payload)"]
+  detalhe: |
+    Origem: leitura da Constituição de Engenharia de Dados do CFOx contra este
+    projeto (2026-07-10). Valores bem atendidos: transformação como fim, seleção/
+    deleção (rejeitado.yaml), documentação, eficiência. Lacunas viram as 4 partes:
+
+    **(1) Observabilidade (valor 4) — tabela `execucoes`.** Uma linha por rodada
+    do atualizar.py (timestamp, duração, modo, coletados/total por fonte, contagens
+    por passo, erros POR EVENTO em JSON). O relatório passa a comparar com a rodada
+    anterior e alertar queda de coleta (>50% = provável quebra de scraper). É o
+    detector de "raspagem quebrou em silêncio".
+
+    **(2) Corretude (valor 3) — evento sumido da fonte.** O upsert nunca remove;
+    evento futuro que a fonte tirou do catálogo fica órfão respondendo consultas.
+    Como `raspado_em` já é "última vez visto no catálogo" (só o upsert do catálogo
+    o atualiza), basta coluna `sumido` recalculada após raspagem bem-sucedida da
+    fonte; a consulta esconde por padrão (marcar, não apagar, como ruído/cancelado).
+
+    **(3) Sustentabilidade (valor 5) — deduplicar utilitários.** `_instante`/
+    `_norm_ts` em módulo único (src/tempo.py); conhecimento Sympla (filtro Bileto,
+    regex de id da URL) sai do atualizar.py e vai para scrapers/sympla.py.
+
+    **(4) Velocidade (valor 7) — janela no precificar.** Refazer preço de TODOS os
+    futuros a cada rodada não escala; quem pergunta ao agente pergunta de "hoje/fim
+    de semana". Janela default (30 dias) + flag --precificar-tudo; relatório diz
+    quantos ficaram fora (sem teto silencioso).
+
+    Fora de escopo (decisão deliberada): versionar payloads na Bronze (último-vence
+    fica; a rastreabilidade vem do run-log), framework de logging/orquestração,
+    paralelismo (medir depois da janela). Colunas novas ⇒ base descartável.
+    Spec: docs/specs/20260710_alinhamento-constituicao/spec.md.
 
 - codigo: NI-09
   status: nao-iniciado
