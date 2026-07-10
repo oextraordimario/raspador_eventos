@@ -94,6 +94,18 @@ def raspar_descricao(id_url):
     }
 
 
+def raspar_tickets(id_url):
+    """Busca os lotes/precos de um evento no BFF de tickets (mesmo id de pagina
+    do raspar_descricao). Retorna {"payload": json bruto} para a camada Bronze;
+    levanta excecao em erro de rede/HTTP.
+
+    ATENCAO (NI-17): este endpoint NAO devolve o nome do evento, entao nao da
+    para validar id trocado aqui. O chamador deve so pedir tickets de eventos
+    cuja descricao ja passou na guarda de nome do _descrever.
+    """
+    return {"payload": _get_url(f"{BFF_EVENTO}{id_url}/tickets")}
+
+
 def _normalizar(ev):
     loc = ev.get("location") or {}
     org = ev.get("organizer") or {}

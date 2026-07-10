@@ -29,6 +29,15 @@ API = "https://api-site.ingresse.com/events/search"
 # Endpoint de evento individual (no /openapi.json: "Get Event By Slug") — traz a
 # descricao (HTML), que a busca nao retorna. Descoberto em 2026-07-09.
 API_EVENTO = "https://api-site.ingresse.com/events/"
+
+# Tickets/precos (descobertos em 2026-07-10 interceptando o embed de checkout,
+# ver docs/specs/20260710_camada-prata/spec.md):
+# - API_PUBLICO da as sessoes do evento, sem chave;
+# - API_TICKETS da os lotes por sessao; a apikey e a PUBLICA do proprio front
+#   (embutida no embedstore do site, nao e credencial de usuario).
+API_PUBLICO = "https://event.ingresse.com/public/"
+API_TICKETS = "https://api-embedstore.ingresse.com/api/v1/event/"
+APIKEY_PUBLICA = "172f24fd2a903fc0647b61d7112ee1b9814702be"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 ISO_BRASILIA = "BRA-DF"
@@ -66,6 +75,25 @@ def raspar_descricao(slug):
     ev = _get_url(f"{API_EVENTO}{urllib.parse.quote(slug)}")
     return {"descricao": _limpar_html(ev.get("description")),
             "payload": ev}  # JSON bruto, p/ a camada Bronze
+
+
+def raspar_tickets(id_nativo):
+    """Busca os lotes/precos de um evento: resolve as sessoes no endpoint
+    publico e tenta session/{primeira}/tickets; eventos "passaporte" respondem
+    vazio por sessao — fallback para session/passports/tickets.
+
+    Retorna {"payload": json bruto da resposta de tickets} para a camada
+    Bronze; levanta excecao em erro de rede/HTTP.
+    """
+    pub = _get_url(f"{API_PUBLICO}{id_nativo}")
+    sessoes = ((pub.get("data") or {}).get("sessions") or [])
+    candidatos = [str(s["id"]) for s in sessoes if s.get("id")] or ["0"]
+    for sessao in [candidatos[0], "passports"]:
+        resp = _get_url(f"{API_TICKETS}{id_nativo}/session/{sessao}/tickets"
+                        f"?apikey={APIKEY_PUBLICA}")
+        if (resp.get("detail") or {}).get("responseData"):
+            return {"payload": resp}
+    return {"payload": resp}  # vazio mesmo: grava assim (fonte nao informou)
 
 
 def _normalizar(ev):

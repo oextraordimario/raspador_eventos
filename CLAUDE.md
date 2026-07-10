@@ -114,10 +114,14 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   para a **camada Bronze** (`eventos_raw`, PK `evento_id+origem` — Sympla tem 2 payloads
   por evento: catálogo e detalhe), junto com `gravar_raw(...)` para o payload do
   "descrever".
-- `src/derivar.py` — derivação a seco: (re)calcula colunas de `eventos` a partir de
-  `eventos_raw`, sem rede (hoje: `bairro`, do catálogo do Sympla). Campo novo do bruto =
-  função aqui + `--so-derivar`, **sem re-raspar**. Idempotente como o enriquecer.
-  Spec: `docs/specs/20260710_camada-bronze/spec.md`.
+- `src/derivar.py` — derivação a seco (a "camada Prata"): (re)calcula colunas de
+  `eventos` a partir de `eventos_raw`, sem rede — `preco_min` (R$; 0 = grátis),
+  `esgotado`, `cancelado`, `bairro`, `popularidade`. Campo novo do bruto = função aqui
+  + `--so-derivar`, **sem re-raspar**. Idempotente como o enriquecer. Os payloads de
+  tickets (Sympla/Ingresse) vêm do passo "precificar" do `atualizar.py` — **não
+  incremental** (preço/lote é volátil; refeito a cada rodada), e no Sympla só para
+  eventos com descrição validada (âncora da guarda NI-17 — o endpoint de tickets não
+  devolve nome). Specs: `docs/specs/20260710_camada-bronze/` e `20260710_camada-prata/`.
 - `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
   (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas cross-fonte
   (mesmo dia + nome/local similares). **Marca, não apaga** — quem esconde é a
@@ -125,15 +129,17 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   regra não exige re-raspar (`python src/atualizar.py --so-enriquecer`).
 - `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite,
   incluir_ruido)`, todos os args opcionais, retorno JSON-serializável. Por padrão
-  esconde ruído e não-canônicos de dedupe; o canônico traz `outras_urls` (links do
-  mesmo evento nas outras plataformas). Esta é a camada canônica de consulta.
+  esconde ruído, não-canônicos de dedupe e **cancelados**; esgotado NÃO some (é
+  resposta útil). O canônico traz `outras_urls` (links do mesmo evento nas outras
+  plataformas). Esta é a camada canônica de consulta.
 - `src/mcp_server.py` — FastMCP stdio expondo duas tools finas que delegam para
   `consulta.py`: `buscar_eventos` e `data_atual` (data/hora UTC + janela do fim de
   semana, para o agente montar filtros "hoje"/"neste fim de semana").
 
 Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
 descrever (busca incremental da descrição p/ Sympla/Ingresse; upsert usa COALESCE p/
-nunca zerá-la) → `derivar.aplicar()` → `enriquecer.aplicar()` →
+nunca zerá-la) → precificar (tickets/lotes p/ a Bronze, refeito a cada rodada) →
+`derivar.aplicar()` → `enriquecer.aplicar()` →
 `store.reconstruir_fts()` → `consulta.buscar_eventos()` →
 tool MCP → agente de IA. `atualizar.py` orquestra tudo isso sob demanda;
 `mcp_server.py` é o ponto de entrada em uso real; `demo.py` é a demo da PoC.

@@ -15,9 +15,11 @@ from datetime import datetime, timezone
 import store
 
 # Campos uteis expostos ao agente (subconjunto enxuto da tabela).
+# preco_min em reais (0 = gratis; NULL = fonte nao informou); esgotado 1 = sem
+# ingressos; bairro/popularidade derivados da camada Bronze (spec camada-prata).
 CAMPOS = ["nome", "fonte", "start_date", "end_date", "cidade", "estado",
-          "local_nome", "endereco", "categoria", "organizador", "url", "imagem",
-          "atracoes", "preco_min"]
+          "local_nome", "endereco", "bairro", "categoria", "organizador",
+          "url", "imagem", "atracoes", "preco_min", "esgotado", "popularidade"]
 
 # A descricao completa de dezenas de eventos e peso morto no contexto do agente;
 # um trecho basta para ele entender o estilo do evento (o texto inteiro fica na
@@ -44,8 +46,10 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
                    limite=20, incluir_ruido=False):
     """Busca eventos na base unificada.
 
-    Por padrao esconde o que o enriquecimento v1 marcou: eventos com ruido=1
-    (anuncio/curso) e membros nao-canonicos de grupos de dedupe cross-fonte.
+    Por padrao esconde o que o enriquecimento v1 marcou — eventos com ruido=1
+    (anuncio/curso) e membros nao-canonicos de grupos de dedupe cross-fonte —
+    e tambem eventos cancelados na origem (cancelado=1, derivado da Bronze).
+    Esgotado NAO some: "esta esgotado" e resposta util (campo `esgotado`).
     O canonico de um grupo carrega em `outras_urls` os links dos membros
     colapsados (o mesmo evento nas outras plataformas).
 
@@ -56,8 +60,8 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
         data_inicio: limite inferior (ISO) sobre start_date, inclusivo.
         data_fim: limite superior (ISO) sobre start_date, inclusivo.
         limite: numero maximo de resultados (ordenados por start_date).
-        incluir_ruido: True devolve tambem os marcados como ruido (depuracao
-            das regras; nao exposto na tool MCP).
+        incluir_ruido: True devolve tambem os marcados como ruido e os
+            cancelados (depuracao das regras; nao exposto na tool MCP).
 
     Returns:
         Lista de dicts (nunca sqlite3.Row), ordenada por start_date.
@@ -69,6 +73,7 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     where, params = [], []
     if not incluir_ruido:
         where.append("e.ruido = 0")
+        where.append("(e.cancelado IS NULL OR e.cancelado = 0)")
     # Duplicata cross-fonte: so o canonico responde pelo grupo.
     where.append("e.dedupe_canonico = 1")
     if texto:

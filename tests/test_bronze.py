@@ -1,6 +1,8 @@
-"""Teste executável da camada Bronze (eventos_raw + derivação a seco) e da
+"""Teste executável das camadas Bronze (eventos_raw + derivação a seco) e
+Prata (preço/esgotado/cancelado/popularidade + efeito na consulta), mais a
 guarda de nome do NI-17. Usa uma base SQLite descartável (não toca
-data/eventos.db). Spec: docs/specs/20260710_camada-bronze/spec.md.
+data/eventos.db). Specs: docs/specs/20260710_camada-bronze e
+20260710_camada-prata.
 
 Uso: python tests/test_bronze.py
 """
@@ -15,6 +17,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 
 import store  # noqa: E402
 import derivar  # noqa: E402
+import consulta  # noqa: E402
 
 # Redireciona a base para um arquivo descartável antes de qualquer conectar().
 store.DB_PATH = Path(tempfile.mkdtemp()) / "eventos_teste.db"
@@ -104,6 +107,60 @@ def main():
     assert con.execute("SELECT bairro FROM eventos WHERE id = 'sympla:3'"
                        ).fetchone()[0] is None
     print("bronze: recalcula do zero (não eterniza valor de payload antigo) — ok")
+
+    # --- Prata: derivações de preço/esgotado/cancelado/popularidade ---
+    store.upsert_eventos(con, [
+        evento("sympla:p1", nome="Festa Com Lote Grátis",
+               _raw={"global_score": 777, "location": {}}),
+        evento("ingresse:p4", nome="Passaporte Esgotado"),
+        evento("shotgun:p2", nome="Show Esgotado", _raw={
+            "offers": [{"price": "30", "availability": "https://schema.org/SoldOut"}],
+            "eventStatus": "https://schema.org/EventScheduled"}),
+        evento("shotgun:p3", nome="Show Cancelado", _raw={
+            "offers": {"lowPrice": 25, "availability": "https://schema.org/InStock"},
+            "eventStatus": "https://schema.org/EventCancelled"}),
+    ])
+    ts = "2026-07-10T03:00:00+00:00"
+    store.gravar_raw(con, "sympla:p1", "detalhe", {"cancelled": False}, ts)
+    store.gravar_raw(con, "sympla:p1", "tickets", {"tickets": [
+        {"show": True, "isFree": False, "currentAvailableQty": 5,
+         "salePriceWithDiscountMonetary": {"decimal": 44.0}},
+        {"show": True, "isFree": True, "currentAvailableQty": 0},
+    ]}, ts)
+    store.gravar_raw(con, "ingresse:p4", "tickets", {"detail": {"responseData": [
+        {"type": [{"price": 400, "status": "finished"},
+                  {"price": 200, "status": "finished"},
+                  {"price": 1, "status": "available", "hidden": True}]},
+    ]}}, ts)
+    derivar.aplicar(con)
+
+    def prata(ev_id):
+        return dict(con.execute(
+            "SELECT preco_min, esgotado, cancelado, popularidade "
+            "FROM eventos WHERE id = ?", (ev_id,)).fetchone())
+
+    assert prata("sympla:p1") == {"preco_min": 0.0, "esgotado": 0,
+                                  "cancelado": 0, "popularidade": 777}, \
+        prata("sympla:p1")  # lote grátis → preço 0; havia vaga → não esgotado
+    assert prata("ingresse:p4") == {"preco_min": 200.0, "esgotado": 1,
+                                    "cancelado": None, "popularidade": None}, \
+        prata("ingresse:p4")  # lote oculto não conta; todos finished → esgotado
+    assert prata("shotgun:p2") == {"preco_min": 30.0, "esgotado": 1,
+                                   "cancelado": 0, "popularidade": None}
+    assert prata("shotgun:p3") == {"preco_min": 25.0, "esgotado": 0,
+                                   "cancelado": 1, "popularidade": None}
+    print("prata: preço/esgotado/cancelado/popularidade derivados dos payloads — ok")
+
+    # --- Prata na consulta: cancelado some por padrão, esgotado aparece ---
+    todos = consulta.buscar_eventos(limite=200)
+    nomes = [e["nome"] for e in todos]
+    assert "Show Cancelado" not in nomes, "cancelado deveria sumir da consulta"
+    esg = [e for e in todos if e["nome"] == "Show Esgotado"]
+    assert esg and esg[0]["esgotado"] == 1 and esg[0]["preco_min"] == 30.0
+    assert "Show Cancelado" in [e["nome"] for e in
+                                consulta.buscar_eventos(limite=200,
+                                                        incluir_ruido=True)]
+    print("prata: consulta esconde cancelado, expõe esgotado/preço — ok")
 
     # --- NI-17: guarda de nome do _descrever rejeita evento trocado ---
     import atualizar  # noqa: E402  (importa playwright via scrapers; só p/ _mesmo_nome)

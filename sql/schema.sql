@@ -39,9 +39,14 @@ CREATE TABLE IF NOT EXISTS eventos (
     preco_min     REAL,               -- menor preco anunciado, quando a fonte entrega (Shotgun: offers)
 
     -- Colunas derivadas da camada Bronze (preenchidas por src/derivar.py a partir
-    -- de eventos_raw, apos o upsert; os scrapers nao escrevem aqui). Recalculadas
-    -- do zero a cada atualizacao — ver docs/specs/20260710_camada-bronze/spec.md.
+    -- de eventos_raw, apos o upsert; os scrapers nao escrevem aqui — exceto
+    -- preco_min, que o Shotgun ainda grava e a derivacao recalcula por cima).
+    -- Recalculadas do zero a cada atualizacao. Specs: 20260710_camada-bronze e
+    -- 20260710_camada-prata em docs/specs/.
     bairro        TEXT,               -- bairro do local (Sympla: location.neighborhood do payload bruto)
+    popularidade  INTEGER,            -- score de trending da fonte (Sympla: global_score) — quanto maior, mais quente
+    esgotado      INTEGER,            -- 1 = sem ingressos disponiveis (tickets/offers); NULL = fonte nao informou
+    cancelado     INTEGER,            -- 1 = evento cancelado na origem; a consulta esconde por padrao
 
     -- Colunas de enriquecimento v1 (preenchidas por src/enriquecer.py apos o upsert;
     -- os scrapers nao escrevem aqui). Recalculadas do zero a cada atualizacao.
@@ -56,13 +61,13 @@ CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON eventos(cidade);
 
 -- Camada Bronze: o payload bruto (JSON/JSON-LD) de cada evento, como veio da
 -- fonte. Permite re-derivar campos novos SEM re-raspar (src/derivar.py) e
--- auditar a base contra a origem. Sympla tem DOIS payloads por evento (catalogo
--- + BFF da pagina do evento) — por isso tabela propria com origem na chave, e
--- nao uma coluna raw em eventos. Ultimo payload vence (UPSERT na PK).
+-- auditar a base contra a origem. Um evento pode ter VARIOS payloads (Sympla:
+-- catalogo + BFF da pagina + tickets) — por isso tabela propria com origem na
+-- chave, e nao uma coluna raw em eventos. Ultimo payload vence (UPSERT na PK).
 -- Spec: docs/specs/20260710_camada-bronze/spec.md.
 CREATE TABLE IF NOT EXISTS eventos_raw (
     evento_id  TEXT NOT NULL,   -- eventos.id ("<fonte>:<id_nativo>")
-    origem     TEXT NOT NULL,   -- qual payload: 'catalogo' | 'detalhe'
+    origem     TEXT NOT NULL,   -- qual payload: 'catalogo' | 'detalhe' | 'tickets'
     payload    TEXT NOT NULL,   -- JSON bruto (json.dumps ensure_ascii=False)
     raspado_em TEXT NOT NULL,   -- timestamp ISO 8601 de quando foi raspado
     PRIMARY KEY (evento_id, origem)

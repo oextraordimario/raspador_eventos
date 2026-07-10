@@ -26,9 +26,10 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
     """Busca festas, baladas e shows em Brasília na base unificada (Sympla,
     Ingresse e Shotgun). Use para responder o que há de festa/balada/show numa
     cidade e período. Todos os argumentos são opcionais. A base já vem limpa:
-    anúncios/cursos são filtrados e o mesmo evento publicado em mais de uma
-    plataforma vem colapsado num único resultado (campo outras_urls traz os
-    links dele nas demais plataformas, quando houver).
+    anúncios/cursos e eventos cancelados são filtrados, e o mesmo evento
+    publicado em mais de uma plataforma vem colapsado num único resultado
+    (campo outras_urls traz os links dele nas demais plataformas, quando
+    houver).
 
     Args:
         texto: termos de busca no nome, atrações e descrição do evento (sintaxe
@@ -43,9 +44,12 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
 
     Returns:
         Lista de eventos com nome, fonte, start_date, end_date, cidade, local,
-        categoria, organizador, url, atracoes (line-up), preco_min, descricao
-        (trecho inicial) e outras_urls (links do mesmo evento em outras
-        plataformas, se houver).
+        bairro, categoria, organizador, url, atracoes (line-up), preco_min
+        (menor preço em reais; 0 = grátis; null = a fonte não informou),
+        esgotado (1 = sem ingressos disponíveis), popularidade (score de
+        trending da fonte — quanto maior, mais em alta; null fora do Sympla),
+        descricao (trecho inicial) e outras_urls (links do mesmo evento em
+        outras plataformas, se houver).
     """
     return consulta.buscar_eventos(
         texto=texto or None, cidade=cidade or None,

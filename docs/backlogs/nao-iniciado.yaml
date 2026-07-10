@@ -182,36 +182,13 @@
     (filme × sessão × sala); ver se o schema atual comporta ou se pede tabela própria.
     Merece spec própria em docs/specs/.
 
-- codigo: NI-12
-  status: pendente
-  prioridade: critica
-  rank: 0
-  esforco: M
-  eixo: raspagem
-  fase: 0
-  titulo: "Preço faltando em Sympla e Ingresse (só Shotgun captura preco_min)"
-  resumo: "a Etapa 5 marcou 'preço capturado das 3 fontes', mas só o Shotgun preenche preco_min (JSON-LD offers); Sympla e Ingresse vêm sempre null — sem preço o agente não ajuda a decidir"
-  data: 2026-07-10
-  depende_de: []
-  relacionado: [NI-13]
-  caso_real: ["dogfooding 2026-07-10, teste do MCP: 'VÉRTICE - House 10/07' (Sympla) veio com preco_min=null; ao tentar o valor na página, o Sympla joga numa fila anti-bot (queue-it) — o raspador não alcança o preço por HTTP simples"]
-  detalhe: |
-    Achado no teste do MCP em 2026-07-10 (fim de semana 10–12/07). Regressão de
-    escopo da Etapa 5: `_preco_min` existe só em `src/scrapers/shotgun.py` (lê
-    `offers.lowPrice/price` do JSON-LD). O `raspar_descricao` do Sympla
-    (`event-page.svc`) devolve só descricao+categoria; o do Ingresse (`GET /events/
-    {slug}`) idem. Nenhum dos dois popula `preco_min`.
-
-    **Complicação (Sympla):** a página pública redireciona pra sala de espera
-    anti-bot (queue-it) sob pico — HTTP puro não passa. Investigar se o BFF de
-    catálogo (`discovery-bff/search`) ou o de página (`event-page.svc`) traz preço/
-    lote no JSON (o valor mais barato costuma vir no payload da API, sem passar pela
-    fila). Ingresse: checar `offers`/preço no `GET /events/{slug}` e no search.
-
-    **Correção desenhada:** achar o campo de preço no payload JSON de cada BFF
-    (Sympla e Ingresse) e mapear pro `preco_min` já existente no schema — mesmo
-    caminho que o Shotgun. Gratuito vs. esgotado vs. sem-informação precisam ser
-    distinguíveis (0 ≠ null). Sem re-raspar não resolve (é dado de origem).
+# NI-12 (preço faltando em Sympla/Ingresse) foi RESOLVIDO em 2026-07-10 pela
+# camada Prata (docs/specs/20260710_camada-prata/spec.md): endpoints de tickets
+# abertos nas duas fontes (Sympla: event-bff/purchase/event/{id}/tickets;
+# Ingresse: api-embedstore session/{sid}/tickets, apikey pública do front) →
+# passo "precificar" do atualizar.py → derivação de preco_min (0 = grátis,
+# NULL = não informou) e esgotado. Sem passar pela fila queue-it. Ressalva:
+# eventos Sympla sem descrição validada (guarda NI-17, ~5%) ficam sem preço.
 
 # NI-14 (spike da camada Bronze) foi EXECUTADO e APROVADO em 2026-07-10:
 # medições em tests/spike_bronze/RESULTADO.md; a camada Bronze foi IMPLEMENTADA

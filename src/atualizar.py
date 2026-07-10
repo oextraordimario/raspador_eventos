@@ -2,9 +2,10 @@
 
 Fluxo: raspa as 3 fontes (tolerante a falha por fonte) → upsert (guardando o
 payload bruto na camada Bronze) → descrever (busca incremental da descrição p/
-eventos sem ela) → derivar (colunas calculadas do bruto, sem rede) →
-enriquecimento v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS →
-relatório de saúde.
+eventos sem ela) → precificar (tickets/lotes de Sympla e Ingresse, refeito a
+cada rodada porque preço é volátil) → derivar (colunas calculadas do bruto,
+sem rede) → enriquecimento v1 (ruído + dedupe, recalculado do zero) →
+reconstrói o FTS → relatório de saúde.
 
 Uso (da raiz do repo):
     python src/atualizar.py                  # pipeline completo
@@ -129,6 +130,58 @@ def _descrever(con, pausa=0.4):
     return {"buscadas": buscadas, "falhas": falhas, "trocados": trocados}
 
 
+def _precificar(con, pausa=0.3):
+    """Busca o payload de tickets (preço/lotes) de Sympla e Ingresse e grava na
+    Bronze (origem='tickets'); quem transforma em preco_min/esgotado é o
+    derivar. NÃO é incremental: preço/lote muda entre rodadas, então refaz
+    todos os eventos futuros a cada atualização.
+
+    Sympla: só eventos com descrição validada — o endpoint de tickets não
+    devolve nome para a guarda do NI-17, então a descrição validada é a âncora
+    de que o id não está trocado. Shotgun não precisa deste passo (as offers
+    já vêm no JSON-LD do catálogo).
+    """
+    agora = datetime.now(timezone.utc)
+    alvos = []
+    for r in con.execute(
+            "SELECT id, fonte, id_nativo, url, start_date, descricao "
+            "FROM eventos WHERE fonte IN ('sympla', 'ingresse')"):
+        dt = _instante(r["start_date"])
+        if not dt or dt < agora:
+            continue
+        if r["fonte"] == "sympla" and (
+                not r["descricao"] or "bileto.sympla.com.br" in (r["url"] or "")):
+            continue  # sem âncora contra id trocado (NI-17) — fica sem preço
+        alvos.append(r)
+    if not alvos:
+        return {"buscados": 0, "falhas": 0}
+    print(f"\n[precificar] tickets de {len(alvos)} eventos futuros "
+          f"(Sympla/Ingresse)...")
+    buscados = falhas = 0
+    for i, r in enumerate(alvos, 1):
+        try:
+            if r["fonte"] == "sympla":
+                m = re.search(r"/(\d+)/?$", r["url"] or "")
+                if not m:
+                    falhas += 1
+                    continue
+                t = sympla.raspar_tickets(m.group(1))
+            else:
+                t = ingresse.raspar_tickets(r["id_nativo"])
+            store.gravar_raw(con, r["id"], "tickets", t["payload"],
+                             datetime.now(timezone.utc).isoformat(),
+                             commit=False)
+            buscados += 1
+        except Exception:
+            falhas += 1
+        if i % 50 == 0:
+            print(f"  {i}/{len(alvos)}...")
+        time.sleep(pausa)
+    con.commit()
+    print(f"  {buscados} payloads de tickets gravados | {falhas} falhas")
+    return {"buscados": buscados, "falhas": falhas}
+
+
 def _instante(iso):
     dt = None
     if iso:
@@ -172,11 +225,22 @@ def _relatorio(con, resultados, derivado, enriq, duracao):
         ds = sorted(futuros[fonte])
         print(f"    {fonte:<9} {ds[0].date()} → {ds[-1].date()}  ({len(ds)} eventos)")
 
-    # --- campos ricos: % com descrição por fonte ---
+    # --- campos ricos: % com descrição e preço por fonte ---
     print("  descrição preenchida por fonte:")
     for fonte, com, tot in con.execute(
             "SELECT fonte, SUM(descricao IS NOT NULL), COUNT(*) "
             "FROM eventos GROUP BY fonte ORDER BY fonte"):
+        print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
+    print("  preço mínimo preenchido por fonte (eventos futuros):")
+    stats = {}
+    for r in con.execute("SELECT fonte, start_date, preco_min FROM eventos"):
+        dt = _instante(r["start_date"])
+        if not dt or dt < agora:
+            continue
+        com, tot = stats.get(r["fonte"], (0, 0))
+        stats[r["fonte"]] = (com + (r["preco_min"] is not None), tot + 1)
+    for fonte in sorted(stats):
+        com, tot = stats[fonte]
         print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
 
     # --- camada Bronze: payloads brutos e colunas derivadas ---
@@ -219,6 +283,7 @@ def main():
             con.close()
             sys.exit("Todas as fontes falharam — base não atualizada.")
         _descrever(con)
+        _precificar(con)
 
     # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
     # o fluxo normal e o --so-derivar recalculam as derivadas a partir da Bronze.
