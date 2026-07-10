@@ -1,8 +1,8 @@
 """Teste executável das camadas Bronze (eventos_raw + derivação a seco) e
-Prata (preço/esgotado/cancelado/popularidade + efeito na consulta), mais a
-guarda de nome do NI-17. Usa uma base SQLite descartável (não toca
-data/eventos.db). Specs: docs/specs/20260710_camada-bronze e
-20260710_camada-prata.
+Prata (lotes de ingresso, preço/tem_gratis/esgotado/cancelado/popularidade e
+detalhar_evento), mais a guarda de nome do NI-17. Usa uma base SQLite
+descartável (não toca data/eventos.db). Specs: docs/specs/20260710_camada-bronze,
+20260710_camada-prata e 20260710_lotes-ingressos.
 
 Uso: python tests/test_bronze.py
 """
@@ -108,13 +108,14 @@ def main():
                        ).fetchone()[0] is None
     print("bronze: recalcula do zero (não eterniza valor de payload antigo) — ok")
 
-    # --- Prata: derivações de preço/esgotado/cancelado/popularidade ---
+    # --- Prata: lotes + preço/esgotado/cancelado/popularidade ---
     store.upsert_eventos(con, [
-        evento("sympla:p1", nome="Festa Com Lote Grátis",
+        evento("sympla:p1", nome="Festa Com Cortesia Esgotada",
                _raw={"global_score": 777, "location": {}}),
         evento("ingresse:p4", nome="Passaporte Esgotado"),
         evento("shotgun:p2", nome="Show Esgotado", _raw={
-            "offers": [{"price": "30", "availability": "https://schema.org/SoldOut"}],
+            "offers": [{"name": "Pista", "price": "30",
+                        "availability": "https://schema.org/SoldOut"}],
             "eventStatus": "https://schema.org/EventScheduled"}),
         evento("shotgun:p3", nome="Show Cancelado", _raw={
             "offers": {"lowPrice": 25, "availability": "https://schema.org/InStock"},
@@ -128,28 +129,99 @@ def main():
         {"show": True, "isFree": True, "currentAvailableQty": 0},
     ]}, ts)
     store.gravar_raw(con, "ingresse:p4", "tickets", {"detail": {"responseData": [
-        {"type": [{"price": 400, "status": "finished"},
-                  {"price": 200, "status": "finished"},
+        {"name": "Passaporte PISTA",
+         "type": [{"name": "Inteira", "price": 400, "tax": 40, "status": "finished"},
+                  {"name": "Meia", "price": 200, "tax": 20, "status": "finished"},
                   {"price": 1, "status": "available", "hidden": True}]},
     ]}}, ts)
     derivar.aplicar(con)
 
     def prata(ev_id):
         return dict(con.execute(
-            "SELECT preco_min, esgotado, cancelado, popularidade "
+            "SELECT preco_min, tem_gratis, esgotado, cancelado, popularidade "
             "FROM eventos WHERE id = ?", (ev_id,)).fetchone())
 
-    assert prata("sympla:p1") == {"preco_min": 0.0, "esgotado": 0,
-                                  "cancelado": 0, "popularidade": 777}, \
-        prata("sympla:p1")  # lote grátis → preço 0; havia vaga → não esgotado
-    assert prata("ingresse:p4") == {"preco_min": 200.0, "esgotado": 1,
-                                    "cancelado": None, "popularidade": None}, \
-        prata("ingresse:p4")  # lote oculto não conta; todos finished → esgotado
-    assert prata("shotgun:p2") == {"preco_min": 30.0, "esgotado": 1,
-                                   "cancelado": 0, "popularidade": None}
-    assert prata("shotgun:p3") == {"preco_min": 25.0, "esgotado": 0,
-                                   "cancelado": 1, "popularidade": None}
-    print("prata: preço/esgotado/cancelado/popularidade derivados dos payloads — ok")
+    # preco_min = menor lote PAGO; cortesia esgotada NÃO liga tem_gratis
+    assert prata("sympla:p1") == {"preco_min": 44.0, "tem_gratis": 0,
+                                  "esgotado": 0, "cancelado": 0,
+                                  "popularidade": 777}, prata("sympla:p1")
+    # lote oculto não conta; todos finished → esgotado; preco = price + tax
+    assert prata("ingresse:p4") == {"preco_min": 220.0, "tem_gratis": 0,
+                                    "esgotado": 1, "cancelado": None,
+                                    "popularidade": None}, prata("ingresse:p4")
+    assert prata("shotgun:p2") == {"preco_min": 30.0, "tem_gratis": 0,
+                                   "esgotado": 1, "cancelado": 0,
+                                   "popularidade": None}
+    assert prata("shotgun:p3") == {"preco_min": 25.0, "tem_gratis": 0,
+                                   "esgotado": 0, "cancelado": 1,
+                                   "popularidade": None}
+    # nome do lote Ingresse = "setor — lote"
+    nomes_lotes = [r[0] for r in con.execute(
+        "SELECT nome FROM lotes WHERE evento_id = 'ingresse:p4' ORDER BY ordem")]
+    assert nomes_lotes == ["Passaporte PISTA — Inteira", "Passaporte PISTA — Meia"]
+    print("prata: preço pago mín./tem_gratis/esgotado/cancelado derivados — ok")
+
+    # --- NI-18: o caso HOUSE CLUB — cortesia não mascara o preço pago ---
+    store.upsert_eventos(con, [
+        evento("sympla:hc", nome="HOUSE CLUB 13 ANOS",
+               descricao="Aniversário de 13 anos da HOUSE CLUB, line-up "
+                         "completo de DJs a noite toda. " + "Detalhes. " * 50),
+        evento("sympla:sc", nome="Evento Só Cortesia"),
+    ])
+    store.gravar_raw(con, "sympla:hc", "tickets", {"tickets": [
+        {"show": True, "isFree": True, "currentAvailableQty": 2,
+         "name": "CORTESIA FEMININA DA COPA ATÉ 00H"},
+        {"show": True, "isFree": False, "currentAvailableQty": 5,
+         "name": "HOUSE CLUB MASCULINO 2º LOTE",
+         "salePriceWithDiscountMonetary": {"decimal": 49.5},
+         "feeMonetary": {"decimal": 4.5}},
+        {"show": True, "isFree": False, "currentAvailableQty": 5,
+         "name": "HOUSE CLUB FEMININO 2º LOTE",
+         "salePriceWithDiscountMonetary": {"decimal": 38.99},
+         "feeMonetary": {"decimal": 3.99}},
+        {"show": True, "isFree": False, "currentAvailableQty": 5,
+         "name": "BISTRÔ ANTECIPADO + 4 ENTRADAS VIP",
+         "salePriceWithDiscountMonetary": {"decimal": 418.0},
+         "feeMonetary": {"decimal": 38.0}},
+    ]}, ts)
+    store.gravar_raw(con, "sympla:sc", "tickets", {"tickets": [
+        {"show": True, "isFree": True, "currentAvailableQty": 10,
+         "name": "Entrada franca"},
+    ]}, ts)
+    derivar.aplicar(con)
+    hc = prata("sympla:hc")
+    assert hc["preco_min"] == 38.99 and hc["tem_gratis"] == 1 \
+        and hc["esgotado"] == 0, hc  # antes da spec: preco_min viria 0.0
+    sc = prata("sympla:sc")
+    assert sc["preco_min"] is None and sc["tem_gratis"] == 1, \
+        sc  # evento grátis: sem lote pago + tem_gratis
+    # derivação idempotente também para lotes (DELETE + reinsert)
+    n_lotes = con.execute("SELECT COUNT(*) FROM lotes").fetchone()[0]
+    derivar.aplicar(con)
+    assert con.execute("SELECT COUNT(*) FROM lotes").fetchone()[0] == n_lotes
+    print("NI-18: cortesia não mascara preço pago; só-cortesia = grátis — ok")
+
+    # --- detalhar_evento: descrição inteira + lotes na ordem da fonte ---
+    det = consulta.detalhar_evento("https://x/sympla:hc")
+    assert len(det["descricao"]) > consulta.DESCRICAO_MAX, "descrição veio cortada"
+    assert [lt["nome"] for lt in det["lotes"]] == [
+        "CORTESIA FEMININA DA COPA ATÉ 00H", "HOUSE CLUB MASCULINO 2º LOTE",
+        "HOUSE CLUB FEMININO 2º LOTE", "BISTRÔ ANTECIPADO + 4 ENTRADAS VIP"]
+    assert det["lotes"][1] == {"nome": "HOUSE CLUB MASCULINO 2º LOTE",
+                               "preco": 49.5, "taxa": 4.5, "gratis": 0,
+                               "esgotado": 0}
+    assert "erro" in consulta.detalhar_evento("https://x/nao-existe")
+    # url de membro não-canônico de dedupe responde pelo canônico
+    con.execute("UPDATE eventos SET dedupe_grupo = 'sympla:hc' "
+                "WHERE id IN ('sympla:hc', 'sympla:sc')")
+    con.execute("UPDATE eventos SET dedupe_canonico = 0 WHERE id = 'sympla:sc'")
+    con.commit()
+    assert consulta.detalhar_evento("https://x/sympla:sc")["nome"] == \
+        "HOUSE CLUB 13 ANOS"
+    con.execute("UPDATE eventos SET dedupe_grupo = NULL, dedupe_canonico = 1 "
+                "WHERE id IN ('sympla:hc', 'sympla:sc')")
+    con.commit()
+    print("detalhar_evento: descrição completa, lotes em ordem, erro amigável — ok")
 
     # --- Prata na consulta: cancelado some por padrão, esgotado aparece ---
     todos = consulta.buscar_eventos(limite=200)

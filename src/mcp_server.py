@@ -45,16 +45,45 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
     Returns:
         Lista de eventos com nome, fonte, start_date, end_date, cidade, local,
         bairro, categoria, organizador, url, atracoes (line-up), preco_min
-        (menor preço em reais; 0 = grátis; null = a fonte não informou),
+        (menor lote PAGO, em R$ totais com taxa; null = sem lote pago ou fonte
+        não informou), tem_gratis (1 = há lote grátis disponível — cortesia,
+        entrada franca; junto com preco_min null significa evento grátis),
         esgotado (1 = sem ingressos disponíveis), popularidade (score de
         trending da fonte — quanto maior, mais em alta; null fora do Sympla),
         descricao (trecho inicial) e outras_urls (links do mesmo evento em
-        outras plataformas, se houver).
+        outras plataformas, se houver). Para preço detalhado por lote ou a
+        descrição completa de um evento, chame detalhar_evento com a url.
     """
     return consulta.buscar_eventos(
         texto=texto or None, cidade=cidade or None,
         data_inicio=data_inicio or None, data_fim=data_fim or None,
         limite=limite)
+
+
+@mcp.tool()
+def detalhar_evento(url: str) -> dict:
+    """Detalha UM evento da base: descrição completa (sem o corte da busca) e
+    a tabela de lotes de ingresso. Use depois de buscar_eventos, com a url
+    exata que ela devolveu, quando o usuário quiser aprofundar um evento —
+    "me conta mais dessa festa", "quanto custa pra homem?", "tem cortesia?".
+
+    Cada lote traz nome (cru, como a fonte publica), preco (R$ TOTAL a pagar,
+    taxa já embutida), taxa (a parcela de taxa, quando a fonte separa), gratis
+    (1 = cortesia/entrada franca) e esgotado (1 = lote sem estoque/encerrado).
+    As condições do lote estão no NOME — "CORTESIA FEMININA DA COPA ATÉ 00H",
+    "MASCULINO 2º LOTE", "meia-entrada" — leia-os para responder preço com
+    precisão (ex.: "grátis para mulheres até 00h; masculino a partir de
+    R$ 45 + 4,50 de taxa").
+
+    Args:
+        url: a url do evento, exatamente como veio de buscar_eventos.
+
+    Returns:
+        Dict único com os campos da busca + descricao completa + lotes
+        (lista, na ordem de exibição da fonte), ou {"erro": ...} se a url
+        não estiver na base.
+    """
+    return consulta.detalhar_evento(url)
 
 
 @mcp.tool()

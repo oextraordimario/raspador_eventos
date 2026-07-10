@@ -29,7 +29,7 @@ from scrapers import ingresse, shotgun, sympla
 def _checar_schema(con):
     """Base criada antes de uma mudança de schema não é migrada: é descartável."""
     cols = {r[1] for r in con.execute("PRAGMA table_info(eventos)")}
-    if "ruido" not in cols or "bairro" not in cols:
+    if "ruido" not in cols or "tem_gratis" not in cols:
         sys.exit("A base data/eventos.db é de um schema antigo.\nNa Fase 0 a base "
                  "é descartável: apague o arquivo e rode de novo para re-raspar.")
 
@@ -249,8 +249,11 @@ def _relatorio(con, resultados, derivado, enriq, duracao):
     print("  payloads brutos (Bronze): " +
           (", ".join(f"{origem}: {n}" for origem, n in raws) or "nenhum"))
     if derivado is not None:
+        derivado = dict(derivado)
+        lotes_n = derivado.pop("lotes", 0)
         print("  colunas derivadas do bruto: " +
               ", ".join(f"{c}: {n} eventos" for c, n in derivado.items()))
+        print(f"  lotes de ingresso (tabela lotes): {lotes_n}")
 
     # --- enriquecimento ---
     ruido, grupos = enriq["ruido"], enriq["grupos"]

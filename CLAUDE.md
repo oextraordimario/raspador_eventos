@@ -45,7 +45,7 @@ python src/mcp_server.py
 
 # Testes de fumaça (scripts executáveis, sem framework)
 python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta (base descartável)
-python tests/test_bronze.py                     # camada Bronze (eventos_raw + derivação) e guarda anti-Bileto (base descartável)
+python tests/test_bronze.py                     # camadas Bronze/Prata (eventos_raw, lotes, derivação, detalhar_evento) e guarda anti-Bileto (base descartável)
 python tests/test_mcp_server.py                 # age como cliente MCP real; exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
@@ -115,13 +115,19 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   por evento: catálogo e detalhe), junto com `gravar_raw(...)` para o payload do
   "descrever".
 - `src/derivar.py` — derivação a seco (a "camada Prata"): (re)calcula colunas de
-  `eventos` a partir de `eventos_raw`, sem rede — `preco_min` (R$; 0 = grátis),
-  `esgotado`, `cancelado`, `bairro`, `popularidade`. Campo novo do bruto = função aqui
-  + `--so-derivar`, **sem re-raspar**. Idempotente como o enriquecer. Os payloads de
-  tickets (Sympla/Ingresse) vêm do passo "precificar" do `atualizar.py` — **não
-  incremental** (preço/lote é volátil; refeito a cada rodada), e no Sympla só para
-  eventos com descrição validada (âncora da guarda NI-17 — o endpoint de tickets não
-  devolve nome). Specs: `docs/specs/20260710_camada-bronze/` e `20260710_camada-prata/`.
+  `eventos` e a tabela `lotes` a partir de `eventos_raw`, sem rede. Os lotes de
+  ingresso viram linhas de `lotes` (nome CRU da fonte, `preco` = total a pagar com
+  taxa, `taxa`, `gratis`, `esgotado`); `preco_min`/`tem_gratis`/`esgotado` de
+  `eventos` são agregações deles — `preco_min` é o menor lote **PAGO** (cortesia não
+  mascara o preço real, NI-18) e `tem_gratis` marca lote grátis não esgotado.
+  `cancelado`, `bairro` e `popularidade` seguem derivados direto do payload. Campo
+  novo do bruto = função aqui + `--so-derivar`, **sem re-raspar**. Idempotente como
+  o enriquecer. Os payloads de tickets (Sympla/Ingresse) vêm do passo "precificar"
+  do `atualizar.py` — **não incremental** (preço/lote é volátil; refeito a cada
+  rodada), e no Sympla só para eventos com descrição validada (âncora da guarda
+  NI-17 — o endpoint de tickets não devolve nome). Specs:
+  `docs/specs/20260710_camada-bronze/`, `20260710_camada-prata/` e
+  `20260710_lotes-ingressos/`.
 - `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
   (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas cross-fonte
   (mesmo dia + nome/local similares). **Marca, não apaga** — quem esconde é a
@@ -131,10 +137,14 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   incluir_ruido)`, todos os args opcionais, retorno JSON-serializável. Por padrão
   esconde ruído, não-canônicos de dedupe e **cancelados**; esgotado NÃO some (é
   resposta útil). O canônico traz `outras_urls` (links do mesmo evento nas outras
-  plataformas). Esta é a camada canônica de consulta.
-- `src/mcp_server.py` — FastMCP stdio expondo duas tools finas que delegam para
-  `consulta.py`: `buscar_eventos` e `data_atual` (data/hora UTC + janela do fim de
-  semana, para o agente montar filtros "hoje"/"neste fim de semana").
+  plataformas). `detalhar_evento(url)` aprofunda UM evento: descrição INTEIRA (a
+  busca corta em `DESCRICAO_MAX`) + lista de lotes — a condição do lote ("CORTESIA
+  FEMININA ATÉ 00H") fica no nome cru, de propósito: quem interpreta é o agente,
+  não regex. Esta é a camada canônica de consulta.
+- `src/mcp_server.py` — FastMCP stdio expondo tools finas que delegam para
+  `consulta.py`: `buscar_eventos` (listar), `detalhar_evento` (aprofundar um
+  evento: descrição completa + lotes) e `data_atual` (data/hora UTC + janela do
+  fim de semana, para o agente montar filtros "hoje"/"neste fim de semana").
 
 Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
 descrever (busca incremental da descrição p/ Sympla/Ingresse; upsert usa COALESCE p/

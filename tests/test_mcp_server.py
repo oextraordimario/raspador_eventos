@@ -41,7 +41,8 @@ async def main():
 
             tools = {t.name for t in (await session.list_tools()).tools}
             print("tools expostas:", sorted(tools))
-            assert {"buscar_eventos", "data_atual"} <= tools, "faltam tools"
+            assert {"buscar_eventos", "detalhar_evento", "data_atual"} <= tools, \
+                "faltam tools"
 
             # data_atual
             da = dados(await session.call_tool("data_atual", {}))
@@ -78,6 +79,19 @@ async def main():
                 "buscar_eventos", {"texto": "xyzzyabracadabra123"}))
             assert vazio == []
             print("busca sem correspondência: 0 (ok)")
+
+            # detalhar_evento: descrição completa + lotes de um evento real
+            alvo = next(e for e in fim_semana + eventos if e.get("url"))
+            det = dados(await session.call_tool("detalhar_evento",
+                                                {"url": alvo["url"]}))
+            assert det.get("nome") and "lotes" in det and "descricao" in det, det
+            print(f"detalhar_evento('{alvo['nome'][:35]}'): "
+                  f"{len(det['lotes'])} lotes | "
+                  f"descrição {len(det['descricao'] or '')} chars")
+            erro = dados(await session.call_tool(
+                "detalhar_evento", {"url": "https://nao-existe.example/x"}))
+            assert "erro" in erro, erro
+            print("detalhar_evento(url desconhecida): erro amigável (ok)")
 
     print("\nOK — MCP server responde como cliente real espera.")
 

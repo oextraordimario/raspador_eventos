@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS eventos (
     -- usa COALESCE nestas colunas: re-raspagem do catalogo NAO zera o que ja foi colhido.
     descricao     TEXT,               -- texto livre do evento, limpo de HTML (insumo do FTS e do enriquecimento v2)
     atracoes      TEXT,               -- line-up ("; "-separado) quando a fonte entrega (Shotgun: performer)
-    preco_min     REAL,               -- menor preco anunciado, quando a fonte entrega (Shotgun: offers)
+    preco_min     REAL,               -- menor preco de lote PAGO, em R$ total (gratis nao conta — ver tem_gratis); derivado da tabela lotes
 
     -- Colunas derivadas da camada Bronze (preenchidas por src/derivar.py a partir
     -- de eventos_raw, apos o upsert; os scrapers nao escrevem aqui — exceto
@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS eventos (
     popularidade  INTEGER,            -- score de trending da fonte (Sympla: global_score) — quanto maior, mais quente
     esgotado      INTEGER,            -- 1 = sem ingressos disponiveis (tickets/offers); NULL = fonte nao informou
     cancelado     INTEGER,            -- 1 = evento cancelado na origem; a consulta esconde por padrao
+    tem_gratis    INTEGER,            -- 1 = ha lote gratis NAO esgotado (cortesia etc.); com preco_min NULL = evento gratis; NULL = sem info de lotes
 
     -- Colunas de enriquecimento v1 (preenchidas por src/enriquecer.py apos o upsert;
     -- os scrapers nao escrevem aqui). Recalculadas do zero a cada atualizacao.
@@ -72,6 +73,23 @@ CREATE TABLE IF NOT EXISTS eventos_raw (
     raspado_em TEXT NOT NULL,   -- timestamp ISO 8601 de quando foi raspado
     PRIMARY KEY (evento_id, origem)
 );
+
+-- Camada Prata: lotes de ingresso por evento, extraidos dos payloads da Bronze
+-- por src/derivar.py (reconstruida do zero a cada aplicar(): DELETE + INSERT,
+-- por isso sem PK natural). preco = TOTAL a pagar em R$ (Sympla ja embute a
+-- taxa; Ingresse soma price+tax). O nome do lote fica cru de proposito: a
+-- condicao ("CORTESIA FEMININA ATE 00H", "meia-entrada") e para o agente ler,
+-- nao para regex. Spec: docs/specs/20260710_lotes-ingressos/spec.md.
+CREATE TABLE IF NOT EXISTS lotes (
+    evento_id  TEXT NOT NULL,      -- eventos.id ("<fonte>:<id_nativo>")
+    ordem      INTEGER NOT NULL,   -- posicao no payload (ordem de exibicao da fonte)
+    nome       TEXT,               -- nome cru do lote na fonte
+    preco      REAL,               -- R$ total a pagar (com taxa); 0 = gratis; NULL = fonte nao informou
+    taxa       REAL,               -- parcela de taxa, quando a fonte separa (NULL no Shotgun)
+    gratis     INTEGER NOT NULL,   -- 1 = lote gratuito (cortesia/entrada franca)
+    esgotado   INTEGER             -- 1 = lote sem estoque / vendas encerradas
+);
+CREATE INDEX IF NOT EXISTS idx_lotes_evento ON lotes(evento_id);
 
 -- Indice de busca textual (nome/categoria/atracoes/descricao) para as consultas em
 -- linguagem natural. Tabela de conteudo externo (content='eventos'): reindexada via

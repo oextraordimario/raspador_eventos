@@ -15,11 +15,14 @@ from datetime import datetime, timezone
 import store
 
 # Campos uteis expostos ao agente (subconjunto enxuto da tabela).
-# preco_min em reais (0 = gratis; NULL = fonte nao informou); esgotado 1 = sem
-# ingressos; bairro/popularidade derivados da camada Bronze (spec camada-prata).
+# preco_min = menor lote PAGO em R$ (total, com taxa); tem_gratis 1 = ha lote
+# gratis nao esgotado (com preco_min NULL = evento gratis); esgotado 1 = sem
+# ingressos; bairro/popularidade derivados da camada Bronze (specs camada-prata
+# e lotes-ingressos).
 CAMPOS = ["nome", "fonte", "start_date", "end_date", "cidade", "estado",
           "local_nome", "endereco", "bairro", "categoria", "organizador",
-          "url", "imagem", "atracoes", "preco_min", "esgotado", "popularidade"]
+          "url", "imagem", "atracoes", "preco_min", "tem_gratis", "esgotado",
+          "popularidade"]
 
 # A descricao completa de dezenas de eventos e peso morto no contexto do agente;
 # um trecho basta para ele entender o estilo do evento (o texto inteiro fica na
@@ -104,6 +107,40 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     rows = con.execute(sql, params).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+def detalhar_evento(url):
+    """Devolve UM evento completo: os mesmos campos da busca, a descricao
+    INTEIRA (sem o corte de DESCRICAO_MAX) e a lista de lotes de ingresso com
+    o nome cru da fonte (a condicao do lote — "CORTESIA FEMININA ATE 00H",
+    "meia-entrada" — esta no nome, de proposito; spec 20260710_lotes-ingressos).
+
+    Lookup pela url exata que buscar_eventos devolveu (em url ou outras_urls).
+    Se a url for de um membro nao-canonico de grupo de dedupe, responde o
+    canonico. Nao achou -> {"erro": ...}.
+    """
+    con = store.conectar()
+    row = con.execute("SELECT id, dedupe_grupo, dedupe_canonico FROM eventos "
+                      "WHERE url = ?", ((url or "").strip(),)).fetchone()
+    if row and not row["dedupe_canonico"] and row["dedupe_grupo"]:
+        row = con.execute(
+            "SELECT id FROM eventos WHERE dedupe_grupo = ? "
+            "AND dedupe_canonico = 1", (row["dedupe_grupo"],)).fetchone() or row
+    if not row:
+        con.close()
+        return {"erro": f"nenhum evento na base com a url {url!r} — use a url "
+                        "exata devolvida por buscar_eventos"}
+    outras = ("(SELECT GROUP_CONCAT(o.url) FROM eventos o "
+              "WHERE o.dedupe_grupo = e.dedupe_grupo AND o.id != e.id) "
+              "AS outras_urls")
+    ev = dict(con.execute(
+        f"SELECT {', '.join(CAMPOS)}, e.descricao, {outras} "
+        "FROM eventos e WHERE e.id = ?", (row["id"],)).fetchone())
+    ev["lotes"] = [dict(r) for r in con.execute(
+        "SELECT nome, preco, taxa, gratis, esgotado FROM lotes "
+        "WHERE evento_id = ? ORDER BY ordem", (row["id"],))]
+    con.close()
+    return ev
 
 
 def _mostrar(titulo, eventos):

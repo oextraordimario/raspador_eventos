@@ -250,71 +250,15 @@
     contra a tool MCP e anotar precisão/recall; repetir quando regra/fonte mudar.
     Vira o "teste de regressão de produto" do projeto.
 
-- codigo: NI-13
-  status: pendente
-  prioridade: critica
-  rank: 0
-  esforco: P
-  eixo: consulta
-  fase: 0
-  titulo: "Descrição completa não chega ao agente (consulta trunca em 300 chars)"
-  resumo: "o texto inteiro está na base, mas buscar_eventos devolve só substr(descricao,1,300); o agente não consegue detalhar um evento sob demanda — falta o 'do que se trata' completo"
-  data: 2026-07-10
-  depende_de: []
-  relacionado: [NI-12]
-  caso_real: ["dogfooding 2026-07-10, teste do MCP: pedido 'traz a descrição dessa Vértice' — a tool cortou em '...Programação: Abertura 22h 22h A', sem o line-up nem os detalhes que vinham depois"]
-  detalhe: |
-    NÃO é bug de raspagem: `descricao` completa já está gravada (Etapa 5, cobertura
-    94–100% por fonte). É decisão de `src/consulta.py`: `DESCRICAO_MAX = 300` e
-    `substr(e.descricao, 1, 300) AS descricao`, feita de propósito pra não encher o
-    contexto do agente com dezenas de descrições inteiras numa busca ampla.
-
-    **Tensão real:** o trecho basta numa listagem de N eventos, mas trava o
-    aprofundamento de UM evento ("me conta mais dessa festa"). Não é só aumentar o
-    limite — isso reintroduz o peso morto que motivou o corte.
-
-    **Correção desenhada (opções, decidir na implementação):**
-    (a) tool MCP nova `detalhar_evento(id/url)` que devolve a descricao inteira de um
-        evento só — separa "listar" de "aprofundar", mantém a busca enxuta; ou
-    (b) parâmetro `descricao_completa: bool` (default false) em `buscar_eventos`,
-        aplicado quando o resultado é 1 evento; ou
-    (c) elevar o trecho e paginar. Preferência inicial: (a). Testar em
-        `tests/test_mcp_server.py`.
-
-- codigo: NI-18
-  status: em-andamento
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: consulta
-  fase: 0
-  titulo: "Cortesia mascara o preço real (preco_min=0 não é resposta útil) — modelar lotes na Prata"
-  resumo: "min() sobre todos os lotes colapsa 'cortesia feminina até 00h + masculino R$ 49,50' em preco_min=0; a Bronze já guarda nome/preço/taxa de cada lote nas 3 fontes — falta uma tabela de lotes na Prata e a exposição na consulta/MCP"
-  data: 2026-07-10
-  depende_de: []
-  relacionado: [NI-13]
-  caso_real: ["dogfooding 2026-07-10 no Claude Desktop: 'HOUSE CLUB 13 ANOS' respondido com preco_min 0,00; o real é cortesia feminina até 00h + masculino R$ 45+4,50 taxa + feminino R$ 35+3,99 — resposta útil seria 'grátis p/ mulheres até 00h; pagos a partir de R$ 38,99 c/ taxa'"]
-  detalhe: |
-    NÃO é bug de raspagem nem de derivação stricto sensu: o payload de tickets
-    (Bronze, origem='tickets'/'catalogo') tem TUDO — Sympla: `name`, `isFree`,
-    `salePriceWithDiscountMonetary` (já COM taxa: 49,50 = 45+4,50), `feeMonetary`,
-    `currentAvailableQty`; Ingresse: `name`, `price`, `tax`, `status`; Shotgun:
-    `offers[].name`/`price`/`availability`. A perda é de MODELAGEM: a Prata reduz
-    os lotes a um escalar `preco_min`, e min() com cortesia no meio devolve 0.
-
-    **Correção desenhada:**
-    (a) tabela `lotes` na Prata (schema.sql: evento_id, nome, preco, taxa, gratis,
-        esgotado), populada a seco pelo derivar.py a partir da Bronze — tabela NOVA
-        entra via IF NOT EXISTS sem descartar a base (só coluna nova em `eventos`
-        exigiria descarte);
-    (b) semântica de `preco_min` em eventos: passar a ser o menor lote PAGO, e um
-        campo/flag de gratuidade separado (ex.: `tem_gratis`) — "grátis" vira
-        qualidade explícita, não um zero ambíguo;
-    (c) exposição: buscar_eventos segue enxuto (preco_min pago + flag); a lista de
-        lotes com nomes entra no detalhar_evento do NI-13 (casam bem: mesma tool).
-        NÃO parsear gênero/hora do nome do lote por regra — expor o nome cru e
-        deixar o agente ler ("CORTESIA FEMININA DA COPA ATÉ 00H" é autoexplicativo).
-    Testes: caso HOUSE CLUB como fixture em tests/test_bronze.py.
+# NI-13 (descrição truncada em 300 chars não chega ao agente) foi RESOLVIDO em
+# 2026-07-10 pela opção (a): tool MCP nova detalhar_evento(url), que devolve a
+# descrição INTEIRA + a lista de lotes de ingresso de um evento só, mantendo o
+# buscar_eventos enxuto. Spec: docs/specs/20260710_lotes-ingressos/spec.md.
+#
+# NI-18 (cortesia mascarava o preço real: preco_min=0 no HOUSE CLUB 13 ANOS)
+# foi RESOLVIDO em 2026-07-10 na mesma spec: tabela lotes na Prata (derivada a
+# seco da Bronze), preco_min = menor lote PAGO e coluna nova tem_gratis (lote
+# grátis não esgotado). O nome do lote fica cru — quem o interpreta é o agente.
 
 # ─────────────────────────── Infra / Distribuição (Fase 1) ───────────────────────────
 

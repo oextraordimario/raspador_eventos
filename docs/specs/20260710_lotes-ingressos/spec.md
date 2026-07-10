@@ -1,6 +1,6 @@
 # Spec — Lotes de ingressos na Prata + tool `detalhar_evento` (NI-18 + NI-13)
 
-> **Status:** especificada em 2026-07-10 (itens em andamento no backlog).
+> **Status:** especificada e implementada em 2026-07-10.
 > **O quê/por quê:** `preco_min` escalar mente por omissão — o `min()` sobre
 > todos os lotes colapsa "cortesia feminina até 00h + masculino R$ 49,50" em
 > `0,00` (caso real: HOUSE CLUB 13 ANOS, dogfooding no Claude Desktop). A Bronze
