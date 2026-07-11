@@ -273,33 +273,16 @@
 # voltou pro scraper; (4) precificar ganhou janela de 30 dias + --precificar-tudo.
 # Testes em tests/test_observabilidade.py. Base descartada e re-raspada.
 
-- codigo: NI-09
-  status: em-andamento
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: infra
-  fase: 0
-  titulo: "Migração SQLite → Postgres gerenciado (Neon, free tier)"
-  resumo: "portão de entrada da Fase 0b (antecipado da Fase 1 em 2026-07-10): a base precisa ficar online pra consulta funcionar com o PC do autor desligado — trocar driver e SQL (FTS5 → tsvector/pg_trgm; norm_ts migra junto)"
-  data: 2026-07-09
-  depende_de: []
-  relacionado: [NI-10, NI-11, NI-20]
-  caso_real: ["dogfooding 2026-07-10: o autor precisou consultar fora de casa, PC desligado — base local inacessível; atualizar às 9h de sexta não serve se às 21h a base está num PC apagado"]
-  detalhe: |
-    Herdado do antigo PROXIMOS_PASSOS.md item 4; PRD §5/§6/§7. ANTECIPADO da Fase 1
-    para a Fase 0b em 2026-07-10: a restrição de disponibilidade (read-path não pode
-    depender do PC do autor ligado) faz da base hospedada um pré-requisito do próprio
-    dogfooding, não da porta pública. Retrabalho pontual mas real: FTS5 →
-    tsvector/pg_trgm, funções SQL registradas em runtime (norm_ts) → função SQL
-    ou coluna normalizada, executescript → migrações. As colunas de enriquecimento
-    migram junto. O write continua local: atualizar.py roda no PC e faz UPSERT na
-    base remota (connection string em env/segredo local).
-
-    **Reavaliação feita em 2026-07-11 — Neon MANTIDO:** Turso/libSQL e a alternativa
-    "arquivo SQLite publicado" foram analisadas e rejeitadas (registro na spec); o
-    autor decidiu pagar a migração uma vez e deixar a base pronta para as Fases 1/2.
-    Spec conjunta com NI-20 (mesma entrega): docs/specs/20260711_consulta-na-nuvem/.
+# NI-09 + NI-20 (Fase 0b — consulta na nuvem) foram IMPLEMENTADOS em 2026-07-11,
+# numa entrega só (docs/specs/20260711_consulta-na-nuvem/spec.md): base migrada
+# de SQLite pra Postgres no Neon (psycopg 3, datas normalizadas na escrita,
+# FTS5 → coluna tsvector config pt; testes no banco descartável eventos_teste) e
+# MCP remoto em produção na Vercel (streamable HTTP stateless sob prefixo de
+# rota secreto MCP_SEGREDO, lendo a URL pooled do Neon; entrypoint api/index.py).
+# Connector plugado no app do celular e validado pelo autor em 2026-07-11:
+# consulta funcionando com o PC desligado — o critério da Fase 0b fechou.
+# A reavaliação do banco (Turso e arquivo SQLite publicado rejeitados; Neon
+# mantido) está registrada na spec — não reabrir sem fato novo.
 
 - codigo: NI-10
   status: nao-iniciado
@@ -321,31 +304,6 @@
     tolerância a falha por fonte já existe no atualizar.py. Nota (2026-07-10): desde
     a Fase 0b (NI-09/NI-20) o atualizar.py já grava na base remota rodando local —
     este item só tira o humano da cadência, não muda o destino dos dados.
-
-- codigo: NI-20
-  status: em-andamento
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: infra
-  fase: 0
-  titulo: "Consulta na nuvem — MCP remoto (HTTP) para uso do próprio autor"
-  resumo: "hospedar a camada de consulta em serverless free tier e plugar como connector no agente do celular; raspagem segue manual/local gravando na base remota — sem isso o critério da Fase 0 não fecha (PC desligado = consulta morta)"
-  data: 2026-07-10
-  depende_de: [NI-09]
-  relacionado: [NI-10, NI-11]
-  caso_real: ["dogfooding 2026-07-10: fora de casa com o PC desligado, o autor não tem como perguntar 'o que tem hoje' — o MCP stdio local morre junto com a máquina"]
-  detalhe: |
-    PRD §5 (restrição de disponibilidade) e §6 Fase 0b. Escopo mínimo de uso próprio:
-    (a) MCP remoto HTTP (a consulta.py já é a camada canônica; o mcp_server.py troca
-    stdio por transporte HTTP) hospedado em serverless free tier, lendo do Postgres
-    do NI-09; (b) protegido por segredo/token simples e URL não divulgada — auth de
-    verdade só quando abrir a conhecido (NI-11); (c) plugado como connector no app
-    do agente que o autor usa no celular; (d) SEM instrumentação de terceiros e SEM
-    GitHub Actions — atualização continua na mão (ex.: 9h de sexta), e o dado fica
-    servível às 21h com o PC desligado. Bônus já conhecido do dogfooding: no stdio
-    local, mudou código = reconectar o cliente; no remoto, o deploy resolve.
-    Spec conjunta com NI-09 (mesma entrega): docs/specs/20260711_consulta-na-nuvem/.
 
 - codigo: NI-11
   status: nao-iniciado

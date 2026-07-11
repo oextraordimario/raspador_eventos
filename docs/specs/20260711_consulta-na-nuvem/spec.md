@@ -1,12 +1,12 @@
 # Spec — Fase 0b: consulta na nuvem (NI-09 migração para Neon + NI-20 MCP remoto)
 
-> **Status:** especificada e implementada em 2026-07-11, incluindo a etapa 5:
+> **Status:** CONCLUÍDA em 2026-07-11 (spec e implementação no mesmo dia):
 > migração, testes, primeira carga real no Neon, MCP HTTP e deploy em produção
 > na **Vercel** (`https://raspador-eventos.vercel.app`, entrypoint
 > `api/index.py`, envs no projeto; smoke com cliente MCP real passou — o risco
 > do §4.3 não se materializou, só exigiu desligar a proteção de DNS rebinding
-> do SDK, que é para servidor local). Falta apenas plugar o connector no
-> celular e validar o critério da fase (§7) na rua.
+> do SDK, que é para servidor local). Connector plugado no celular do autor e
+> validado: consulta funcionando com o PC desligado (critério do §7).
 > **O quê/por quê:** PRD §5 (restrição de disponibilidade, achado do dogfooding de
 > 2026-07-10) e §6 Fase 0b. O read-path não pode depender do PC do autor ligado:
 > a base migra para Postgres gerenciado (Neon, free tier) e a camada de consulta
