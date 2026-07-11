@@ -142,3 +142,57 @@ CREATE TABLE IF NOT EXISTS execucoes (
     passos      TEXT,            -- JSON {descrever, precificar, derivado, ruido, dedupe_grupos, sumidos}
     erros       TEXT             -- JSON [{passo, evento_id, erro}] — falha POR EVENTO
 );
+
+-- ============================================================================
+-- Dominio CINEMA (NI-07, spec docs/specs/20260711_raspagem-cinema/): a grade
+-- dos 8 cinemas-alvo de Brasilia, raspada da API de conteudo da Ingresso.com.
+-- NAO entra em eventos (sessao e volatil e sem id nativo estavel entre
+-- semanas); espelha a arquitetura Bronze -> Prata com tabelas proprias e
+-- estrategia de SNAPSHOT: cada rodada substitui cinema_raw (PK cinema_id+dia)
+-- e a derivacao (derivar.aplicar_cinema) reconstroi filmes/sessoes do zero.
+-- ============================================================================
+
+-- Bronze do cinema: payload bruto por cinema x dia, ultimo vence. Dias que
+-- ficaram no passado sao podados na raspagem (a grade historica nao tem
+-- consulta que a justifique).
+CREATE TABLE IF NOT EXISTS cinema_raw (
+    cinema_id  TEXT NOT NULL,   -- theaterId da Ingresso.com
+    dia        TEXT NOT NULL,   -- dia da grade "YYYY-MM-DD" (data LOCAL de Brasilia, como a API pagina)
+    payload    TEXT NOT NULL,   -- JSON bruto (json.dumps ensure_ascii=False)
+    raspado_em TEXT NOT NULL,   -- ISO UTC "+00:00"
+    PRIMARY KEY (cinema_id, dia)
+);
+
+-- Prata do cinema: derivada 100% de cinema_raw, a seco. O id do filme na
+-- Ingresso.com e estavel entre semanas (ao contrario do sessionId).
+CREATE TABLE IF NOT EXISTS filmes (
+    id            TEXT PRIMARY KEY,  -- id do filme na Ingresso.com
+    titulo        TEXT NOT NULL,
+    generos       TEXT,              -- "Animacao, Aventura" (mesmo estilo de eventos.categoria)
+    duracao_min   INTEGER,
+    classificacao TEXT,              -- classificacao indicativa, texto da fonte
+    distribuidora TEXT,
+    url           TEXT,              -- pagina do filme na Ingresso.com
+    poster        TEXT,
+    trailer       TEXT,
+    em_pre_venda  INTEGER NOT NULL DEFAULT 0,  -- 1 = so em pre-venda (inPreSale)
+    raspado_em    TEXT,              -- ISO UTC "+00:00"
+    busca         TSVECTOR           -- titulo + generos; preenchida pelo reconstruir_fts.sql
+);
+CREATE INDEX IF NOT EXISTS idx_filmes_busca ON filmes USING GIN (busca);
+
+-- Sem FK para filmes (mesmo padrao de lotes -> eventos): as duas tabelas sao
+-- reconstruidas juntas pela derivacao, que e quem garante a consistencia.
+CREATE TABLE IF NOT EXISTS sessoes (
+    id         TEXT PRIMARY KEY,  -- sessionId da Ingresso.com (estavel so dentro da grade)
+    filme_id   TEXT NOT NULL,     -- filmes.id
+    cinema     TEXT NOT NULL,     -- apelido canonico (scrapers/cinema.py CINEMAS)
+    cinema_id  TEXT NOT NULL,     -- theaterId da Ingresso.com
+    inicio     TEXT NOT NULL,     -- ISO UTC "+00:00" via tempo.norm_ts (a fonte manda local -03:00)
+    sala       TEXT,
+    tipos      TEXT,              -- "3D/XD/Dublado" — cru de proposito, quem interpreta e o agente
+    preco      DOUBLE PRECISION,  -- R$ (NULL = fonte nao informou)
+    url_compra TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessoes_inicio ON sessoes(inicio);
+CREATE INDEX IF NOT EXISTS idx_sessoes_filme ON sessoes(filme_id);

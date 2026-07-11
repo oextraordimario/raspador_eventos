@@ -41,8 +41,8 @@ async def main():
 
             tools = {t.name for t in (await session.list_tools()).tools}
             print("tools expostas:", sorted(tools))
-            assert {"buscar_eventos", "detalhar_evento", "data_atual"} <= tools, \
-                "faltam tools"
+            assert {"buscar_eventos", "detalhar_evento", "buscar_filmes",
+                    "sessoes_filme", "data_atual"} <= tools, "faltam tools"
 
             # data_atual
             da = dados(await session.call_tool("data_atual", {}))
@@ -92,6 +92,26 @@ async def main():
                 "detalhar_evento", {"url": "https://nao-existe.example/x"}))
             assert "erro" in erro, erro
             print("detalhar_evento(url desconhecida): erro amigável (ok)")
+
+            # cinema: filmes em cartaz + sessões de um filme real
+            filmes = dados(await session.call_tool("buscar_filmes", {}))
+            assert filmes, "esperava >=1 filme em cartaz (rodou o atualizar?)"
+            assert {"titulo", "sessoes", "cinemas"} <= set(filmes[0]), filmes[0]
+            print(f"buscar_filmes(): {len(filmes)} filmes | "
+                  f"ex: {filmes[0]['titulo'][:35]} "
+                  f"({filmes[0]['sessoes']} sessões)")
+            sf = dados(await session.call_tool(
+                "sessoes_filme", {"filme": filmes[0]["titulo"]}))
+            assert sf.get("id") and sf["sessoes"], sf
+            s0 = sf["sessoes"][0]
+            assert {"cinema", "inicio", "tipos"} <= set(s0), s0
+            print(f"sessoes_filme('{filmes[0]['titulo'][:30]}'): "
+                  f"{len(sf['sessoes'])} sessões | 1ª: {s0['inicio'][:16]} "
+                  f"{s0['cinema']} ({s0['tipos']})")
+            erro = dados(await session.call_tool(
+                "sessoes_filme", {"filme": "xyzzyfilmeinexistente"}))
+            assert "erro" in erro, erro
+            print("sessoes_filme(filme desconhecido): erro amigável (ok)")
 
     print("\nOK — MCP server responde como cliente real espera.")
 

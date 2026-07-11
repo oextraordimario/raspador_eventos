@@ -130,6 +130,104 @@ def detalhar_evento(url):
     return ev
 
 
+# ── Domínio cinema (NI-07, spec 20260711_raspagem-cinema) ──────────────────
+
+# Campos de filmes expostos ao agente (poster/trailer ficam de fora da lista:
+# peso morto em dezenas de resultados; sessoes_filme os devolve).
+CAMPOS_FILME = ["id", "titulo", "generos", "duracao_min", "classificacao",
+                "distribuidora", "url", "em_pre_venda"]
+
+
+def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
+                  limite=20):
+    """Filmes em cartaz nos cinemas-alvo de Brasília, agregados por filme.
+
+    Sessões passadas não contam: sem data_inicio, a janela começa AGORA.
+    Ordena por nº de sessões na janela (mais em cartaz primeiro) — o agente
+    reordena como quiser.
+
+    Args:
+        texto: busca textual sobre título e gêneros (websearch, ex.:
+            "animação", "terror OR suspense"). Omitido = todos em cartaz.
+        data_inicio: limite inferior (ISO) sobre o início da sessão; default agora.
+        data_fim: limite superior (ISO), inclusivo.
+        cinema: filtro por nome do cinema (parcial, sem caixa: "pier", "kinoplex").
+        limite: máximo de filmes.
+
+    Returns:
+        Lista de dicts: campos do filme + sessoes (contagem na janela),
+        cinemas (nomes, ordenados), primeira_sessao/ultima_sessao (ISO UTC).
+    """
+    con = store.conectar()
+    where = ["s.inicio >= %s"]
+    params = [tempo.norm_ts(data_inicio)
+              or datetime.now(timezone.utc).isoformat()]
+    if data_fim:
+        where.append("s.inicio <= %s")
+        params.append(tempo.norm_ts(data_fim))
+    if texto:
+        where.append("f.busca @@ websearch_to_tsquery('pt', %s)")
+        params.append(texto)
+    if cinema:
+        where.append("s.cinema ILIKE %s")
+        params.append(f"%{cinema}%")
+    campos = ", ".join(f"f.{c}" for c in CAMPOS_FILME)
+    rows = con.execute(
+        f"SELECT {campos}, COUNT(s.id) AS sessoes, "
+        "string_agg(DISTINCT s.cinema, ', ' ORDER BY s.cinema) AS cinemas, "
+        "MIN(s.inicio) AS primeira_sessao, MAX(s.inicio) AS ultima_sessao "
+        "FROM filmes f JOIN sessoes s ON s.filme_id = f.id "
+        f"WHERE {' AND '.join(where)} "
+        f"GROUP BY {campos} ORDER BY COUNT(s.id) DESC, f.titulo LIMIT %s",
+        [*params, limite]).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None):
+    """Sessões detalhadas de UM filme (horário, cinema, sala, tipos, preço,
+    link de compra) — o análogo do detalhar_evento para o cinema.
+
+    `filme` é o id ou o título (busca parcial, sem caixa/acento via ILIKE +
+    unaccent); com mais de um candidato, responde o com mais sessões futuras.
+    Mesma janela default da busca: sessões passadas ficam de fora.
+    """
+    con = store.conectar()
+    alvo = (filme or "").strip()
+    agora = datetime.now(timezone.utc).isoformat()
+    row = con.execute("SELECT id FROM filmes WHERE id = %s",
+                      (alvo,)).fetchone()
+    if not row and alvo:
+        # título parcial, sem caixa/acento; empate vai para quem tem mais
+        # sessões futuras (o "em cartaz de verdade")
+        row = con.execute(
+            "SELECT f.id FROM filmes f "
+            "LEFT JOIN sessoes s ON s.filme_id = f.id AND s.inicio >= %s "
+            "WHERE unaccent(f.titulo) ILIKE unaccent(%s) "
+            "GROUP BY f.id ORDER BY COUNT(s.id) DESC LIMIT 1",
+            (agora, f"%{alvo}%")).fetchone()
+    if not row:
+        con.close()
+        return {"erro": f"nenhum filme em cartaz casando com {filme!r} — use "
+                        "o id ou título devolvido por buscar_filmes"}
+    campos = ", ".join(CAMPOS_FILME + ["poster", "trailer"])
+    f = dict(con.execute(f"SELECT {campos} FROM filmes WHERE id = %s",
+                         (row["id"],)).fetchone())
+    where = ["filme_id = %s", "inicio >= %s"]
+    params = [row["id"], tempo.norm_ts(data_inicio) or agora]
+    if data_fim:
+        where.append("inicio <= %s")
+        params.append(tempo.norm_ts(data_fim))
+    if cinema:
+        where.append("cinema ILIKE %s")
+        params.append(f"%{cinema}%")
+    f["sessoes"] = [dict(r) for r in con.execute(
+        "SELECT cinema, inicio, sala, tipos, preco, url_compra FROM sessoes "
+        f"WHERE {' AND '.join(where)} ORDER BY inicio, cinema", params)]
+    con.close()
+    return f
+
+
 def _mostrar(titulo, eventos):
     print(f"\n### {titulo}  ({len(eventos)} resultados)")
     if not eventos:

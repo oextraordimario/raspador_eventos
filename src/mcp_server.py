@@ -96,6 +96,69 @@ def detalhar_evento(url: str) -> dict:
 
 
 @mcp.tool()
+def buscar_filmes(texto: str = "", data_inicio: str = "", data_fim: str = "",
+                  cinema: str = "", limite: int = 20) -> list[dict]:
+    """Filmes em cartaz nos cinemas de Brasília (Cinemark Iguatemi e Pier 21,
+    Kinoplex ParkShopping/Pátio Brasil/Boulevard, Cinesystem CasaPark, Cine
+    Brasília e Cine Cultura Liberty Mall). Use para responder o que está
+    passando no cinema — "que filme tem em cartaz?", "tem animação pras
+    crianças?", "o que estreia essa semana?". Todos os argumentos são opcionais;
+    sessões que já começaram ficam de fora por padrão.
+
+    Args:
+        texto: termos de busca no título e gêneros (ex.: "animação",
+            "terror OR suspense"). Vazio = todos em cartaz.
+        data_inicio: início da janela, ISO 8601. Vazio = agora (só sessões
+            futuras). Para "neste fim de semana", use a tool data_atual.
+        data_fim: fim da janela, ISO 8601. Vazio = sem limite superior.
+        cinema: filtra por cinema, nome parcial sem caixa (ex.: "pier",
+            "casapark", "kinoplex"). Vazio = todos.
+        limite: máximo de filmes (padrão 20).
+
+    Returns:
+        Lista de filmes ordenada por nº de sessões na janela (mais em cartaz
+        primeiro): id, titulo, generos, duracao_min, classificacao,
+        distribuidora, url, em_pre_venda (1 = ainda não estreou, só pré-venda),
+        sessoes (contagem na janela), cinemas (onde está passando),
+        primeira_sessao/ultima_sessao (ISO UTC). Para horários e preços de um
+        filme, chame sessoes_filme com o id ou título.
+    """
+    return consulta.buscar_filmes(
+        texto=texto or None, data_inicio=data_inicio or None,
+        data_fim=data_fim or None, cinema=cinema or None, limite=limite)
+
+
+@mcp.tool()
+def sessoes_filme(filme: str, data_inicio: str = "", data_fim: str = "",
+                  cinema: str = "") -> dict:
+    """Sessões de UM filme nos cinemas de Brasília: horário, cinema, sala,
+    tipos e preço. Use depois de buscar_filmes, quando o usuário escolher um
+    filme — "que horas tem Toy Story no Pier 21?", "quanto custa?", "tem 3D?".
+
+    Os tipos da sessão vêm crus da fonte ("3D/XD/Dublado", "Vip/Legendado",
+    "Cine Inclusivo/Dublado") — leia-os para responder com precisão (Dublado/
+    Legendado/Nacional é o idioma; XD/Vip/D-Box são salas especiais; sessões
+    temáticas como "Sessão Azul" ou "Cine Pets" aparecem aí também). Horários
+    em ISO UTC — Brasília é UTC-3 (ex.: 21:10Z = 18:10 local).
+
+    Args:
+        filme: id ou título (parcial serve) devolvido por buscar_filmes.
+        data_inicio: início da janela, ISO 8601. Vazio = agora.
+        data_fim: fim da janela, ISO 8601. Vazio = sem limite.
+        cinema: filtra por cinema, nome parcial sem caixa. Vazio = todos.
+
+    Returns:
+        Dict do filme (com poster e trailer) + sessoes: lista ordenada por
+        horário com cinema, inicio (ISO UTC), sala, tipos, preco (R$; null =
+        fonte não informou) e url_compra (checkout). {"erro": ...} se nenhum
+        filme casar.
+    """
+    return consulta.sessoes_filme(
+        filme, data_inicio=data_inicio or None, data_fim=data_fim or None,
+        cinema=cinema or None)
+
+
+@mcp.tool()
 def data_atual() -> dict:
     """Retorna a data/hora atual (UTC) e a janela do fim de semana corrente/próximo.
     Útil para montar filtros como "hoje", "neste fim de semana" ou "sexta que vem"

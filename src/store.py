@@ -145,3 +145,23 @@ def gravar_raw(con, evento_id, origem, payload, raspado_em, commit=True):
         (evento_id, origem, json.dumps(payload, ensure_ascii=False), raspado_em))
     if commit:
         con.commit()
+
+
+def gravar_cinema_raw(con, itens, raspado_em):
+    """Grava a grade bruta do cinema na Bronze (cinema_raw, último vence) e
+    poda os dias que já ficaram no passado — o snapshot da grade corrente é o
+    único com valor de consulta. Cinema×dia ausente de `itens` (falha de rede
+    na raspagem) mantém o payload anterior. Spec: 20260711_raspagem-cinema.
+    """
+    if itens:
+        con.cursor().executemany(
+            "INSERT INTO cinema_raw (cinema_id, dia, payload, raspado_em) "
+            "VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT(cinema_id, dia) DO UPDATE SET "
+            "payload = excluded.payload, raspado_em = excluded.raspado_em",
+            [(cid, dia, json.dumps(payload, ensure_ascii=False), raspado_em)
+             for cid, dia, payload in itens])
+        con.execute("DELETE FROM cinema_raw WHERE dia < %s",
+                    (min(dia for _, dia, _ in itens),))
+    con.commit()
+    return len(itens)

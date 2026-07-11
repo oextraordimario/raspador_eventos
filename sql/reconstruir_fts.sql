@@ -9,3 +9,8 @@
 UPDATE eventos SET busca = to_tsvector('pt',
     coalesce(nome, '') || ' ' || coalesce(categoria, '') || ' ' ||
     coalesce(atracoes, '') || ' ' || coalesce(descricao, ''));
+
+-- Filmes em cartaz (dominio cinema, NI-07): titulo + generos bastam para a
+-- busca do agente ("animacao", "terror") — sinopse nao vem da fonte.
+UPDATE filmes SET busca = to_tsvector('pt',
+    coalesce(titulo, '') || ' ' || coalesce(generos, ''));

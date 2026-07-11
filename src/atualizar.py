@@ -5,13 +5,16 @@ payload bruto na camada Bronze) → marcar sumidos (evento futuro que não
 reapareceu no catálogo) → descrever (busca incremental da descrição p/
 eventos sem ela) → precificar (tickets/lotes de Sympla e Ingresse, refeito a
 cada rodada porque preço é volátil — dentro de uma janela de 30 dias) →
-derivar (colunas calculadas do bruto, sem rede) → enriquecimento v1 (ruído +
-dedupe, recalculado do zero) → reconstrói o FTS → relatório de saúde (com
-comparação vs. rodada anterior) → grava a rodada em `execucoes` (NI-19).
+cinema (grade dos 8 cinemas via Ingresso.com, snapshot → cinema_raw) →
+derivar (colunas calculadas do bruto, sem rede; inclui filmes/sessoes) →
+enriquecimento v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS →
+relatório de saúde (com comparação vs. rodada anterior) → grava a rodada em
+`execucoes` (NI-19).
 
 Uso (da raiz do repo):
     python src/atualizar.py                    # pipeline completo
     python src/atualizar.py --sem-shotgun      # pula o Shotgun (lento, usa navegador)
+    python src/atualizar.py --sem-cinema       # pula a grade de cinema
     python src/atualizar.py --precificar-tudo  # tickets de TODOS os futuros (ex.: 1ª carga)
     python src/atualizar.py --so-derivar       # não raspa; re-deriva do bruto + regras + FTS
     python src/atualizar.py --so-enriquecer    # não raspa; só reaplica regras + FTS
@@ -28,7 +31,7 @@ import derivar
 import enriquecer
 import store
 import tempo
-from scrapers import ingresse, shotgun, sympla
+from scrapers import cinema, ingresse, shotgun, sympla
 
 # Preço/lote é volátil, mas quem pergunta ao agente pergunta de "hoje"/"este
 # fim de semana": o precificar só refaz eventos nesta janela; os demais mantêm
@@ -246,6 +249,30 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
     return {"buscados": buscados, "falhas": falhas, "fora_janela": fora_janela}
 
 
+def _raspar_cinema(con, erros):
+    """Raspa a grade dos cinemas e grava o snapshot na Bronze (cinema_raw).
+
+    Falha por cinema×dia entra em `erros` e NÃO substitui o payload anterior
+    daquele par (buraco não apaga grade boa); falha total vira {"erro"} no
+    resultado, como as outras fontes. Quem deriva filmes/sessoes é o
+    derivar.aplicar_cinema, no passo seguinte.
+    """
+    print(f"\n[cinema] grade de {len(cinema.CINEMAS)} cinemas (Ingresso.com)...")
+    try:
+        r = cinema.raspar()
+    except Exception as e:
+        traceback.print_exc()
+        print("[cinema] FALHOU — grade anterior mantida.")
+        return {"erro": f"{type(e).__name__}: {e}"}
+    store.gravar_cinema_raw(con, r["raw"],
+                            datetime.now(timezone.utc).isoformat())
+    for falha in r["erros"]:
+        erros.append({"passo": "cinema",
+                      "evento_id": f"{falha['cinema']} {falha['dia']}",
+                      "erro": falha["erro"]})
+    return dict(cinema.ULTIMA_RASPAGEM)
+
+
 def _coleta_anterior(con):
     """Última coleta registrada por fonte em execucoes: {fonte: (coletados,
     iniciada_em)}. Ignora rodadas em que a fonte falhou ou não foi raspada —
@@ -259,7 +286,7 @@ def _coleta_anterior(con):
     return ant
 
 
-def _relatorio(con, resultados, derivado, enriq, sumidos, duracao):
+def _relatorio(con, resultados, derivado, cine, enriq, sumidos, duracao):
     agora = datetime.now(timezone.utc)
     print("\n" + "=" * 64)
     print(f"Saúde da base — {agora.strftime('%Y-%m-%d %H:%M UTC')}")
@@ -338,6 +365,14 @@ def _relatorio(con, resultados, derivado, enriq, sumidos, duracao):
               ", ".join(f"{c}: {n} eventos" for c, n in derivado.items()))
         print(f"  lotes de ingresso (tabela lotes): {lotes_n}")
 
+    # --- cinema: grade derivada de cinema_raw (snapshot da rodada) ---
+    if cine is not None:
+        res = resultados.get("cinema") or {}
+        cobertura = (f" em {res['coletados']}/{res['total_site']} cinemas"
+                     if "coletados" in res else "")
+        print(f"\nCinema (grade da Ingresso.com): {cine['filmes']} filmes, "
+              f"{cine['sessoes']} sessões{cobertura}")
+
     # --- sumidos do catálogo (só quando houve raspagem nesta rodada) ---
     if sumidos is not None:
         print(f"\nSumidos do catálogo da fonte (escondidos da consulta): "
@@ -367,6 +402,7 @@ def main():
     so_enriquecer = "--so-enriquecer" in sys.argv
     so_derivar = "--so-derivar" in sys.argv
     sem_shotgun = "--sem-shotgun" in sys.argv
+    sem_cinema = "--sem-cinema" in sys.argv
     modo = ("so-enriquecer" if so_enriquecer else "so-derivar" if so_derivar
             else "sem-shotgun" if sem_shotgun else "completo")
 
@@ -380,24 +416,30 @@ def main():
         if resultados and all("erro" in r for r in resultados.values()):
             con.close()
             sys.exit("Todas as fontes falharam — base não atualizada.")
+        # sumidos primeiro: cinema não entra em resultados ainda (grade não
+        # tem sumido — sessão que sai simplesmente não volta no snapshot).
         sumidos = _marcar_sumidos(con, resultados, iniciada_em)
         desc = _descrever(con, erros)
         prec = _precificar(con, erros, tudo="--precificar-tudo" in sys.argv)
+        if not sem_cinema:
+            resultados["cinema"] = _raspar_cinema(con, erros)
 
     # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
     # o fluxo normal e o --so-derivar recalculam as derivadas a partir da Bronze.
     derivado = None if so_enriquecer else derivar.aplicar(con)
+    cine = None if so_enriquecer else derivar.aplicar_cinema(con)
 
     enriq = enriquecer.aplicar(con)
     store.reconstruir_fts(con)
     duracao = time.monotonic() - inicio
     # O relatório lê execucoes ANTES do registro: a comparação é com a rodada
     # anterior de verdade, não com esta.
-    _relatorio(con, resultados, derivado, enriq, sumidos, duracao)
+    _relatorio(con, resultados, derivado, cine, enriq, sumidos, duracao)
     store.registrar_execucao(
         con, iniciada_em, round(duracao, 1), modo, resultados,
         {"descrever": desc, "precificar": prec, "derivado": derivado,
-         "ruido": len(enriq["ruido"]), "dedupe_grupos": len(enriq["grupos"]),
+         "cinema": cine, "ruido": len(enriq["ruido"]),
+         "dedupe_grupos": len(enriq["grupos"]),
          "sumidos": len(sumidos) if sumidos is not None else None},
         erros)
     con.close()
