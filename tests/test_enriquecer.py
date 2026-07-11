@@ -1,11 +1,11 @@
 """Teste executável do enriquecimento v1 (ruído + dedupe) e do seu efeito na
-camada de consulta. Usa uma base SQLite descartável (não toca data/eventos.db).
+camada de consulta. Usa o banco descartável eventos_teste no Neon (não toca a
+base de produção — ver tests/base_teste.py).
 
 Uso: python tests/test_enriquecer.py
 """
 
 import sys
-import tempfile
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -15,8 +15,10 @@ import store  # noqa: E402
 import enriquecer  # noqa: E402
 import consulta  # noqa: E402
 
-# Redireciona a base para um arquivo descartável antes de qualquer conectar().
-store.DB_PATH = Path(tempfile.mkdtemp()) / "eventos_teste.db"
+import base_teste  # noqa: E402
+
+# Redireciona a base para o banco descartável antes de qualquer conectar().
+base_teste.preparar()
 
 _SEQ = 0
 
@@ -80,7 +82,7 @@ def dump(con):
 
 
 def linha(con, ev_id):
-    return con.execute("SELECT * FROM eventos WHERE id = ?", (ev_id,)).fetchone()
+    return con.execute("SELECT * FROM eventos WHERE id = %s", (ev_id,)).fetchone()
 
 
 def main():
@@ -90,7 +92,7 @@ def main():
     store.reconstruir_fts(con)
 
     # --- ruído ---
-    marcados = {ev_id for (ev_id,) in con.execute(
+    marcados = {r["id"] for r in con.execute(
         "SELECT id FROM eventos WHERE ruido = 1")}
     assert marcados == {"sympla:r1", "sympla:r2", "sympla:r3", "sympla:r4"}, marcados
     assert linha(con, "sympla:r1")["ruido_motivo"] == "banda larga"

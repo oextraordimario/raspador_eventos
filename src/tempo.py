@@ -25,8 +25,10 @@ def instante(iso):
 def norm_ts(iso):
     """Data ISO -> texto ISO UTC comparável/ordenável; None se não parsear.
 
-    Registrada como função SQL `norm_ts` pela consulta.py (comparações de
-    start_date no SQLite).
+    Aplicada pelo store.upsert_eventos na ESCRITA (invariante do schema:
+    start_date/end_date/raspado_em sempre em ISO UTC "+00:00") e pela
+    consulta.py nos parâmetros de data — assim a comparação no SQL é lexical
+    e segura, sem função registrada em runtime.
     """
     dt = instante(iso)
     return dt.isoformat() if dt else None

@@ -42,10 +42,13 @@ QUEDA_ALERTA = 0.5
 
 def _checar_schema(con):
     """Base criada antes de uma mudança de schema não é migrada: é descartável."""
-    cols = {r[1] for r in con.execute("PRAGMA table_info(eventos)")}
+    cols = {r["column_name"] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = 'eventos'")}
     if "ruido" not in cols or "sumido" not in cols:
-        sys.exit("A base data/eventos.db é de um schema antigo.\nNa Fase 0 a base "
-                 "é descartável: apague o arquivo e rode de novo para re-raspar.")
+        sys.exit("A base é de um schema antigo.\nNa Fase 0 a base é descartável: "
+                 "rode `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` no "
+                 "banco (DBeaver/psql) e execute de novo para re-raspar.")
 
 
 def _raspar(con, incluir_shotgun=True):
@@ -107,12 +110,12 @@ def _marcar_sumidos(con, resultados, iniciada_em):
         if "erro" in res:
             continue
         for r in con.execute("SELECT id, nome, start_date, raspado_em "
-                             "FROM eventos WHERE fonte = ?", (fonte,)).fetchall():
+                             "FROM eventos WHERE fonte = %s", (fonte,)).fetchall():
             dt = tempo.instante(r["start_date"])
             visto = tempo.instante(r["raspado_em"])
             sumido = 1 if (dt and dt >= inicio
                            and (not visto or visto < inicio)) else 0
-            con.execute("UPDATE eventos SET sumido = ? WHERE id = ?",
+            con.execute("UPDATE eventos SET sumido = %s WHERE id = %s",
                         (sumido, r["id"]))
             if sumido:
                 sumidos.append((r["nome"], fonte))
@@ -134,7 +137,7 @@ def _descrever(con, erros, pausa=0.4):
     pendentes = con.execute(
         "SELECT id, fonte, nome, url FROM eventos "
         "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse') "
-        "AND sumido = 0 AND url IS NOT NULL AND url NOT LIKE ?",
+        "AND sumido = 0 AND url IS NOT NULL AND url NOT LIKE %s",
         (f"%{sympla.BILETO_HOST}%",)).fetchall()
     if not pendentes:
         return {"buscadas": 0, "falhas": 0}
@@ -157,13 +160,13 @@ def _descrever(con, erros, pausa=0.4):
                                           "NI-17) — payload descartado"})
                     continue  # payload suspeito não entra nem na Bronze
                 con.execute(
-                    "UPDATE eventos SET descricao = ?, "
-                    "categoria = COALESCE(?, categoria) WHERE id = ?",
+                    "UPDATE eventos SET descricao = %s, "
+                    "categoria = COALESCE(%s, categoria) WHERE id = %s",
                     (d["descricao"], d.get("categoria"), r["id"]))
             else:  # ingresse: slug no fim da URL pública
                 slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
                 d = ingresse.raspar_descricao(slug)
-                con.execute("UPDATE eventos SET descricao = ? WHERE id = ?",
+                con.execute("UPDATE eventos SET descricao = %s WHERE id = %s",
                             (d["descricao"], r["id"]))
             store.gravar_raw(con, r["id"], "detalhe", d["payload"],
                              datetime.now(timezone.utc).isoformat(),
@@ -296,7 +299,8 @@ def _relatorio(con, resultados, derivado, enriq, sumidos, duracao):
         if dt and dt >= agora and not r["ruido"]:
             futuros.setdefault(r["fonte"], []).append(dt)
     total = len(rows)
-    print(f"\nBase ({store.DB_PATH.name}): {total} eventos, "
+    banco = con.execute("SELECT current_database() AS db").fetchone()["db"]
+    print(f"\nBase ({banco} no Neon): {total} eventos, "
           f"{sum(len(v) for v in futuros.values())} futuros (sem contar ruído)")
     print("  janela futura por fonte:")
     for fonte in sorted(futuros):
@@ -305,10 +309,11 @@ def _relatorio(con, resultados, derivado, enriq, sumidos, duracao):
 
     # --- campos ricos: % com descrição e preço por fonte ---
     print("  descrição preenchida por fonte:")
-    for fonte, com, tot in con.execute(
-            "SELECT fonte, SUM(descricao IS NOT NULL), COUNT(*) "
+    for r in con.execute(
+            "SELECT fonte, COUNT(descricao) AS com, COUNT(*) AS tot "
             "FROM eventos GROUP BY fonte ORDER BY fonte"):
-        print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
+        print(f"    {r['fonte']:<9} {r['com']}/{r['tot']}  "
+              f"({100 * r['com'] // r['tot']}%)")
     print("  preço mínimo preenchido por fonte (eventos futuros):")
     stats = {}
     for r in con.execute("SELECT fonte, start_date, preco_min FROM eventos"):
@@ -322,10 +327,10 @@ def _relatorio(con, resultados, derivado, enriq, sumidos, duracao):
         print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
 
     # --- camada Bronze: payloads brutos e colunas derivadas ---
-    raws = con.execute("SELECT origem, COUNT(*) FROM eventos_raw "
+    raws = con.execute("SELECT origem, COUNT(*) AS n FROM eventos_raw "
                        "GROUP BY origem ORDER BY origem").fetchall()
     print("  payloads brutos (Bronze): " +
-          (", ".join(f"{origem}: {n}" for origem, n in raws) or "nenhum"))
+          (", ".join(f"{r['origem']}: {r['n']}" for r in raws) or "nenhum"))
     if derivado is not None:
         derivado = dict(derivado)
         lotes_n = derivado.pop("lotes", 0)

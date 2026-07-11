@@ -1,26 +1,53 @@
-"""Base de dados unificada de eventos (SQLite).
+"""Base de dados unificada de eventos (Postgres gerenciado no Neon — Fase 0b).
 
 Schema unico que serve as tres fontes (Sympla, Ingresse, Shotgun). O scraper
 de cada fonte normaliza para este formato antes de gravar. A base e otimizada
-para consulta por texto/data/cidade, que e o que um agente de IA precisa.
+para consulta por texto/data/cidade, que e o que um agente de IA precisa — e
+vive na nuvem para a consulta funcionar com o PC do autor desligado.
 
 O DDL vive em sql/schema.sql (fonte unica, tambem rodavel no DBeaver); este
-modulo so o carrega e aplica.
+modulo so o carrega e aplica. A connection string vem de EVENTOS_DB_URL
+(variavel de ambiente, com fallback no .env da raiz — parser proprio de 5
+linhas em vez de dependencia). Spec: docs/specs/20260711_consulta-na-nuvem/.
 """
 
 import json
-import sqlite3
+import os
+import sys
 from pathlib import Path
+
+import psycopg
+from psycopg.rows import dict_row
+
+import tempo
 
 _RAIZ = Path(__file__).resolve().parent.parent
 
-# A base fica em data/ na raiz do repo (um nivel acima de src/), separada do
-# codigo-fonte. E gitignorada e regeravel via raspagem.
-DB_PATH = _RAIZ / "data" / "eventos.db"
-
 # SQL (schema + manutencao) mora em sql/, como fonte unica: os mesmos arquivos
-# rodam a mao no DBeaver. Ver sql/schema.sql e sql/reconstruir_fts.sql.
+# rodam a mao no DBeaver/psql. Ver sql/schema.sql e sql/reconstruir_fts.sql.
 _SQL_DIR = _RAIZ / "sql"
+
+# Override para os testes (tests/ apontam para o banco eventos_teste ANTES de
+# qualquer conectar()); None = resolve EVENTOS_DB_URL do ambiente/.env.
+DB_URL = None
+
+# Colunas de data normalizadas na escrita (invariante do schema: ISO UTC
+# "+00:00", via tempo.norm_ts) — e o que torna a comparacao lexical segura
+# sem a funcao SQL norm_ts que o SQLite registrava em runtime.
+_COLS_DATA = {"start_date", "end_date", "raspado_em"}
+
+
+def env_var(nome):
+    """Le uma variavel do ambiente, com fallback no .env da raiz do repo."""
+    if nome in os.environ:
+        return os.environ[nome]
+    arq = _RAIZ / ".env"
+    if arq.exists():
+        for linha in arq.read_text(encoding="utf-8").splitlines():
+            chave, sep, valor = linha.partition("=")
+            if sep and chave.strip() == nome:
+                return valor.strip()
+    return None
 
 
 def _ler_sql(nome):
@@ -28,16 +55,20 @@ def _ler_sql(nome):
 
 
 def reconstruir_fts(con):
-    """Sincroniza o indice de busca textual com a tabela eventos."""
-    con.executescript(_ler_sql("reconstruir_fts.sql"))
+    """Sincroniza a coluna de busca textual (tsvector) com a tabela eventos."""
+    con.execute(_ler_sql("reconstruir_fts.sql"))
     con.commit()
 
 
 def conectar():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    con.executescript(_ler_sql("schema.sql"))
+    url = DB_URL or env_var("EVENTOS_DB_URL")
+    if not url:
+        sys.exit("EVENTOS_DB_URL nao definida. Configure a connection string do "
+                 "Neon (banco eventos) como variavel de ambiente ou no .env da "
+                 "raiz do repo.")
+    con = psycopg.connect(url, row_factory=dict_row)
+    con.execute(_ler_sql("schema.sql"))
+    con.commit()
     return con
 
 
@@ -49,6 +80,10 @@ _COLS_PRESERVAR = {"descricao", "atracoes", "preco_min"}
 def upsert_eventos(con, eventos):
     """Insere ou atualiza uma lista de eventos normalizados (dicts).
 
+    As colunas de data passam por tempo.norm_ts aqui — e o unico ponto de
+    escrita, entao e ele que garante o invariante do schema (ISO UTC "+00:00",
+    comparavel lexicalmente).
+
     A chave reservada "_raw" (payload bruto que o _normalizar do scraper
     recebeu) não é coluna de eventos: vai para eventos_raw como origem
     'catalogo' (camada Bronze). Dicts sem "_raw" seguem funcionando.
@@ -57,14 +92,16 @@ def upsert_eventos(con, eventos):
             "cidade", "estado", "local_nome", "endereco", "lat", "lon",
             "categoria", "organizador", "url", "imagem", "raspado_em",
             "descricao", "atracoes", "preco_min"]
-    placeholders = ",".join("?" for _ in cols)
+    placeholders = ",".join("%s" for _ in cols)
     updates = ",".join(
-        f"{c}=COALESCE(excluded.{c}, {c})" if c in _COLS_PRESERVAR
+        f"{c}=COALESCE(excluded.{c}, eventos.{c})" if c in _COLS_PRESERVAR
         else f"{c}=excluded.{c}"
         for c in cols if c != "id")
     sql = (f"INSERT INTO eventos ({','.join(cols)}) VALUES ({placeholders}) "
            f"ON CONFLICT(id) DO UPDATE SET {updates}")
-    con.executemany(sql, [[e.get(c) for c in cols] for e in eventos])
+    con.cursor().executemany(sql, [
+        [tempo.norm_ts(e.get(c)) if c in _COLS_DATA else e.get(c) for c in cols]
+        for e in eventos])
     for e in eventos:
         if e.get("_raw") is not None:
             gravar_raw(con, e["id"], "catalogo", e["_raw"], e["raspado_em"],
@@ -80,7 +117,7 @@ def registrar_execucao(con, iniciada_em, duracao_s, modo, fontes, passos, erros)
     """
     con.execute(
         "INSERT INTO execucoes (iniciada_em, duracao_s, modo, fontes, passos, "
-        "erros) VALUES (?, ?, ?, ?, ?, ?)",
+        "erros) VALUES (%s, %s, %s, %s, %s, %s)",
         (iniciada_em, duracao_s, modo,
          *(json.dumps(x, ensure_ascii=False) for x in (fontes, passos, erros))))
     con.commit()
@@ -102,7 +139,7 @@ def gravar_raw(con, evento_id, origem, payload, raspado_em, commit=True):
     """Guarda o payload bruto de um evento na camada Bronze (último vence)."""
     con.execute(
         "INSERT INTO eventos_raw (evento_id, origem, payload, raspado_em) "
-        "VALUES (?, ?, ?, ?) "
+        "VALUES (%s, %s, %s, %s) "
         "ON CONFLICT(evento_id, origem) DO UPDATE SET "
         "payload = excluded.payload, raspado_em = excluded.raspado_em",
         (evento_id, origem, json.dumps(payload, ensure_ascii=False), raspado_em))

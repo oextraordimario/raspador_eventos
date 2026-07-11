@@ -1,44 +1,63 @@
--- Schema da base unificada de eventos (SQLite).
+-- Schema da base unificada de eventos (Postgres gerenciado no Neon — Fase 0b).
 --
 -- Fonte da verdade do schema: este arquivo e carregado e aplicado automaticamente
--- por store.conectar() (via executescript). Tambem pode ser rodado a mao no DBeaver
--- ou no cliente sqlite3 apontando para data/eventos.db.
+-- por store.conectar() (idempotente: IF NOT EXISTS; a config de busca `pt` via
+-- bloco DO). Tambem pode ser rodado a mao no DBeaver/psql apontando para o banco.
 --
--- Idempotente: todo objeto usa "IF NOT EXISTS", entao rodar de novo nao quebra nada.
+-- DATAS (start_date/end_date/raspado_em): colunas TEXT com INVARIANTE — o
+-- store.upsert_eventos normaliza tudo para ISO UTC "+00:00" (tempo.norm_ts)
+-- antes de gravar, entao comparacao e ordenacao LEXICAIS sao seguras. Nao gravar
+-- data nessas colunas fora do upsert sem normalizar.
 --
--- Descricoes de coluna: SQLite nao tem COMMENT ON / COMMENT inline como Postgres/MySQL.
--- A forma idiomatica sao os comentarios "--" abaixo, que o SQLite preserva verbatim em
--- sqlite_master.sql -- visiveis no DDL (DBeaver: aba DDL; cli: .schema). Como a tabela
--- so guarda o CREATE de quando foi criada, alterar estas descricoes exige recriar a
--- tabela para o banco ja existente refletir a mudanca.
+-- Base descartavel (convencao da Fase 0, sem migracoes): mudou o schema?
+--   DROP SCHEMA public CASCADE; CREATE SCHEMA public;
+-- no banco `eventos` e re-raspe (python src/atualizar.py --precificar-tudo).
+--
+-- Spec da migracao SQLite -> Postgres: docs/specs/20260711_consulta-na-nuvem/.
+
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+-- Config de busca 'pt': unaccent + stemming portugues. Preserva a insensibilidade
+-- a acento que o FTS5 (unicode61) dava de graca ("eletronica" acha "eletrônica")
+-- e adiciona stemming ("festas" acha "festa"). Se o stemming degradar as
+-- consultas canonicas, o fallback documentado na spec e copiar de 'simple'.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'pt') THEN
+        CREATE TEXT SEARCH CONFIGURATION pt (COPY = portuguese);
+        ALTER TEXT SEARCH CONFIGURATION pt
+            ALTER MAPPING FOR hword, hword_part, word
+            WITH unaccent, portuguese_stem;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS eventos (
     id            TEXT PRIMARY KEY,   -- chave unica "<fonte>:<id_nativo>", evita colisao entre fontes
     fonte         TEXT NOT NULL,      -- plataforma de origem: sympla | ingresse | shotgun
     id_nativo     TEXT NOT NULL,      -- id do evento na plataforma de origem
     nome          TEXT NOT NULL,      -- titulo do evento
-    start_date    TEXT,               -- inicio, ISO 8601 (formatos mistos entre fontes; normalizar antes de comparar)
-    end_date      TEXT,               -- fim, ISO 8601 (as vezes inconsistente na origem; filtrar por start_date)
+    start_date    TEXT,               -- inicio, ISO UTC "+00:00" (normalizado no upsert — ver invariante acima)
+    end_date      TEXT,               -- fim, idem (as vezes inconsistente na origem; filtrar por start_date)
     cidade        TEXT,               -- cidade (no Shotgun vem do parametro de busca, nao do dado bruto)
     estado        TEXT,               -- UF (ex.: DF)
     local_nome    TEXT,               -- nome do local / casa de festa
     endereco      TEXT,               -- endereco textual do local
-    lat           REAL,               -- latitude (quando disponivel)
-    lon           REAL,               -- longitude (quando disponivel)
+    lat           DOUBLE PRECISION,   -- latitude (quando disponivel)
+    lon           DOUBLE PRECISION,   -- longitude (quando disponivel)
     categoria     TEXT,               -- tipo/tema informado pela fonte (quando disponivel)
     organizador   TEXT,               -- produtor/organizador do evento
     url           TEXT,               -- link do evento na plataforma de origem
     imagem        TEXT,               -- URL da imagem / capa do evento
-    raspado_em    TEXT NOT NULL,      -- ISO 8601 da última vez que o evento apareceu na raspagem do CATÁLOGO da fonte
-                                      -- (só o upsert do catálogo atualiza; descrever/precificar não mexem aqui).
-                                      -- É a âncora da coluna sumido — não atualizar fora do upsert.
+    raspado_em    TEXT NOT NULL,      -- ISO UTC da ultima vez que o evento apareceu na raspagem do CATALOGO da fonte
+                                      -- (so o upsert do catalogo atualiza; descrever/precificar nao mexem aqui).
+                                      -- E a ancora da coluna sumido — nao atualizar fora do upsert.
 
     -- Campos ricos da fonte (Etapa 5 da spec da Fase 0). Podem chegar depois do
     -- catalogo (passo incremental "descrever" do atualizar.py); por isso o upsert
     -- usa COALESCE nestas colunas: re-raspagem do catalogo NAO zera o que ja foi colhido.
     descricao     TEXT,               -- texto livre do evento, limpo de HTML (insumo do FTS e do enriquecimento v2)
     atracoes      TEXT,               -- line-up ("; "-separado) quando a fonte entrega (Shotgun: performer)
-    preco_min     REAL,               -- menor preco de lote PAGO, em R$ total (gratis nao conta — ver tem_gratis); derivado da tabela lotes
+    preco_min     DOUBLE PRECISION,   -- menor preco de lote PAGO, em R$ total (gratis nao conta — ver tem_gratis); derivado da tabela lotes
 
     -- Colunas derivadas da camada Bronze (preenchidas por src/derivar.py a partir
     -- de eventos_raw, apos o upsert; os scrapers nao escrevem aqui — exceto
@@ -63,11 +82,19 @@ CREATE TABLE IF NOT EXISTS eventos (
     ruido           INTEGER NOT NULL DEFAULT 0,  -- 1 = nao e vida noturna (anuncio/curso/etc.); a consulta esconde
     ruido_motivo    TEXT,                        -- regra que marcou (a palavra-chave), para auditoria
     dedupe_grupo    TEXT,                        -- id do grupo de duplicatas cross-fonte (= id do evento canonico); NULL = sem duplicata
-    dedupe_canonico INTEGER NOT NULL DEFAULT 1   -- 1 = registro que representa o grupo na consulta
+    dedupe_canonico INTEGER NOT NULL DEFAULT 1,  -- 1 = registro que representa o grupo na consulta
+
+    -- Indice de busca textual (nome/categoria/atracoes/descricao) para as
+    -- consultas em linguagem natural. NAO e coluna gerada (unaccent nao e
+    -- IMMUTABLE): quem a preenche e sql/reconstruir_fts.sql, chamado por
+    -- store.reconstruir_fts(con) ao fim de toda rodada — mesmo papel do rebuild
+    -- do FTS5 na era SQLite.
+    busca         TSVECTOR
 );
 
 CREATE INDEX IF NOT EXISTS idx_eventos_start ON eventos(start_date);
 CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON eventos(cidade);
+CREATE INDEX IF NOT EXISTS idx_eventos_busca ON eventos USING GIN (busca);
 
 -- Camada Bronze: o payload bruto (JSON/JSON-LD) de cada evento, como veio da
 -- fonte. Permite re-derivar campos novos SEM re-raspar (src/derivar.py) e
@@ -93,8 +120,8 @@ CREATE TABLE IF NOT EXISTS lotes (
     evento_id  TEXT NOT NULL,      -- eventos.id ("<fonte>:<id_nativo>")
     ordem      INTEGER NOT NULL,   -- posicao no payload (ordem de exibicao da fonte)
     nome       TEXT,               -- nome cru do lote na fonte
-    preco      REAL,               -- R$ total a pagar (com taxa); 0 = gratis; NULL = fonte nao informou
-    taxa       REAL,               -- parcela de taxa, quando a fonte separa (NULL no Shotgun)
+    preco      DOUBLE PRECISION,   -- R$ total a pagar (com taxa); 0 = gratis; NULL = fonte nao informou
+    taxa       DOUBLE PRECISION,   -- parcela de taxa, quando a fonte separa (NULL no Shotgun)
     gratis     INTEGER NOT NULL,   -- 1 = lote gratuito (cortesia/entrada franca)
     esgotado   INTEGER             -- 1 = lote sem estoque / vendas encerradas
 );
@@ -107,20 +134,11 @@ CREATE INDEX IF NOT EXISTS idx_lotes_evento ON lotes(evento_id);
 -- schema sem consulta que o justifique (quem le e gente depurando + o proprio
 -- relatorio). Spec: docs/specs/20260710_alinhamento-constituicao/spec.md.
 CREATE TABLE IF NOT EXISTS execucoes (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     iniciada_em TEXT NOT NULL,   -- ISO 8601 UTC do inicio da rodada
-    duracao_s   REAL,            -- duracao total em segundos
+    duracao_s   DOUBLE PRECISION, -- duracao total em segundos
     modo        TEXT NOT NULL,   -- completo | sem-shotgun | so-derivar | so-enriquecer
     fontes      TEXT,            -- JSON {fonte: {coletados, total_site} | {erro}}
     passos      TEXT,            -- JSON {descrever, precificar, derivado, ruido, dedupe_grupos, sumidos}
     erros       TEXT             -- JSON [{passo, evento_id, erro}] — falha POR EVENTO
 );
-
--- Indice de busca textual (nome/categoria/atracoes/descricao) para as consultas em
--- linguagem natural. Tabela de conteudo externo (content='eventos'): reindexada via
--- reconstruir_fts.sql apos cada raspagem. A descricao entrou no indice na Etapa 5
--- (validado que "eletronica" passa a achar evento sem o genero no nome, sem degradar
--- as consultas canonicas — ver docs/specs/20260709_mvp-fase-0/execucao.md).
-CREATE VIRTUAL TABLE IF NOT EXISTS eventos_fts
-    USING fts5(nome, categoria, atracoes, descricao,
-               content='eventos', content_rowid='rowid');

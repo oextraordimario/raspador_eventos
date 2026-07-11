@@ -84,8 +84,8 @@ def _marcar_ruido(con):
     for r in con.execute("SELECT id, nome FROM eventos"):
         m = _RUIDO_RE.search(_normalizar_texto(r["nome"]))
         if m:
-            con.execute("UPDATE eventos SET ruido = 1, ruido_motivo = ? "
-                        "WHERE id = ?", (m.group(1), r["id"]))
+            con.execute("UPDATE eventos SET ruido = 1, ruido_motivo = %s "
+                        "WHERE id = %s", (m.group(1), r["id"]))
             marcados.append((r["nome"], m.group(1)))
     return marcados
 
@@ -157,8 +157,8 @@ def _agrupar_duplicatas(con):
         canonico = grupo[0]
         for r in grupo:
             con.execute(
-                "UPDATE eventos SET dedupe_grupo = ?, dedupe_canonico = ? "
-                "WHERE id = ?",
+                "UPDATE eventos SET dedupe_grupo = %s, dedupe_canonico = %s "
+                "WHERE id = %s",
                 (canonico["id"], 1 if r["id"] == canonico["id"] else 0, r["id"]))
         grupos.append(grupo)
     return grupos

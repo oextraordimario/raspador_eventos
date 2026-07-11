@@ -1,4 +1,4 @@
-"""PoC ponta a ponta: raspa as fontes -> grava SQLite -> consulta em linguagem natural.
+"""PoC ponta a ponta: raspa as fontes -> grava na base -> consulta em linguagem natural.
 
 Fontes: Sympla, Ingresse e Shotgun, unificadas no mesmo schema.
 Escopo do PoC: festas/baladas em Brasília.
@@ -34,9 +34,9 @@ def coletar(incluir_shotgun=True):
             city_slug="brasilia"))
 
     store.reconstruir_fts(con)
-    total = con.execute("SELECT COUNT(*) FROM eventos").fetchone()[0]
-    porfonte = dict(con.execute(
-        "SELECT fonte, COUNT(*) FROM eventos GROUP BY fonte").fetchall())
+    total = con.execute("SELECT COUNT(*) AS n FROM eventos").fetchone()["n"]
+    porfonte = {r["fonte"]: r["n"] for r in con.execute(
+        "SELECT fonte, COUNT(*) AS n FROM eventos GROUP BY fonte")}
     print(f"\n{total_novos} eventos gravados/atualizados. "
           f"Base tem {total} eventos. Por fonte: {porfonte}\n")
     con.close()

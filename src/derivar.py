@@ -181,9 +181,9 @@ def aplicar(con):
         if extrator:
             lotes = extrator(payload)
             if lotes:
-                con.executemany(
+                con.cursor().executemany(
                     "INSERT INTO lotes (evento_id, ordem, nome, preco, taxa, "
-                    "gratis, esgotado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "gratis, esgotado) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     [(r["evento_id"], i, lt["nome"], lt["preco"], lt["taxa"],
                       1 if lt["gratis"] else 0, lt["esgotado"])
                      for i, lt in enumerate(lotes)])
@@ -193,8 +193,8 @@ def aplicar(con):
         if not campos:
             continue
         con.execute(
-            "UPDATE eventos SET " + ", ".join(f"{c} = ?" for c in campos) +
-            " WHERE id = ?", [*campos.values(), r["evento_id"]])
+            "UPDATE eventos SET " + ", ".join(f"{c} = %s" for c in campos) +
+            " WHERE id = %s", [*campos.values(), r["evento_id"]])
         for c in campos:
             contagem[c] += 1
     con.commit()

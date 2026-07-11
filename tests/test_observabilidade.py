@@ -1,13 +1,13 @@
 """Teste executável do NI-19 (alinhamento à Constituição): tabela execucoes +
 comparação de coleta, marcação de eventos sumidos do catálogo (e efeito na
-consulta) e janela temporal do precificar. Usa uma base SQLite descartável
-(não toca data/eventos.db). Spec: docs/specs/20260710_alinhamento-constituicao.
+consulta) e janela temporal do precificar. Usa o banco descartável
+eventos_teste no Neon (não toca a base de produção — ver tests/base_teste.py).
+Spec: docs/specs/20260710_alinhamento-constituicao.
 
 Uso: python tests/test_observabilidade.py
 """
 
 import sys
-import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -19,8 +19,10 @@ import atualizar  # noqa: E402
 import consulta  # noqa: E402
 from scrapers import ingresse, sympla  # noqa: E402
 
-# Redireciona a base para um arquivo descartável antes de qualquer conectar().
-store.DB_PATH = Path(tempfile.mkdtemp()) / "eventos_teste.db"
+import base_teste  # noqa: E402
+
+# Redireciona a base para o banco descartável antes de qualquer conectar().
+base_teste.preparar()
 
 AGORA = datetime.now(timezone.utc)
 
@@ -81,7 +83,8 @@ def main():
     ])
     sumidos = atualizar._marcar_sumidos(
         con, {"sympla": {"coletados": 1}, "shotgun": {"erro": "x"}}, iso(AGORA))
-    marcas = dict(con.execute("SELECT id, sumido FROM eventos"))
+    marcas = {r["id"]: r["sumido"]
+              for r in con.execute("SELECT id, sumido FROM eventos")}
     assert marcas["sympla:velho"] == 1, "futuro não revisto tinha que sumir"
     assert marcas["sympla:passado"] == 0, "evento passado nunca é marcado"
     assert marcas["sympla:revisto"] == 0, "quem reapareceu não pode sumir"
@@ -104,7 +107,7 @@ def main():
         evento("sympla:velho", raspado_em=iso(AGORA + timedelta(minutes=1)))])
     atualizar._marcar_sumidos(con, {"sympla": {"coletados": 1}}, iso(AGORA))
     assert con.execute("SELECT sumido FROM eventos WHERE id = 'sympla:velho'"
-                       ).fetchone()[0] == 0
+                       ).fetchone()["sumido"] == 0
     print("sumido: evento que reaparece é desmarcado — ok")
 
     # ── janela do precificar: 7 dias entra, 60 fica fora, --tudo cobre ──
