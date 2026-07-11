@@ -6,6 +6,10 @@ Um evento real de cada fonte, com **todos os payloads** que a Bronze
 fonte da verdade viva é a tabela `eventos_raw` em `data/eventos.db`
 (explorável em `tests/manuais/explorar_dados.ipynb`, seção "Camada Bronze").
 
+> **Dados mascarados:** e-mail/telefone de organizador e tokens
+> (`invitationToken`, `authToken`) foram substituídos por valores fictícios
+> antes de publicar o repo — a estrutura é fiel, esses valores não.
+
 | arquivo | evento | endpoint de origem |
 |---|---|---|
 | `sympla_catalogo.json` | HOUSE CLUB 13 ANOS | `discovery-bff/search` (listagem, sem `only` — payload cheio) |

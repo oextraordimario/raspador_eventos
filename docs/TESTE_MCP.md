@@ -55,7 +55,7 @@ Conferir: `/mcp` deve listar `eventos-brasilia` como conectado.
 Edite (crie se não existir):
 
 ```
-C:\Users\mgbju\AppData\Roaming\Claude\claude_desktop_config.json
+C:\Users\<seu-usuario>\AppData\Roaming\Claude\claude_desktop_config.json
 ```
 
 Adicione o bloco `mcpServers`:
@@ -65,7 +65,7 @@ Adicione o bloco `mcpServers`:
   "mcpServers": {
     "eventos-brasilia": {
       "command": "C:/Python313/python.exe",
-      "args": ["C:/Users/mgbju/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
+      "args": ["C:/Users/<seu-usuario>/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
     }
   }
 }
@@ -78,12 +78,12 @@ Salve e **reinicie o Claude Desktop**. O server aparece no ícone de ferramentas
 
 ## 4. Codex
 
-Edite (crie se não existir) `C:\Users\mgbju\.codex\config.toml` e adicione:
+Edite (crie se não existir) `C:\Users\<seu-usuario>\.codex\config.toml` e adicione:
 
 ```toml
 [mcp_servers.eventos-brasilia]
 command = "C:/Python313/python.exe"
-args = ["C:/Users/mgbju/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
+args = ["C:/Users/<seu-usuario>/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
 ```
 
 Salve e reinicie o Codex.
