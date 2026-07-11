@@ -5,8 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## O que é
 
 PoC que raspa eventos de três plataformas (Sympla, Ingresse, Shotgun), unifica num
-schema único em SQLite e expõe a base para agentes de IA via MCP, para responder
-perguntas em linguagem natural (ex.: *"quais festas de pagode neste fim de semana?"*).
+schema único em **Postgres gerenciado (Neon)** e expõe a base para agentes de IA via
+MCP, para responder perguntas em linguagem natural (ex.: *"quais festas de pagode
+neste fim de semana?"*). Desde a Fase 0b o read-path vive na nuvem: a raspagem roda
+local (na mão) e grava direto na base remota; a consulta funciona com o PC desligado.
 
 **Escopo deliberadamente estreito:** só **Brasília (DF)**. O código hoje cobre
 **festas/baladas/shows** (vida noturna). O roadmap do MVP prevê ainda **cinema**
@@ -24,6 +26,8 @@ considerado tranquilo). Prioridade nº 1 do usuário: validar/manter a raspagem.
 # Setup
 pip install -r requirements.txt
 python -m playwright install chromium          # necessário só p/ o Shotgun
+# .env na raiz (gitignorado) com EVENTOS_DB_URL e EVENTOS_DB_URL_TESTE
+# (connection strings dos bancos eventos/eventos_teste no Neon)
 
 # Atualização sob demanda — o comando da Fase 0 (raspa as 3 fontes → marca sumidos
 # → descreve/precifica → deriva → enriquece com ruído/dedupe → FTS → relatório de
@@ -44,13 +48,20 @@ python src/demo.py --so-consultar               # só consulta o que já está n
 python src/consulta.py
 
 # MCP server (normalmente quem executa é o cliente de IA; assim é só p/ depurar)
-python src/mcp_server.py
+python src/mcp_server.py                        # stdio (clientes locais)
+python src/mcp_server.py --http                 # MCP remoto local (exige MCP_SEGREDO; porta da env PORT)
 
-# Testes de fumaça (scripts executáveis, sem framework)
-python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta (base descartável)
-python tests/test_bronze.py                     # camadas Bronze/Prata (eventos_raw, lotes, derivação, detalhar_evento) e guarda anti-Bileto (base descartável)
-python tests/test_observabilidade.py            # execucoes + sumido + janela do precificar (base descartável)
-python tests/test_mcp_server.py                 # age como cliente MCP real; exige base já populada
+# Deploy do MCP remoto em produção (Vercel, projeto raspador-eventos; as envs
+# EVENTOS_DB_URL — URL pooled do Neon — e MCP_SEGREDO vivem nas settings de lá)
+vercel --prod
+
+# Testes de fumaça (scripts executáveis, sem framework). Os 3 primeiros usam o
+# banco descartável eventos_teste no Neon (EVENTOS_DB_URL_TESTE; recriam o
+# schema do zero — ver tests/base_teste.py), então exigem internet.
+python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta
+python tests/test_bronze.py                     # camadas Bronze/Prata (eventos_raw, lotes, derivação, detalhar_evento) e guarda anti-Bileto
+python tests/test_observabilidade.py            # execucoes + sumido + janela do precificar
+python tests/test_mcp_server.py                 # age como cliente MCP real (stdio); exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
 python src/scrapers/discover_sympla.py          # gera capturas_sympla.json (na raiz)
@@ -62,11 +73,13 @@ Não há suíte de testes formal nem linter — os testes são scripts executáv
 
 ## Arquitetura
 
-Duas frentes acopladas por uma base SQLite única (`data/eventos.db`, gitignorada):
+Duas frentes acopladas por uma base única — **Postgres no Neon** desde a Fase 0b
+(driver psycopg 3; antes era SQLite local). A connection string vem de
+`EVENTOS_DB_URL` (variável de ambiente, com fallback no `.env` da raiz — resolvido
+por `store.env_var`). Testes usam o banco `eventos_teste` via `EVENTOS_DB_URL_TESTE`.
+Spec da migração: `docs/specs/20260711_consulta-na-nuvem/`.
 
-Todo o código Python vive em `src/`; a base fica em `data/eventos.db` na raiz do repo
-(resolvida via `parent.parent / "data"` em `store.py`, e a pasta é criada sob demanda
-em `conectar()`):
+Todo o código Python vive em `src/`:
 
 ```
 src/
@@ -74,16 +87,16 @@ src/
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
     sympla.py  ingresse.py  shotgun.py  discover_sympla.py
-sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver)
-data/          # eventos.db gerado aqui (gitignorado)
-docs/          # PRD, próximos passos, specs/ (specs técnicas de implementação)
-tests/
+api/           # entrypoint serverless do MCP remoto (Vercel): index.py (deps: pyproject.toml da raiz)
+sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver/psql)
+docs/          # PRD, backlogs/, specs/ (specs técnicas de implementação)
+tests/         # scripts executáveis + base_teste.py (redireciona p/ eventos_teste)
 ```
 
 O DDL não fica embutido em string Python: mora em `sql/schema.sql` e é **carregado**
 por `store.conectar()`. Ao mudar o schema, edite o `.sql` (não o `store.py`). O SQL
-dinâmico (upsert, e a query com a função `norm_ts` registrada em runtime) segue no
-código, porque não roda standalone.
+dinâmico (upsert, updates de derivação/enriquecimento) segue no código, porque não
+roda standalone.
 
 Rodar entrypoints a partir da **raiz** do repo (ex.: `python src/demo.py`); o
 `sys.path[0]` vira `src/`, então `import store`/`import consulta` resolvem como irmãos,
@@ -112,12 +125,13 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
 
 **Frente B — Consulta por IA.**
 - `src/store.py` — aplica o schema (`sql/schema.sql`) + `upsert_eventos` (chave
-  `<fonte>:<id_nativo>` evita colisão) + índice FTS5 (`eventos_fts`) para busca textual.
-  Depois de raspar, chame `reconstruir_fts(con)` (roda `sql/reconstruir_fts.sql`) para
-  reindexar. A chave reservada `_raw` do dict normalizado (payload bruto da fonte) vai
-  para a **camada Bronze** (`eventos_raw`, PK `evento_id+origem` — Sympla tem 2 payloads
-  por evento: catálogo e detalhe), junto com `gravar_raw(...)` para o payload do
-  "descrever".
+  `<fonte>:<id_nativo>` evita colisão; **normaliza as datas na escrita** — ver
+  Convenções) + busca textual por coluna `busca tsvector` (config `pt`: unaccent +
+  stemming português). Depois de raspar, chame `reconstruir_fts(con)` (roda
+  `sql/reconstruir_fts.sql`) para recalcular a coluna. A chave reservada `_raw` do
+  dict normalizado (payload bruto da fonte) vai para a **camada Bronze**
+  (`eventos_raw`, PK `evento_id+origem` — Sympla tem 2 payloads por evento:
+  catálogo e detalhe), junto com `gravar_raw(...)` para o payload do "descrever".
 - `src/derivar.py` — derivação a seco (a "camada Prata"): (re)calcula colunas de
   `eventos` e a tabela `lotes` a partir de `eventos_raw`, sem rede. Os lotes de
   ingresso viram linhas de `lotes` (nome CRU da fonte, `preco` = total a pagar com
@@ -147,10 +161,13 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   busca corta em `DESCRICAO_MAX`) + lista de lotes — a condição do lote ("CORTESIA
   FEMININA ATÉ 00H") fica no nome cru, de propósito: quem interpreta é o agente,
   não regex. Esta é a camada canônica de consulta.
-- `src/mcp_server.py` — FastMCP stdio expondo tools finas que delegam para
+- `src/mcp_server.py` — FastMCP expondo tools finas que delegam para
   `consulta.py`: `buscar_eventos` (listar), `detalhar_evento` (aprofundar um
   evento: descrição completa + lotes) e `data_atual` (data/hora UTC + janela do
   fim de semana, para o agente montar filtros "hoje"/"neste fim de semana").
+  Transporte stdio por default; `--http` sobe o **MCP remoto** (streamable HTTP
+  stateless, rota sob prefixo secreto `MCP_SEGREDO`, porta da env `PORT`) — é o
+  connector do celular na Fase 0b (NI-20).
 
 Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
 marcar sumidos (evento futuro que não reapareceu no catálogo de fonte raspada SEM
@@ -173,10 +190,12 @@ gênero no nome.
   em `sql/schema.sql` (`id`, `fonte`, `nome`, `start_date`, `cidade`, `url`, etc.) antes
   de gravar. Ao adicionar uma fonte, siga o mesmo `_normalizar(...)` → dict.
 - **Datas em formatos mistos.** Sympla/Ingresse usam `+00:00`, Shotgun usa `.000Z`.
-  Comparação lexical de strings falha entre eles. O parse mora em UM lugar:
-  `src/tempo.py` (`instante` → datetime UTC; `norm_ts` → texto ISO comparável,
-  registrada como função SQL pela `consulta.py`). Não reimplemente parse de data
-  local nem volte a comparar `start_date` como string crua.
+  O parse mora em UM lugar: `src/tempo.py` (`instante` → datetime UTC; `norm_ts` →
+  texto ISO comparável). Desde a Fase 0b quem resolve é a **escrita**: o
+  `upsert_eventos` normaliza `start_date`/`end_date`/`raspado_em` com `norm_ts`
+  (invariante do schema: ISO UTC `+00:00`), e a `consulta.py` normaliza os
+  parâmetros — a comparação no SQL é lexical e segura. Não grave data nessas
+  colunas fora do upsert sem normalizar, nem reimplemente parse local.
 - **`raspado_em` é a âncora do `sumido`:** só o upsert do catálogo o atualiza
   (descrever/precificar mexem em outras colunas). Não atualize `raspado_em` fora
   do upsert, ou a detecção de evento sumido quebra.
@@ -193,8 +212,9 @@ gênero no nome.
   `docs/backlogs/rejeitado.yaml`). `end_date` às vezes vem inconsistente na origem
   (filtre por `start_date`).
 - **Schema mudou? A base é descartável.** `conectar()` só roda `IF NOT EXISTS`;
-  não há migração. Ao alterar `sql/schema.sql`, apague `data/eventos.db` e
-  re-raspe (`atualizar.py` detecta base antiga e instrui isso).
+  não há migração. Ao alterar `sql/schema.sql`, rode `DROP SCHEMA public CASCADE;
+  CREATE SCHEMA public;` no banco `eventos` (DBeaver/psql) e re-raspe
+  (`atualizar.py` detecta base antiga e instrui isso).
 - **MCP / FastMCP:** retorno `list` vira `structuredContent["result"]` + um content
   block por item; retorno `dict` vira content block único. `tests/test_mcp_server.py`
   lida com os dois formatos.

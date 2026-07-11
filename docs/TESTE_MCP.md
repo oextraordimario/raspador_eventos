@@ -1,11 +1,14 @@
 # Como testar a Frente B (MCP) com um agente de IA
 
-O `src/mcp_server.py` expõe a base de eventos como duas tools, via MCP (transporte
-stdio) — compatível com **Claude Code**, **Claude Desktop** e **Codex**.
+O `src/mcp_server.py` expõe a base de eventos (Postgres no Neon desde a Fase 0b)
+como tools, em dois transportes: **stdio** (clientes locais: Claude Code, Claude
+Desktop, Codex) e **streamable HTTP** (`--http`, o MCP remoto usado como
+connector no celular — seção 5).
 
 Tools disponíveis:
 - **`buscar_eventos(texto, cidade, data_inicio, data_fim, limite)`** — busca
   festas/baladas na base unificada (Sympla + Ingresse + Shotgun).
+- **`detalhar_evento(url)`** — aprofunda UM evento: descrição completa + lotes.
 - **`data_atual()`** — data/hora atual e a janela do fim de semana (ajuda o agente
   a montar filtros como "hoje" ou "neste fim de semana").
 
@@ -16,8 +19,12 @@ Tools disponíveis:
 ```bash
 pip install -r requirements.txt
 python -m playwright install chromium   # se ainda não fez
-python src/demo.py                      # popula a base eventos.db
+# .env na raiz com EVENTOS_DB_URL (connection string do banco eventos no Neon)
+python src/atualizar.py                 # popula a base remota
 ```
+
+> O `store.py` resolve `EVENTOS_DB_URL` do ambiente ou do `.env` da raiz do
+> repo — os clientes stdio não precisam de configuração de env extra.
 
 Verificação rápida de que o server está saudável (opcional):
 
@@ -83,7 +90,35 @@ Salve e reinicie o Codex.
 
 ---
 
-## 5. Perguntas para testar
+## 5. MCP remoto (Fase 0b) — connector no celular
+
+O mesmo server sobe em HTTP, protegido por um prefixo de rota secreto
+(`MCP_SEGREDO`); a URL completa é o segredo — qualquer rota fora dela dá 404.
+
+Testar local:
+
+```bash
+# PowerShell:  $env:MCP_SEGREDO="um-segredo-longo"; $env:PORT="8765"
+python src/mcp_server.py --http
+# URL do connector: http://localhost:8765/<segredo>/mcp
+```
+
+Em produção o server roda na **Vercel** (projeto `raspador-eventos`, plano
+hobby): o entrypoint é `api/index.py` (app ASGI do FastMCP; o `vercel.json`
+manda todas as rotas pra ele) e as envs `EVENTOS_DB_URL` (URL **pooled** do
+Neon) e `MCP_SEGREDO` ficam nas settings do projeto na Vercel. Deploy:
+`vercel --prod` na raiz do repo (CLI logado). A URL base é
+`https://raspador-eventos.vercel.app` — o segredo NÃO fica em arquivo nenhum
+do repo (só na env da Vercel).
+
+No app do Claude (celular ou web): **Configurações → Conectores → Adicionar
+conector personalizado**, colando `https://<host>/<segredo>/mcp`. Não divulgar
+a URL — auth de verdade é a Fase 1 (NI-11). Spec:
+`docs/specs/20260711_consulta-na-nuvem/`.
+
+---
+
+## 6. Perguntas para testar
 
 Com o server conectado em qualquer um dos clientes, pergunte em linguagem natural:
 
@@ -97,11 +132,15 @@ O agente deve chamar `data_atual` (quando o período for relativo) e
 
 ---
 
-## 6. Se algo falhar
+## 7. Se algo falhar
 
 - **Server não conecta / "module not found: mcp":** o cliente está usando outro
   Python. Confirme que `C:/Python313/python.exe` é o que tem as dependências
   (`pip install -r requirements.txt` nesse interpretador).
-- **Respostas vazias:** a base pode estar vazia — rode `python src/demo.py`.
+- **"EVENTOS_DB_URL nao definida":** falta o `.env` na raiz (ou a variável de
+  ambiente) com a connection string do Neon.
+- **Respostas vazias:** a base pode estar vazia — rode `python src/atualizar.py`.
+- **Primeira resposta lenta da noite:** o Neon free hiberna após inatividade;
+  o wake custa alguns segundos e só afeta a primeira consulta.
 - **Datas erradas ("fim de semana"):** o agente deve chamar `data_atual` primeiro;
   se não chamar, peça explicitamente "considerando a data de hoje".
