@@ -6,10 +6,15 @@
 > ruim), dogfoodável pelo autor: *"o que está passando nos cinemas de Brasília
 > essa semana?"*. Implementação pendente.
 >
-> **Dependência:** a base migrou para Postgres/Neon (Fase 0b,
-> `docs/specs/20260711_consulta-na-nuvem/`). Esta spec assume o schema pós-
-> migração; o DDL abaixo segue as convenções que `sql/schema.sql` tiver na hora
-> de implementar.
+> **Contexto de infra:** a base é Postgres/Neon desde a Fase 0b
+> (`docs/specs/20260711_consulta-na-nuvem/`, CONCLUÍDA em 2026-07-11). O DDL
+> abaixo foi revisado contra o `sql/schema.sql` real pós-migração e segue as
+> convenções dele: **datas em TEXT** com invariante ISO UTC "+00:00"
+> (normalizadas na escrita via `tempo.norm_ts` — nunca gravar sem normalizar),
+> payload bruto em TEXT (`json.dumps ensure_ascii=False`), flags INTEGER 0/1,
+> preço DOUBLE PRECISION, sem FKs (consistência vem da reconstrução atômica),
+> índices `idx_*`, e `busca TSVECTOR` preenchida pelo `reconstruir_fts.sql`
+> (não pode ser coluna gerada: unaccent não é IMMUTABLE).
 
 ---
 
@@ -64,44 +69,52 @@ Em vez disso, o domínio cinema **espelha a arquitetura** Bronze → Prata →
 consulta → MCP com tabelas próprias:
 
 ```sql
--- Bronze: payload bruto por cinema×dia, substituído a cada rodada
+-- Bronze: payload bruto por cinema×dia, substituído a cada rodada.
+-- Análoga de eventos_raw (payload TEXT, datas TEXT ISO UTC).
 CREATE TABLE IF NOT EXISTS cinema_raw (
-  cinema_id  TEXT NOT NULL,      -- theaterId da Ingresso.com
-  dia        DATE NOT NULL,
-  payload    JSONB NOT NULL,     -- resposta crua do endpoint
-  raspado_em TIMESTAMPTZ NOT NULL,
-  PRIMARY KEY (cinema_id, dia)
+    cinema_id  TEXT NOT NULL,   -- theaterId da Ingresso.com
+    dia        TEXT NOT NULL,   -- dia da grade, "YYYY-MM-DD" (data LOCAL de Brasília, como a API pagina)
+    payload    TEXT NOT NULL,   -- JSON bruto (json.dumps ensure_ascii=False)
+    raspado_em TEXT NOT NULL,   -- ISO UTC "+00:00" (tempo.norm_ts)
+    PRIMARY KEY (cinema_id, dia)
 );
 
 -- Prata: derivada 100% de cinema_raw, a seco (derivar_cinema)
 CREATE TABLE IF NOT EXISTS filmes (
-  id            TEXT PRIMARY KEY,  -- id do filme na Ingresso.com (estável)
-  titulo        TEXT NOT NULL,
-  generos       TEXT,              -- "Animação, Aventura" (mesmo estilo de eventos.categoria)
-  duracao_min   INTEGER,
-  classificacao TEXT,
-  distribuidora TEXT,
-  url           TEXT,              -- página do filme na Ingresso.com
-  poster        TEXT,
-  trailer       TEXT,
-  em_pre_venda  BOOLEAN DEFAULT FALSE,
-  raspado_em    TIMESTAMPTZ,
-  busca         tsvector           -- título + gêneros, config 'pt' (igual eventos)
+    id            TEXT PRIMARY KEY,  -- id do filme na Ingresso.com (estável)
+    titulo        TEXT NOT NULL,
+    generos       TEXT,              -- "Animação, Aventura" (mesmo estilo de eventos.categoria)
+    duracao_min   INTEGER,
+    classificacao TEXT,
+    distribuidora TEXT,
+    url           TEXT,              -- página do filme na Ingresso.com
+    poster        TEXT,
+    trailer       TEXT,
+    em_pre_venda  INTEGER NOT NULL DEFAULT 0,  -- 1 = só em pré-venda (inPreSale)
+    raspado_em    TEXT,              -- ISO UTC "+00:00"
+    busca         TSVECTOR           -- título + gêneros; preenchida pelo reconstruir_fts.sql (config 'pt')
 );
+CREATE INDEX IF NOT EXISTS idx_filmes_busca ON filmes USING GIN (busca);
 
 CREATE TABLE IF NOT EXISTS sessoes (
-  id         TEXT PRIMARY KEY,     -- sessionId (estável só dentro da grade)
-  filme_id   TEXT NOT NULL REFERENCES filmes(id) ON DELETE CASCADE,
-  cinema     TEXT NOT NULL,        -- apelido canônico da tabela da §1
-  cinema_id  TEXT NOT NULL,
-  inicio     TIMESTAMPTZ NOT NULL, -- parse via tempo.instante (offset -03:00)
-  sala       TEXT,
-  tipos      TEXT,                 -- "3D/XD/Dublado" — cru, quem interpreta é o agente
-  preco      NUMERIC,
-  url_compra TEXT
+    id         TEXT PRIMARY KEY,  -- sessionId (estável só dentro da grade)
+    filme_id   TEXT NOT NULL,     -- filmes.id (sem FK, como lotes→eventos: as duas são reconstruídas juntas)
+    cinema     TEXT NOT NULL,     -- apelido canônico da tabela da §1
+    cinema_id  TEXT NOT NULL,
+    inicio     TEXT NOT NULL,     -- ISO UTC "+00:00" via tempo.norm_ts (a API manda local -03:00)
+    sala       TEXT,
+    tipos      TEXT,              -- "3D/XD/Dublado" — cru, quem interpreta é o agente
+    preco      DOUBLE PRECISION,  -- R$ (mesma convenção de preco_min: NULL = não informou)
+    url_compra TEXT
 );
-CREATE INDEX IF NOT EXISTS sessoes_inicio_idx ON sessoes (inicio);
+CREATE INDEX IF NOT EXISTS idx_sessoes_inicio ON sessoes(inicio);
+CREATE INDEX IF NOT EXISTS idx_sessoes_filme ON sessoes(filme_id);
 ```
+
+Com `inicio` normalizado para ISO UTC (invariante do schema), comparação e
+ordenação lexicais seguem seguras — mesma regra de `start_date`. O
+`sql/reconstruir_fts.sql` ganha um segundo UPDATE:
+`UPDATE filmes SET busca = to_tsvector('pt', coalesce(titulo,'') || ' ' || coalesce(generos,''))`.
 
 **Estratégia de escrita: snapshot, não upsert.** A grade é substituída inteira
 a cada rodada: o passo de raspagem faz replace de `cinema_raw` (PK
@@ -135,7 +148,8 @@ eventos): `raspar(dias=8)` → `{"raw": [(cinema_id, dia, payload)], "erros": [.
 ### 2.3 Pipeline: novo passo no `atualizar.py`
 
 `raspar cinema → replace cinema_raw → derivar_cinema (trunca e reconstrói
-filmes/sessoes) → tsvector de filmes → relatório`.
+filmes/sessoes) → store.reconstruir_fts (que passa a recalcular também
+filmes.busca) → relatório`.
 
 - Roda por default; `--sem-cinema` pula (simetria com `--sem-shotgun`).
 - `--so-derivar` também re-deriva o cinema a partir de `cinema_raw`.
