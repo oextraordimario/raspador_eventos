@@ -274,7 +274,7 @@
 # Testes em tests/test_observabilidade.py. Base descartada e re-raspada.
 
 - codigo: NI-09
-  status: pendente
+  status: em-andamento
   prioridade: alta
   rank: 1
   esforco: M
@@ -296,11 +296,10 @@
     migram junto. O write continua local: atualizar.py roda no PC e faz UPSERT na
     base remota (connection string em env/segredo local).
 
-    **A reavaliar na spec (sem destravar a decisão à toa):** a decisão travada é Neon;
-    com a antecipação, vale 30 min de análise se um SQLite gerenciado (ex. Turso/
-    libSQL, que mantém dialeto e FTS5) reduziria o retrabalho a quase zero — trocar
-    só se o ganho for gritante, senão seguir com Neon. Merece spec própria, junto
-    com NI-20 (é a mesma entrega na prática).
+    **Reavaliação feita em 2026-07-11 — Neon MANTIDO:** Turso/libSQL e a alternativa
+    "arquivo SQLite publicado" foram analisadas e rejeitadas (registro na spec); o
+    autor decidiu pagar a migração uma vez e deixar a base pronta para as Fases 1/2.
+    Spec conjunta com NI-20 (mesma entrega): docs/specs/20260711_consulta-na-nuvem/.
 
 - codigo: NI-10
   status: nao-iniciado
@@ -324,7 +323,7 @@
     este item só tira o humano da cadência, não muda o destino dos dados.
 
 - codigo: NI-20
-  status: pendente
+  status: em-andamento
   prioridade: alta
   rank: 1
   esforco: M
@@ -346,7 +345,7 @@
     GitHub Actions — atualização continua na mão (ex.: 9h de sexta), e o dado fica
     servível às 21h com o PC desligado. Bônus já conhecido do dogfooding: no stdio
     local, mudou código = reconectar o cliente; no remoto, o deploy resolve.
-    Merece spec própria junto com NI-09 (mesma entrega na prática).
+    Spec conjunta com NI-09 (mesma entrega): docs/specs/20260711_consulta-na-nuvem/.
 
 - codigo: NI-11
   status: nao-iniciado
