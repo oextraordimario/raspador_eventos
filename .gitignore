@@ -1,3 +1,6 @@
+# Segredos (credenciais do Neon; .env.local que o CLI da Vercel gera) — NUNCA commitar
+.env*
+
 # Base de dados gerada
 *.db
 
@@ -16,6 +19,9 @@ venv/
 
 # Estado local de ferramentas (Codex cria config de projeto aqui)
 .codex/
+
+# Estado local do CLI da Vercel (link do projeto)
+.vercel
 
 # Sistema
 .DS_Store

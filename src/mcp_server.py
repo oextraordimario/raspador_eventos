@@ -1,17 +1,25 @@
 """MCP server que expõe a base unificada de eventos como tools para um agente de IA.
 
-Transporte stdio — compatível com Claude Code, Claude Desktop e Codex.
-As tools são finas: delegam para a camada de consulta (consulta.py).
+Dois transportes (a base é a mesma — o Neon):
+- stdio (default) — clientes locais (Claude Code, Claude Desktop, Codex) e o
+  test_mcp_server.py. Rodar manualmente para depurar: python src/mcp_server.py
+- streamable HTTP (--http) — o MCP REMOTO da Fase 0b (NI-20): stateless (casa
+  com serverless que escala a zero), servido sob um prefixo de rota secreto
+  (env MCP_SEGREDO; auth de verdade é Fase 1/NI-11) na porta da env PORT.
+  URL do connector: https://<host>/<segredo>/mcp
+  Spec: docs/specs/20260711_consulta-na-nuvem/.
 
-Rodar manualmente (para depurar): python src/mcp_server.py
-Em uso normal, quem executa é o cliente de IA, via a config de MCP.
+As tools são finas: delegam para a camada de consulta (consulta.py).
 """
 
+import os
+import sys
 from datetime import datetime, timedelta, timezone
 
 from mcp.server.fastmcp import FastMCP
 
 import consulta
+import store
 
 mcp = FastMCP("eventos-brasilia")
 
@@ -110,4 +118,15 @@ def data_atual() -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    if "--http" in sys.argv:
+        segredo = store.env_var("MCP_SEGREDO")
+        if not segredo:
+            sys.exit("Defina MCP_SEGREDO (o prefixo secreto da URL) para subir "
+                     "o transporte HTTP.")
+        mcp.settings.stateless_http = True
+        mcp.settings.host = "0.0.0.0"
+        mcp.settings.port = int(os.environ.get("PORT", "8000"))
+        mcp.settings.streamable_http_path = f"/{segredo}/mcp"
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()

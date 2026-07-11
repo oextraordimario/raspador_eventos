@@ -1,0 +1,12 @@
+# Manifest do READ-PATH serverless: o builder Python da Vercel instala as
+# dependências da função MCP (api/index.py) a partir DESTE arquivo — ele só
+# olha a raiz do projeto. O dev local segue usando requirements.txt (write-path
+# completo: playwright, pandas etc.); não instale o projeto via pip install .
+[project]
+name = "raspador-eventos-mcp"
+version = "0.0.1"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.10",
+    "psycopg[binary]>=3.2",
+]

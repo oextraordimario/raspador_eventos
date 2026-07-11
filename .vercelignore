@@ -1,0 +1,19 @@
+# Só o read-path sobe no deploy: api/, src/, sql/, vercel.json.
+# Nunca subir segredo local nem peso morto.
+# O requirements.txt da raiz é do write-path local (playwright/pandas) — fica
+# fora do upload; as deps da função vêm do pyproject.toml (só mcp + psycopg).
+requirements.txt
+.env
+.env.*
+*.db
+data/
+docs/
+tests/
+capturas_*.json
+__pycache__/
+*.ipynb
+.claude/
+.codex/
+.mcp.json
+CLAUDE.md
+README.md
