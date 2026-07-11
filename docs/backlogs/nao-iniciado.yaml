@@ -294,6 +294,35 @@
     a Fase 0b (NI-09/NI-20) o atualizar.py já grava na base remota rodando local —
     este item só tira o humano da cadência, não muda o destino dos dados.
 
+- codigo: NI-21
+  status: nao-iniciado
+  prioridade: media
+  rank: 2
+  esforco: P
+  eixo: infra
+  fase: 0
+  titulo: "Escolher e adicionar LICENSE ao repo público"
+  resumo: "o repo ficou público sem licença = 'todos os direitos reservados' (ninguém pode legalmente usar o código); decidir a licença com calma e criar o arquivo LICENSE na raiz"
+  data: 2026-07-11
+  depende_de: []
+  relacionado: []
+  caso_real: ["revisão de segurança pré-publicação (2026-07-11): repo aprovado para abrir, mas sem LICENSE"]
+  detalhe: |
+    Sem arquivo LICENSE, repo público é só vitrine: juridicamente ninguém pode
+    usar/copiar/modificar. Mecânica trivial: arquivo `LICENSE` (sem extensão) na
+    raiz com o texto integral da licença; o GitHub detecta e exibe na sidebar.
+
+    **Opções mapeadas** (do mais ao menos permissivo): MIT (padrão de facto p/
+    projeto pessoal/PoC — uso livre mantendo o aviso de copyright), Apache 2.0
+    (idem + cláusula de patentes, mais corporativa), GPL-3.0 (copyleft: quem
+    distribui derivado é obrigado a abrir o código). Template preenchível em
+    https://choosealicense.com — trocar [year]/[fullname] e salvar; a interface
+    web do GitHub também oferece seletor de template ao criar o arquivo.
+
+    **Nota:** a licença cobre o CÓDIGO, não os dados raspados — os payloads das
+    plataformas (Sympla/Ingresse/etc.) não são nossos para licenciar, e não
+    precisam de cláusula especial numa PoC.
+
 - codigo: NI-11
   status: nao-iniciado
   prioridade: media
