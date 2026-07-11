@@ -1,10 +1,10 @@
 # Spec — Raspagem de cinema: o que está passando em Brasília (NI-07)
 
-> **Status:** especificada em 2026-07-11 a partir do spike `spikes/cinema/`
-> (validado no mesmo dia: 38 filmes, 1.232 sessões, 8/8 cinemas). **O quê/por
-> quê:** PRD §2/§6 — mesmo problema de fundo das festas (dados espalhados, busca
-> ruim), dogfoodável pelo autor: *"o que está passando nos cinemas de Brasília
-> essa semana?"*. Implementação pendente.
+> **Status:** especificada e IMPLEMENTADA em 2026-07-11, a partir do spike
+> `spikes/cinema/` (validado no mesmo dia: 38 filmes, 1.232 sessões, 8/8
+> cinemas). **O quê/por quê:** PRD §2/§6 — mesmo problema de fundo das festas
+> (dados espalhados, busca ruim), dogfoodável pelo autor: *"o que está passando
+> nos cinemas de Brasília essa semana?"*. Testes: `tests/test_cinema.py`.
 >
 > **Contexto de infra:** a base é Postgres/Neon desde a Fase 0b
 > (`docs/specs/20260711_consulta-na-nuvem/`, CONCLUÍDA em 2026-07-11). O DDL

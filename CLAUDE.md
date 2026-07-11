@@ -11,9 +11,10 @@ neste fim de semana?"*). Desde a Fase 0b o read-path vive na nuvem: a raspagem r
 local (na mão) e grava direto na base remota; a consulta funciona com o PC desligado.
 
 **Escopo deliberadamente estreito:** só **Brasília (DF)**. O código hoje cobre
-**festas/baladas/shows** (vida noturna). O roadmap do MVP prevê ainda **cinema**
-(Cinemark/Kinoplex) e o **Instagram** como fonte de contexto/enriquecimento — ambos
-**planejados, não implementados** (ver `docs/PRD_MVP.md`). Outras cidades seguem fora.
+**festas/baladas/shows** (vida noturna) e **cinema** (a grade de 8 cinemas-alvo via
+API da Ingresso.com — NI-07, domínio próprio `filmes`/`sessoes`, fora de `eventos`).
+O roadmap do MVP prevê ainda o **Instagram** como fonte de contexto/enriquecimento —
+**planejado, não implementado** (ver `docs/PRD_MVP.md`). Outras cidades seguem fora.
 Ao mexer nos scrapers ou nas consultas, não generalize além do escopo do PRD sem
 pedido explícito.
 
@@ -30,11 +31,12 @@ python -m playwright install chromium          # necessário só p/ o Shotgun
 # (connection strings dos bancos eventos/eventos_teste no Neon)
 
 # Atualização sob demanda — o comando da Fase 0 (raspa as 3 fontes → marca sumidos
-# → descreve/precifica → deriva → enriquece com ruído/dedupe → FTS → relatório de
-# saúde com comparação vs. rodada anterior → grava a rodada em `execucoes`).
-# Rodar antes de usar o agente.
+# → descreve/precifica → raspa a grade de cinema → deriva (inclui filmes/sessoes)
+# → enriquece com ruído/dedupe → FTS → relatório de saúde com comparação vs.
+# rodada anterior → grava a rodada em `execucoes`). Rodar antes de usar o agente.
 python src/atualizar.py
 python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
+python src/atualizar.py --sem-cinema            # pula a grade de cinema
 python src/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: janela de 30 dias)
 python src/atualizar.py --so-derivar            # não raspa; re-deriva do payload bruto + regras + FTS
 python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
@@ -61,6 +63,7 @@ vercel --prod
 python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta
 python tests/test_bronze.py                     # camadas Bronze/Prata (eventos_raw, lotes, derivação, detalhar_evento) e guarda anti-Bileto
 python tests/test_observabilidade.py            # execucoes + sumido + janela do precificar
+python tests/test_cinema.py                     # domínio cinema: cinema_raw + snapshot, filmes/sessoes, buscar_filmes/sessoes_filme
 python tests/test_mcp_server.py                 # age como cliente MCP real (stdio); exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
@@ -86,7 +89,7 @@ src/
   store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
-    sympla.py  ingresse.py  shotgun.py  discover_sympla.py
+    sympla.py  ingresse.py  shotgun.py  cinema.py  discover_sympla.py
 api/           # entrypoint serverless do MCP remoto (Vercel): index.py (deps: pyproject.toml da raiz)
 sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver/psql)
 docs/          # PRD, backlogs/, specs/ (specs técnicas de implementação)
@@ -118,8 +121,15 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   relativo) e lê o JSON-LD (`MusicEvent`) de cada evento — incluindo os campos ricos
   (`description`/`performer`/`organizer`/`offers` → descricao/atracoes/organizador/
   preco_min), que vêm de graça na mesma página.
+- `src/scrapers/cinema.py` — **contrato próprio** (devolve a grade bruta, não lista de
+  eventos): API de conteúdo da Ingresso.com (`api-content.ingresso.com/v0/sessions/
+  city/12/theater/{id}?date=...`, sem auth/navegador) para os **8 cinemas-alvo**
+  (dict `CINEMAS`: theaterId → apelido canônico). 404 = dia sem sessão (não é
+  erro). Raspa 8 dias corridos (a programação vira na quinta). Fallbacks por rede
+  mapeados em `spikes/cinema/README.md`. Spec: `docs/specs/20260711_raspagem-cinema/`.
 - Cada scraper preenche `ULTIMA_RASPAGEM` (módulo) com `coletados`/`total_site`
-  ao fim de `raspar()` — é daí que o `atualizar.py` mede cobertura.
+  ao fim de `raspar()` — é daí que o `atualizar.py` mede cobertura (no cinema,
+  coletados = cinemas que responderam ≥ 1 dia).
 - `src/scrapers/discover_sympla.py` — ferramenta de reconhecimento, não faz parte do pipeline:
   intercepta XHR/fetch num navegador para achar a API interna quando um site muda.
 
@@ -146,7 +156,10 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   todos os futuros), e no Sympla só para eventos com descrição validada (âncora da
   guarda NI-17 — o endpoint de tickets não devolve nome). Specs:
   `docs/specs/20260710_camada-bronze/`, `20260710_camada-prata/` e
-  `20260710_lotes-ingressos/`.
+  `20260710_lotes-ingressos/`. **Domínio cinema**: `aplicar_cinema(con)` reconstrói
+  `filmes`/`sessoes` do zero a partir de `cinema_raw` (SNAPSHOT: sessão de cinema
+  não tem id estável entre semanas, então a grade nova substitui a anterior —
+  sem upsert, sem dedupe, sem `sumido`; o id do FILME é estável e é a PK).
 - `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
   (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas cross-fonte
   (mesmo dia + nome/local similares). **Marca, não apaga** — quem esconde é a
@@ -161,9 +174,13 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   busca corta em `DESCRICAO_MAX`) + lista de lotes — a condição do lote ("CORTESIA
   FEMININA ATÉ 00H") fica no nome cru, de propósito: quem interpreta é o agente,
   não regex. Esta é a camada canônica de consulta.
+  No cinema, `buscar_filmes(texto, data_inicio, data_fim, cinema, limite)` agrega
+  por filme (sessões futuras por padrão) e `sessoes_filme(filme, ...)` detalha
+  horários/salas/tipos/preço de UM filme (lookup por id ou título parcial).
 - `src/mcp_server.py` — FastMCP expondo tools finas que delegam para
   `consulta.py`: `buscar_eventos` (listar), `detalhar_evento` (aprofundar um
-  evento: descrição completa + lotes) e `data_atual` (data/hora UTC + janela do
+  evento: descrição completa + lotes), `buscar_filmes`/`sessoes_filme` (cinema)
+  e `data_atual` (data/hora UTC + janela do
   fim de semana, para o agente montar filtros "hoje"/"neste fim de semana").
   Transporte stdio por default; `--http` sobe o **MCP remoto** (streamable HTTP
   stateless, rota sob prefixo secreto `MCP_SEGREDO`, porta da env `PORT`) — é o
@@ -173,16 +190,18 @@ Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na
 marcar sumidos (evento futuro que não reapareceu no catálogo de fonte raspada SEM
 erro → `sumido=1`; a consulta esconde) → descrever (busca incremental da descrição
 p/ Sympla/Ingresse; upsert usa COALESCE p/ nunca zerá-la) → precificar (tickets/
-lotes p/ a Bronze, refeito a cada rodada na janela de 30 dias) →
-`derivar.aplicar()` → `enriquecer.aplicar()` →
-`store.reconstruir_fts()` → relatório (compara coleta com a rodada anterior e
-ALERTA queda > 50% — detector de scraper quebrado) → `store.registrar_execucao()`
+lotes p/ a Bronze, refeito a cada rodada na janela de 30 dias) → cinema
+(`cinema.raspar()` → `store.gravar_cinema_raw()`, snapshot com poda de dias
+passados) → `derivar.aplicar()` + `derivar.aplicar_cinema()` → `enriquecer.aplicar()` →
+`store.reconstruir_fts()` (eventos E filmes) → relatório (compara coleta com a
+rodada anterior e ALERTA queda > 50% — detector de scraper quebrado) →
+`store.registrar_execucao()`
 (tabela `execucoes`: uma linha por rodada, com erros POR evento) →
 `consulta.buscar_eventos()` →
 tool MCP → agente de IA. `atualizar.py` orquestra tudo isso sob demanda;
 `mcp_server.py` é o ponto de entrada em uso real; `demo.py` é a demo da PoC.
 O FTS indexa nome/categoria/atracoes/**descricao** — "eletrônica" acha evento sem o
-gênero no nome.
+gênero no nome (em filmes: titulo/generos).
 
 ## Convenções e armadilhas
 

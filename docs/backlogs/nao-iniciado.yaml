@@ -162,26 +162,15 @@
     tolerância a falha (perfil não raspou → evento segue existindo pela plataforma).
     Merece spec própria em docs/specs/ antes de começar.
 
-- codigo: NI-07
-  status: nao-iniciado
-  prioridade: media
-  rank: 2
-  esforco: G
-  eixo: raspagem
-  fase: dados
-  titulo: "Cinema (Cinemark, Kinoplex...) — o que está passando em Brasília"
-  resumo: "novas fontes, mesmo schema cidade-aware; subetapa separada do MVP (PRD §2) — técnica a mapear com discover na primeira sessão"
-  data: 2026-07-09
-  depende_de: []
-  relacionado: []
-  caso_real: []
-  detalhe: |
-    PRD §2/§6 (trilha de dados, item 2): mesmo problema de fundo (dados espalhados,
-    busca ruim), dogfoodável pelo autor. Fontes novas com técnica não mapeada — começar
-    com reconhecimento tipo discover_sympla.py nos sites de Cinemark/Kinoplex.
-    Modelagem a decidir na spec: sessão de cinema não é "evento com id nativo estável"
-    (filme × sessão × sala); ver se o schema atual comporta ou se pede tabela própria.
-    Merece spec própria em docs/specs/.
+# NI-07 (cinema) foi IMPLEMENTADO em 2026-07-11 (spike spikes/cinema/ + spec
+# docs/specs/20260711_raspagem-cinema/): a API de conteúdo da Ingresso.com
+# cobre os 8 cinemas-alvo do usuário de uma vez (sem navegador, sem auth) —
+# scraper único em src/scrapers/cinema.py. Modelagem decidida: domínio próprio
+# (cinema_raw → filmes/sessoes, estratégia de snapshot), FORA de eventos —
+# sessão de cinema não tem id nativo estável entre semanas; o id do FILME tem.
+# Tools MCP novas: buscar_filmes e sessoes_filme. Testes em tests/test_cinema.py.
+# Fallbacks por rede auditados e documentados em spikes/cinema/README.md
+# (implementar só se a fonte primária quebrar).
 
 # NI-12 (preço faltando em Sympla/Ingresse) foi RESOLVIDO em 2026-07-10 pela
 # camada Prata (docs/specs/20260710_camada-prata/spec.md): endpoints de tickets
