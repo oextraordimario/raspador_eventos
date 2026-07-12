@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## O que é
 
-PoC que raspa eventos de três plataformas (Sympla, Ingresse, Shotgun), unifica num
+PoC que raspa eventos de cinco plataformas (Sympla, Ingresse, Shotgun, Zig,
+Ticket and Go), unifica num
 schema único em **Postgres gerenciado (Neon)** e expõe a base para agentes de IA via
 MCP, para responder perguntas em linguagem natural (ex.: *"quais festas de pagode
 neste fim de semana?"*). Desde a Fase 0b o read-path vive na nuvem: a raspagem roda
@@ -30,7 +31,7 @@ python -m playwright install chromium          # necessário só p/ o Shotgun
 # .env na raiz (gitignorado) com EVENTOS_DB_URL e EVENTOS_DB_URL_TESTE
 # (connection strings dos bancos eventos/eventos_teste no Neon)
 
-# Atualização sob demanda — o comando da Fase 0 (raspa as 3 fontes → marca sumidos
+# Atualização sob demanda — o comando da Fase 0 (raspa as 5 fontes → marca sumidos
 # → descreve/precifica → raspa a grade de cinema → deriva (inclui filmes/sessoes)
 # → enriquece com ruído/dedupe → FTS → relatório de saúde com comparação vs.
 # rodada anterior → grava a rodada em `execucoes`). Rodar antes de usar o agente.
@@ -64,6 +65,7 @@ python tests/test_enriquecer.py                 # ruído + dedupe + efeito na co
 python tests/test_bronze.py                     # camadas Bronze/Prata (eventos_raw, lotes, derivação, detalhar_evento) e guarda anti-Bileto
 python tests/test_observabilidade.py            # execucoes + sumido + janela do precificar
 python tests/test_cinema.py                     # domínio cinema: cinema_raw + snapshot, filmes/sessoes, buscar_filmes/sessoes_filme
+python tests/test_zig_ticketandgo.py            # fontes novas (NI-22): normalização, filtro DF textual, lotes c/ taxa fracionária
 python tests/test_mcp_server.py                 # age como cliente MCP real (stdio); exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
@@ -89,7 +91,7 @@ src/
   store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
-    sympla.py  ingresse.py  shotgun.py  cinema.py  discover_sympla.py
+    sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  discover_sympla.py
 api/           # entrypoint serverless do MCP remoto (Vercel): index.py (deps: pyproject.toml da raiz)
 sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver/psql)
 docs/          # PRD, backlogs/, specs/ (specs técnicas de implementação)
@@ -121,6 +123,20 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   relativo) e lê o JSON-LD (`MusicEvent`) de cada evento — incluindo os campos ricos
   (`description`/`performer`/`organizer`/`offers` → descricao/atracoes/organizador/
   preco_min), que vêm de graça na mesma página.
+- `src/scrapers/zig.py` — API do SuperTicket (`ticket-api.superticket.com.br/events`,
+  plataforma que a Zig incorporou), sem auth/navegador. **Sem filtro server-side de
+  estado**: pagina o catálogo nacional (~6 páginas) e filtra
+  `event_location.state == "DF"` do lado de cá. Descrição via `GET /events/{slug}`
+  (`raspar_descricao`), no passo "descrever". **Preço fica fora** (endpoint de
+  tickets responde vazio — spec NI-22 §3); preco_min NULL = "não informou".
+- `src/scrapers/ticketandgo.py` — `POST production-api-v1-service.ticketandgo.com.br/
+  eventos/pesquisa` com `{"pesquisa": ""}` devolve o **catálogo inteiro já com a
+  descrição** (sem passo "descrever"). cidade/estado vêm NULOS: o filtro DF é
+  **textual** sobre `local`/`endereco_completo` (`_do_df`: Brasília / `\bDF\b` /
+  CEP 70–73) e cidade/estado são rotulados, como no Shotgun. Datas locais separadas
+  (`inicio` + `hora_incio`, typo da fonte) compostas com `-03:00`. Lotes via
+  `GET /eventos/{slug}` (`raspar_tickets`) no passo "precificar";
+  `taxa_conveniencia` é FRAÇÃO (0.1 = 10%) somada ao valor na derivação.
 - `src/scrapers/cinema.py` — **contrato próprio** (devolve a grade bruta, não lista de
   eventos): API de conteúdo da Ingresso.com (`api-content.ingresso.com/v0/sessions/
   city/12/theater/{id}?date=...`, sem auth/navegador) para os **8 cinemas-alvo**
@@ -150,7 +166,7 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   mascara o preço real, NI-18) e `tem_gratis` marca lote grátis não esgotado.
   `cancelado`, `bairro` e `popularidade` seguem derivados direto do payload. Campo
   novo do bruto = função aqui + `--so-derivar`, **sem re-raspar**. Idempotente como
-  o enriquecer. Os payloads de tickets (Sympla/Ingresse) vêm do passo "precificar"
+  o enriquecer. Os payloads de tickets (Sympla/Ingresse/Ticket and Go) vêm do passo "precificar"
   do `atualizar.py` — **não incremental** (preço/lote é volátil; refeito a cada
   rodada, mas só para eventos na **janela de 30 dias** — `--precificar-tudo` cobre
   todos os futuros), e no Sympla só para eventos com descrição validada (âncora da
@@ -189,7 +205,7 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
 Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
 marcar sumidos (evento futuro que não reapareceu no catálogo de fonte raspada SEM
 erro → `sumido=1`; a consulta esconde) → descrever (busca incremental da descrição
-p/ Sympla/Ingresse; upsert usa COALESCE p/ nunca zerá-la) → precificar (tickets/
+p/ Sympla/Ingresse/Zig; upsert usa COALESCE p/ nunca zerá-la) → precificar (tickets/
 lotes p/ a Bronze, refeito a cada rodada na janela de 30 dias) → cinema
 (`cinema.raspar()` → `store.gravar_cinema_raw()`, snapshot com poda de dias
 passados) → `derivar.aplicar()` + `derivar.aplicar_cinema()` → `enriquecer.aplicar()` →
@@ -208,8 +224,9 @@ gênero no nome (em filmes: titulo/generos).
 - **Schema unificado é o contrato.** Todo scraper normaliza para os campos definidos
   em `sql/schema.sql` (`id`, `fonte`, `nome`, `start_date`, `cidade`, `url`, etc.) antes
   de gravar. Ao adicionar uma fonte, siga o mesmo `_normalizar(...)` → dict.
-- **Datas em formatos mistos.** Sympla/Ingresse usam `+00:00`, Shotgun usa `.000Z`.
-  O parse mora em UM lugar: `src/tempo.py` (`instante` → datetime UTC; `norm_ts` →
+- **Datas em formatos mistos.** Sympla/Ingresse usam `+00:00`, Shotgun usa `.000Z`,
+  Zig usa `.000-03:00` e o Ticket and Go manda data e hora locais SEPARADAS e sem
+  fuso (o scraper compõe com `-03:00`). O parse mora em UM lugar: `src/tempo.py` (`instante` → datetime UTC; `norm_ts` →
   texto ISO comparável). Desde a Fase 0b quem resolve é a **escrita**: o
   `upsert_eventos` normaliza `start_date`/`end_date`/`raspado_em` com `norm_ts`
   (invariante do schema: ISO UTC `+00:00`), e a `consulta.py` normaliza os
@@ -219,7 +236,9 @@ gênero no nome (em filmes: titulo/generos).
   (descrever/precificar mexem em outras colunas). Não atualize `raspado_em` fora
   do upsert, ou a detecção de evento sumido quebra.
 - **Cidade no Shotgun** vem como bairro em `addressLocality`; a cidade é rotulada
-  pelo parâmetro de busca (`cidade_label`), não pelo dado bruto.
+  pelo parâmetro de busca (`cidade_label`), não pelo dado bruto. No **Ticket and
+  Go**, cidade/estado vêm NULOS da fonte e também são rotulados (pelo filtro
+  textual `_do_df`).
 - **URLs do Bileto (`bileto.sympla.com.br`) não passam pelo "descrever":** o id no
   fim delas é de OUTRO namespace, e o BFF de página devolveria um evento alheio sem
   erro HTTP (bug NI-17, achado no spike da Bronze). Além do filtro de URL, o

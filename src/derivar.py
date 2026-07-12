@@ -12,13 +12,17 @@ Derivações diretas (specs 20260710_camada-bronze e 20260710_camada-prata):
   (sympla, catalogo)  -> bairro, popularidade (global_score)
   (sympla, detalhe)   -> cancelado (campo cancelled do BFF)
   (shotgun, catalogo) -> cancelado (eventStatus)
+  (zig, catalogo)     -> bairro (event_location.neighborhood)
 
-Lotes de ingresso (spec 20260710_lotes-ingressos):
-  (sympla, tickets), (ingresse, tickets), (shotgun, catalogo) -> tabela lotes,
-  com preco normalizado como TOTAL a pagar (Sympla já embute a taxa; Ingresse
-  soma price+tax). preco_min/esgotado/tem_gratis de eventos são AGREGAÇÕES dos
-  lotes: preco_min = menor lote PAGO (cortesia não mascara mais o preço real),
-  tem_gratis = há lote grátis não esgotado, esgotado = todos os lotes esgotados.
+Lotes de ingresso (specs 20260710_lotes-ingressos e 20260712_fontes-zig-
+ticketandgo):
+  (sympla, tickets), (ingresse, tickets), (shotgun, catalogo),
+  (ticketandgo, tickets) -> tabela lotes, com preco normalizado como TOTAL a
+  pagar (Sympla já embute a taxa; Ingresse soma price+tax; Ticket and Go soma
+  valor + valor×taxa_conveniencia). preco_min/esgotado/tem_gratis de eventos
+  são AGREGAÇÕES dos lotes: preco_min = menor lote PAGO (cortesia não mascara
+  mais o preço real), tem_gratis = há lote grátis não esgotado, esgotado =
+  todos os lotes esgotados.
 
 Derivações do mesmo evento nunca disputam coluna (cada origem preenche colunas
 distintas), então a ordem de aplicação não importa.
@@ -57,12 +61,18 @@ def _shotgun_catalogo(p):
     return {"cancelado": 0 if status.endswith("EventScheduled") else 1}
 
 
+def _zig_catalogo(p):
+    bairro = ((p.get("event_location") or {}).get("neighborhood") or "").strip()
+    return {"bairro": bairro or None}
+
+
 # (fonte, origem) -> função payload -> {coluna: valor}; valor None é ignorado
 # (não sobrescreve o que outra derivação tiver preenchido).
 _DERIVACOES = {
     ("sympla", "catalogo"): _sympla_catalogo,
     ("sympla", "detalhe"): _sympla_detalhe,
     ("shotgun", "catalogo"): _shotgun_catalogo,
+    ("zig", "catalogo"): _zig_catalogo,
 }
 
 
@@ -140,11 +150,47 @@ def _lotes_shotgun(p):
     return lotes
 
 
+def _lotes_ticketandgo(p):
+    """Detalhe do evento: os lotes vêm em bilhetes[] (evento simples) OU
+    aninhados em setores[].bilhetes[] (evento com setor — nome vira
+    "setor — lote", como no Ingresse). taxa_conveniencia é FRAÇÃO sobre o
+    valor (0.1 = 10%) — normalizamos preco para o total a pagar (valor +
+    taxa). A fonte só lista lote à venda (sem flag de esgotado no payload) —
+    esgotado fica 0."""
+    try:
+        fracao = float(p.get("taxa_conveniencia"))
+    except (TypeError, ValueError):
+        fracao = None
+    grupos = [("", p.get("bilhetes") or [])]
+    grupos += [((s.get("nome") or "").strip(), s.get("bilhetes") or [])
+               for s in (p.get("setores") or []) if isinstance(s, dict)]
+    lotes = []
+    for setor, bilhetes in grupos:
+        for b in bilhetes:
+            if not isinstance(b, dict):
+                continue
+            try:
+                valor = float(b.get("valor_bilhete") or b.get("valor"))
+            except (TypeError, ValueError):
+                valor = None
+            taxa = round(valor * fracao, 2) if (valor and fracao) else None
+            preco = valor + (taxa or 0.0) if valor is not None else None
+            nome = (b.get("nome") or "").strip() or None
+            if setor and nome and setor.casefold() != nome.casefold():
+                nome = f"{setor} — {nome}"
+            elif setor and not nome:
+                nome = setor
+            lotes.append({"nome": nome, "preco": preco, "taxa": taxa,
+                          "gratis": preco == 0, "esgotado": 0})
+    return lotes
+
+
 # (fonte, origem) -> função payload -> lista de lotes (dicts).
 _LOTES = {
     ("sympla", "tickets"): _lotes_sympla,
     ("ingresse", "tickets"): _lotes_ingresse,
     ("shotgun", "catalogo"): _lotes_shotgun,
+    ("ticketandgo", "tickets"): _lotes_ticketandgo,
 }
 
 

@@ -41,7 +41,8 @@ SIM_NOME_FRACA = 0.55   # exige também o mesmo local
 
 # Ordem de preferência para o canônico em caso de empate de completude
 # (Sympla costuma trazer mais metadados).
-_PREF_FONTE = {"sympla": 0, "shotgun": 1, "ingresse": 2}
+_PREF_FONTE = {"sympla": 0, "shotgun": 1, "ingresse": 2, "zig": 3,
+               "ticketandgo": 4}
 
 # Campos cuja presença mede a "completude" de um registro (escolha do canônico).
 _CAMPOS_COMPLETUDE = ["endereco", "local_nome", "organizador", "imagem",

@@ -32,7 +32,8 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
                    data_inicio: str = "", data_fim: str = "",
                    limite: int = 20) -> list[dict]:
     """Busca festas, baladas e shows em Brasília na base unificada (Sympla,
-    Ingresse e Shotgun). Use para responder o que há de festa/balada/show numa
+    Ingresse, Shotgun, Zig e Ticket and Go). Use para responder o que há de
+    festa/balada/show numa
     cidade e período. Todos os argumentos são opcionais. A base já vem limpa:
     anúncios/cursos, eventos cancelados e eventos que sumiram do catálogo da
     fonte (provável cancelamento silencioso) são filtrados, e o mesmo evento

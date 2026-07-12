@@ -1,10 +1,11 @@
 """Atualização sob demanda da base de eventos — o comando único da Fase 0.
 
-Fluxo: raspa as 3 fontes (tolerante a falha por fonte) → upsert (guardando o
-payload bruto na camada Bronze) → marcar sumidos (evento futuro que não
-reapareceu no catálogo) → descrever (busca incremental da descrição p/
-eventos sem ela) → precificar (tickets/lotes de Sympla e Ingresse, refeito a
-cada rodada porque preço é volátil — dentro de uma janela de 30 dias) →
+Fluxo: raspa as 5 fontes (Sympla, Ingresse, Shotgun, Zig, Ticket and Go;
+tolerante a falha por fonte) → upsert (guardando o payload bruto na camada
+Bronze) → marcar sumidos (evento futuro que não reapareceu no catálogo) →
+descrever (busca incremental da descrição p/ eventos sem ela) → precificar
+(tickets/lotes de Sympla, Ingresse e Ticket and Go, refeito a cada rodada
+porque preço é volátil — dentro de uma janela de 30 dias) →
 cinema (grade dos 8 cinemas via Ingresso.com, snapshot → cinema_raw) →
 derivar (colunas calculadas do bruto, sem rede; inclui filmes/sessoes) →
 enriquecimento v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS →
@@ -31,7 +32,7 @@ import derivar
 import enriquecer
 import store
 import tempo
-from scrapers import cinema, ingresse, shotgun, sympla
+from scrapers import cinema, ingresse, shotgun, sympla, ticketandgo, zig
 
 # Preço/lote é volátil, mas quem pergunta ao agente pergunta de "hoje"/"este
 # fim de semana": o precificar só refaz eventos nesta janela; os demais mantêm
@@ -60,6 +61,8 @@ def _raspar(con, incluir_shotgun=True):
         ("sympla", sympla, lambda: sympla.raspar(
             city="brasilia", state="DF", location="Brasília", max_paginas=10)),
         ("ingresse", ingresse, lambda: ingresse.raspar()),
+        ("zig", zig, lambda: zig.raspar(estado="DF")),
+        ("ticketandgo", ticketandgo, lambda: ticketandgo.raspar()),
     ]
     if incluir_shotgun:
         fontes.append(("shotgun", shotgun,
@@ -130,16 +133,17 @@ def _descrever(con, erros, pausa=0.4):
     """Busca a descrição dos eventos que ainda não têm (incremental: o upsert
     preserva descrição já colhida, então só os novos custam requisição).
 
-    Shotgun já traz descrição na raspagem (JSON-LD); Sympla e Ingresse têm
-    endpoints de evento individual (ver raspar_descricao de cada scraper).
-    Falha por evento entra em `erros` (vai para execucoes.erros), além do
-    contador — padrão sistemático precisa ser visível.
+    Shotgun e Ticket and Go já trazem descrição na raspagem (JSON-LD /
+    catálogo); Sympla, Ingresse e Zig têm endpoints de evento individual (ver
+    raspar_descricao de cada scraper). Falha por evento entra em `erros` (vai
+    para execucoes.erros), além do contador — padrão sistemático precisa ser
+    visível.
     """
     # URLs do Bileto ficam de fora: o id no fim delas é de outro namespace e o
     # BFF de página devolveria outro evento (NI-17). Sumidos não valem requisição.
     pendentes = con.execute(
         "SELECT id, fonte, nome, url FROM eventos "
-        "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse') "
+        "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse', 'zig') "
         "AND sumido = 0 AND url IS NOT NULL AND url NOT LIKE %s",
         (f"%{sympla.BILETO_HOST}%",)).fetchall()
     if not pendentes:
@@ -166,6 +170,17 @@ def _descrever(con, erros, pausa=0.4):
                     "UPDATE eventos SET descricao = %s, "
                     "categoria = COALESCE(%s, categoria) WHERE id = %s",
                     (d["descricao"], d.get("categoria"), r["id"]))
+            elif r["fonte"] == "zig":  # slug no fim da URL pública
+                slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
+                d = zig.raspar_descricao(slug)
+                if not _mesmo_nome(r["nome"], d["nome"]):
+                    trocados += 1
+                    erros.append({"passo": "descrever", "evento_id": r["id"],
+                                  "erro": "nome divergente da API — payload "
+                                          "descartado"})
+                    continue  # payload suspeito não entra nem na Bronze
+                con.execute("UPDATE eventos SET descricao = %s WHERE id = %s",
+                            (d["descricao"], r["id"]))
             else:  # ingresse: slug no fim da URL pública
                 slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
                 d = ingresse.raspar_descricao(slug)
@@ -199,14 +214,15 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
     Sympla: só eventos com descrição validada — o endpoint de tickets não
     devolve nome para a guarda do NI-17, então a descrição validada é a âncora
     de que o id não está trocado. Shotgun não precisa deste passo (as offers
-    já vêm no JSON-LD do catálogo).
+    já vêm no JSON-LD do catálogo); Zig fica fora (endpoint de tickets
+    responde vazio — spec 20260712, §3).
     """
     agora = datetime.now(timezone.utc)
     limite = agora + timedelta(days=JANELA_PRECIFICAR_DIAS)
     alvos, fora_janela = [], 0
     for r in con.execute(
             "SELECT id, fonte, id_nativo, url, start_date, descricao "
-            "FROM eventos WHERE fonte IN ('sympla', 'ingresse') "
+            "FROM eventos WHERE fonte IN ('sympla', 'ingresse', 'ticketandgo') "
             "AND sumido = 0"):
         dt = tempo.instante(r["start_date"])
         if not dt or dt < agora:
@@ -223,7 +239,7 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
     escopo = ("todos os futuros" if tudo
               else f"próximos {JANELA_PRECIFICAR_DIAS} dias")
     print(f"\n[precificar] tickets de {len(alvos)} eventos ({escopo}, "
-          f"Sympla/Ingresse)"
+          f"Sympla/Ingresse/Ticket and Go)"
           + (f" — {fora_janela} futuros fora da janela mantêm o último preço"
              if fora_janela else "") + "...")
     buscados = falhas = 0
@@ -231,6 +247,9 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
         try:
             if r["fonte"] == "sympla":
                 t = sympla.raspar_tickets(sympla.id_da_url(r["url"]))
+            elif r["fonte"] == "ticketandgo":  # slug no fim da URL pública
+                t = ticketandgo.raspar_tickets(
+                    r["url"].rstrip("/").rsplit("/", 1)[-1])
             else:
                 t = ingresse.raspar_tickets(r["id_nativo"])
             store.gravar_raw(con, r["id"], "tickets", t["payload"],
