@@ -13,10 +13,12 @@ NÃO há filtro server-side de estado (by_state/uf/state são ignorados) — o
 catálogo nacional é pequeno (~250 eventos, ~6 páginas), então paginamos tudo
 e filtramos event_location.state do lado de cá.
 
-O endpoint de tickets (/events/{id}/tickets) respondeu vazio em todos os
-testes do spike (o front manda params de sessão não mapeados); raspar_tickets
-existe para documentá-lo, mas o pipeline NÃO o chama — preco_min do Zig fica
-NULL ("fonte não informou"). Ver §3 da spec 20260712_fontes-zig-ticketandgo.
+Tickets/preços (NI-23, resolvido em 2026-07-12): o endpoint JSON
+/events/{id}/tickets responde vazio sem códigos opcionais do front (d/s), mas
+a PÁGINA pública do evento é SSR e embute o payload completo de tickets no
+__NEXT_DATA__ (pageProps.tickets: value em R$, fee separada ~12%, esgotados
+em unavailables) — raspar_tickets lê de lá, ainda por HTTP puro, sem
+navegador. Ver spec 20260712_fontes-zig-ticketandgo §2.
 """
 
 import html
@@ -65,12 +67,31 @@ def raspar_descricao(slug):
             "payload": ev}  # JSON bruto, p/ a camada Bronze
 
 
-def raspar_tickets(id_nativo):
-    """Busca os lotes de um evento. ATENCAO: respondeu vazio em todos os
-    testes do spike (o front manda params de sessao nao mapeados) — o
-    pipeline NAO chama esta funcao; fica como documentacao do endpoint para
-    quando o catalogo DF do Zig crescer (spec §3)."""
-    return {"payload": _get_url(f"{API}/events/{id_nativo}/tickets")}
+_NEXT_DATA_RE = re.compile(
+    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S)
+
+
+def raspar_tickets(slug):
+    """Busca os lotes/precos de um evento no __NEXT_DATA__ da PAGINA publica
+    (o SSR embute pageProps.tickets; o endpoint JSON /events/{id}/tickets
+    responde vazio sem codigos opcionais do front — NI-23). HTTP puro.
+
+    Retorna {"payload": dict de tickets, "nome": nome do evento na pagina}
+    — o chamador DEVE conferir o nome (guarda uniforme contra pagina
+    trocada/redirecionada, mesmo padrao do descrever). Levanta excecao em
+    erro de rede/HTTP ou se a pagina vier sem __NEXT_DATA__ (layout mudou).
+    """
+    req = urllib.request.Request(
+        f"https://zig.tickets/eventos/{urllib.parse.quote(slug)}",
+        headers={"User-Agent": UA, "Accept": "text/html"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        pagina = r.read().decode("utf-8", "replace")
+    m = _NEXT_DATA_RE.search(pagina)
+    if not m:
+        raise ValueError("pagina do evento sem __NEXT_DATA__ (layout mudou?)")
+    props = (json.loads(m.group(1)).get("props") or {}).get("pageProps") or {}
+    return {"payload": props.get("tickets") or {},
+            "nome": (props.get("event") or {}).get("name")}
 
 
 def _normalizar(ev):

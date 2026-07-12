@@ -34,10 +34,13 @@ incorporou — os assets vêm de `assets.superticket.com.br`):
 - Detalhe: `GET /events/{slug}` → `description` (HTML), `event_location.name`
   (nome do local, ex.: "ARENA CONIC"), `producer`, `event_sectors`.
 - Tickets: `GET /events/{id}/tickets` respondeu **vazio** em todos os testes
-  (mesmo em evento à venda) — o front manda params de sessão (`d`/`s`) que não
-  mapeamos; `event_sectors` tem preço mas com semântica ambígua (inteiros tipo
-  `1000`, "discounts" percentuais, sem nome de lote). **Preço do Zig fica fora
-  do v1** (preco_min NULL = "fonte não informou", convenção já existente).
+  (mesmo em evento à venda) — o front manda params opcionais (`d`/`s`,
+  cupom/vendedor) que não mapeamos. **Resolvido no NI-23 (mesmo dia): a página
+  pública é SSR e embute o payload completo em `__NEXT_DATA__` →
+  `pageProps.tickets`** (value em R$ + fee separada ~12%, esgotados em
+  `unavailables[]`) — HTTP puro, sem navegador. De quebra, decifrou o
+  `event_sectors`: `price × (1 − discount/100)` = value do ingresso. O
+  `json_ld` da página tem offers com preços ERRADOS (bug da fonte) — não usar.
 - URL pública: `https://zig.tickets/eventos/{slug}` (confirmado por HTTP 200).
 
 ### Ticket and Go (ticketandgo.com.br)

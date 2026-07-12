@@ -49,6 +49,25 @@ TNG_CATALOGO = {
     "descricao": "<p><strong>PAGODE</strong> do bom &amp; barato</p>",
 }
 
+ZIG_TICKETS = {  # forma do pageProps.tickets do __NEXT_DATA__ (NI-23):
+    # value em R$ + fee separada; esgotados vêm em unavailables[]
+    "tickets": [
+        {"id": 263110, "fee": 10.68, "value": 89, "public": 1,
+         "name": "Geral [Infantil (6-12 anos)] Individual",
+         "sector_name": "Geral"},
+        {"id": 7, "fee": None, "value": 0, "public": 1,
+         "name": "Cortesia", "sector_name": "Pista"},
+        {"id": 8, "fee": 1, "value": 10, "public": 0,
+         "name": "Lote oculto", "sector_name": "Geral"},
+    ],
+    "availables": [],
+    "unavailables": [
+        {"id": 263111, "fee": 32.28, "value": 269, "public": 1,
+         "name": "Geral [Adulto - Meia Entrada] Individual",
+         "sector_name": "Geral"},
+    ],
+}
+
 TNG_TICKETS = {  # forma do GET /eventos/{slug} (data), capturada no spike:
     # lotes em bilhetes[] (evento simples) E em setores[].bilhetes[] (com setor)
     "taxa_conveniencia": 0.1,
@@ -125,9 +144,28 @@ def main():
     # --- derivação: bairro do Zig; lotes do Ticket and Go com taxa 10% ---
     store.gravar_raw(con, "ticketandgo:36999", "tickets", TNG_TICKETS,
                      "2026-07-12T00:00:00+00:00")
+    store.gravar_raw(con, "zig:22670", "tickets", ZIG_TICKETS,
+                     "2026-07-12T00:00:00+00:00")
     derivar.aplicar(con)
     r = con.execute("SELECT bairro FROM eventos WHERE id = 'zig:22670'").fetchone()
     assert r["bairro"] == "Asa Norte", r["bairro"]
+
+    # lotes do Zig (NI-23): preco = value + fee; unavailables = esgotado;
+    # public=0 não entra; sector_name só prefixa quando o nome não o traz
+    lotes_zig = con.execute(
+        "SELECT nome, preco, taxa, gratis, esgotado FROM lotes "
+        "WHERE evento_id = 'zig:22670' ORDER BY ordem").fetchall()
+    assert [dict(lt) for lt in lotes_zig] == [
+        {"nome": "Geral [Infantil (6-12 anos)] Individual", "preco": 99.68,
+         "taxa": 10.68, "gratis": 0, "esgotado": 0},
+        {"nome": "Pista — Cortesia", "preco": 0.0, "taxa": None,
+         "gratis": 1, "esgotado": 0},
+        {"nome": "Geral [Adulto - Meia Entrada] Individual", "preco": 301.28,
+         "taxa": 32.28, "gratis": 0, "esgotado": 1},
+    ], [dict(lt) for lt in lotes_zig]
+    r = con.execute("SELECT preco_min, tem_gratis, esgotado FROM eventos "
+                    "WHERE id = 'zig:22670'").fetchone()
+    assert dict(r) == {"preco_min": 99.68, "tem_gratis": 1, "esgotado": 0}, dict(r)
     lotes = con.execute("SELECT nome, preco, taxa, gratis, esgotado FROM lotes "
                         "WHERE evento_id = 'ticketandgo:36999' "
                         "ORDER BY ordem").fetchall()

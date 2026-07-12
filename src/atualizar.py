@@ -4,8 +4,8 @@ Fluxo: raspa as 5 fontes (Sympla, Ingresse, Shotgun, Zig, Ticket and Go;
 tolerante a falha por fonte) → upsert (guardando o payload bruto na camada
 Bronze) → marcar sumidos (evento futuro que não reapareceu no catálogo) →
 descrever (busca incremental da descrição p/ eventos sem ela) → precificar
-(tickets/lotes de Sympla, Ingresse e Ticket and Go, refeito a cada rodada
-porque preço é volátil — dentro de uma janela de 30 dias) →
+(tickets/lotes de Sympla, Ingresse, Zig e Ticket and Go, refeito a cada
+rodada porque preço é volátil — dentro de uma janela de 30 dias) →
 cinema (grade dos 8 cinemas via Ingresso.com, snapshot → cinema_raw) →
 derivar (colunas calculadas do bruto, sem rede; inclui filmes/sessoes) →
 enriquecimento v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS →
@@ -213,17 +213,17 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
 
     Sympla: só eventos com descrição validada — o endpoint de tickets não
     devolve nome para a guarda do NI-17, então a descrição validada é a âncora
-    de que o id não está trocado. Shotgun não precisa deste passo (as offers
-    já vêm no JSON-LD do catálogo); Zig fica fora (endpoint de tickets
-    responde vazio — spec 20260712, §3).
+    de que o id não está trocado. Zig: lê o __NEXT_DATA__ da página pública
+    (NI-23) e valida o nome devolvido. Shotgun não precisa deste passo (as
+    offers já vêm no JSON-LD do catálogo).
     """
     agora = datetime.now(timezone.utc)
     limite = agora + timedelta(days=JANELA_PRECIFICAR_DIAS)
     alvos, fora_janela = [], 0
     for r in con.execute(
-            "SELECT id, fonte, id_nativo, url, start_date, descricao "
-            "FROM eventos WHERE fonte IN ('sympla', 'ingresse', 'ticketandgo') "
-            "AND sumido = 0"):
+            "SELECT id, fonte, id_nativo, nome, url, start_date, descricao "
+            "FROM eventos WHERE fonte IN ('sympla', 'ingresse', 'zig', "
+            "'ticketandgo') AND sumido = 0"):
         dt = tempo.instante(r["start_date"])
         if not dt or dt < agora:
             continue
@@ -239,7 +239,7 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
     escopo = ("todos os futuros" if tudo
               else f"próximos {JANELA_PRECIFICAR_DIAS} dias")
     print(f"\n[precificar] tickets de {len(alvos)} eventos ({escopo}, "
-          f"Sympla/Ingresse/Ticket and Go)"
+          f"Sympla/Ingresse/Zig/Ticket and Go)"
           + (f" — {fora_janela} futuros fora da janela mantêm o último preço"
              if fora_janela else "") + "...")
     buscados = falhas = 0
@@ -247,6 +247,14 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
         try:
             if r["fonte"] == "sympla":
                 t = sympla.raspar_tickets(sympla.id_da_url(r["url"]))
+            elif r["fonte"] == "zig":  # página pública (slug no fim da URL)
+                t = zig.raspar_tickets(r["url"].rstrip("/").rsplit("/", 1)[-1])
+                if not _mesmo_nome(r["nome"], t.get("nome")):
+                    falhas += 1
+                    erros.append({"passo": "precificar", "evento_id": r["id"],
+                                  "erro": "nome divergente da página — "
+                                          "payload descartado"})
+                    continue  # payload suspeito não entra nem na Bronze
             elif r["fonte"] == "ticketandgo":  # slug no fim da URL pública
                 t = ticketandgo.raspar_tickets(
                     r["url"].rstrip("/").rsplit("/", 1)[-1])

@@ -127,8 +127,10 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   plataforma que a Zig incorporou), sem auth/navegador. **Sem filtro server-side de
   estado**: pagina o catálogo nacional (~6 páginas) e filtra
   `event_location.state == "DF"` do lado de cá. Descrição via `GET /events/{slug}`
-  (`raspar_descricao`), no passo "descrever". **Preço fica fora** (endpoint de
-  tickets responde vazio — spec NI-22 §3); preco_min NULL = "não informou".
+  (`raspar_descricao`), no passo "descrever". **Preço vem do `__NEXT_DATA__` da
+  página pública** (NI-23: o SSR embute `pageProps.tickets` — value + fee separada;
+  o endpoint JSON de tickets responde vazio sem códigos do front e o `json_ld` da
+  página tem preços errados, não usar), no passo "precificar" com guarda de nome.
 - `src/scrapers/ticketandgo.py` — `POST production-api-v1-service.ticketandgo.com.br/
   eventos/pesquisa` com `{"pesquisa": ""}` devolve o **catálogo inteiro já com a
   descrição** (sem passo "descrever"). cidade/estado vêm NULOS: o filtro DF é

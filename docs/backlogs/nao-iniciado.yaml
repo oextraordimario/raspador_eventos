@@ -172,40 +172,16 @@
 # Fallbacks por rede auditados e documentados em spikes/cinema/README.md
 # (implementar só se a fonte primária quebrar).
 
-- codigo: NI-23
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: raspagem
-  fase: 0
-  titulo: "Preço do Zig — mapear os params de sessão do endpoint de tickets"
-  resumo: "GET /events/{id}/tickets da API do Zig/SuperTicket responde vazio sem os params d/s que o front gera; event_sectors tem preço mas semântica ambígua — interceptar o fluxo real com Playwright (padrão discover_sympla) e derivar os lotes"
-  data: 2026-07-12
-  depende_de: []
-  relacionado: []
-  caso_real: ["spike NI-22 (2026-07-12): os 3 eventos DF do Zig (Arena Brasil, Arraial do Cordel, Turnê Xamã) ficaram com preco_min NULL — /tickets devolve {\"tickets\": [], \"availables\": []} mesmo em evento à venda"]
-  detalhe: |
-    Ficou de fora do v1 do NI-22 (spec 20260712_fontes-zig-ticketandgo §3) por
-    custo-benefício: 3 eventos DF não pagavam a engenharia reversa. Registrado
-    com prioridade alta a pedido do usuário (2026-07-12).
-
-    **O problema:** o front do zig.tickets chama `events/{id}/tickets` com dois
-    params de sessão (`d` e `s`, vistos no chunk JS: `hP.get(..., {d: t?.d,
-    s: t?.s})`) que não mapeamos — sem eles a API devolve listas vazias SEM
-    erro. O `event_sectors` do detalhe tem números de preço, mas semântica
-    ambígua (ex.: `price: 1000` sem moeda/escala explícita, `discount: 91.1`
-    percentual?, sem nome de lote) — chutar mostraria preço errado ao agente,
-    pior que o NULL ("fonte não informou") atual.
-
-    **Correção desenhada:** interceptar XHR/fetch do fluxo real de compra num
-    navegador (mesmo padrão do src/scrapers/discover_sympla.py) para capturar
-    de onde vêm `d`/`s` (data selecionada? id de sessão? token de carrinho?) e
-    como o front monta o preço exibido a partir de event_sectors. Com a
-    semântica confirmada: raspar_tickets do zig.py entra no passo precificar
-    do atualizar.py e uma função _lotes_zig no derivar.py deriva a tabela
-    lotes (payload já ficaria na Bronze — corrigir depois é a seco). Validar
-    contra o preço mostrado na página pública dos 3 eventos DF reais.
+# NI-23 (preço do Zig) foi RESOLVIDO em 2026-07-12, no mesmo dia do registro,
+# sem precisar interceptar o fluxo de compra: a PÁGINA pública do evento é SSR
+# e embute o payload completo de tickets no __NEXT_DATA__ (pageProps.tickets:
+# value em R$ + fee separada ~12%, esgotados em unavailables[]) — HTTP puro,
+# sem navegador. O endpoint JSON /events/{id}/tickets segue vazio sem os
+# códigos opcionais d/s do front (cupom/vendedor), e o json_ld da página tem
+# preços ERRADOS (bug da fonte) — não usar. zig.raspar_tickets(slug) lê a
+# página, o _precificar valida o nome devolvido, e _lotes_zig (derivar.py)
+# deriva a tabela lotes. Spec atualizada: 20260712_fontes-zig-ticketandgo
+# §2.1/§2.4; testes em tests/test_zig_ticketandgo.py.
 
 # NI-22 (fontes novas: Zig e Ticket and Go) foi IMPLEMENTADO em 2026-07-12, no
 # mesmo dia do pedido do usuário (spike spikes/zig-ticketandgo/ + spec

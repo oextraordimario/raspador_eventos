@@ -17,8 +17,9 @@ Derivações diretas (specs 20260710_camada-bronze e 20260710_camada-prata):
 Lotes de ingresso (specs 20260710_lotes-ingressos e 20260712_fontes-zig-
 ticketandgo):
   (sympla, tickets), (ingresse, tickets), (shotgun, catalogo),
-  (ticketandgo, tickets) -> tabela lotes, com preco normalizado como TOTAL a
-  pagar (Sympla já embute a taxa; Ingresse soma price+tax; Ticket and Go soma
+  (zig, tickets), (ticketandgo, tickets) -> tabela lotes, com preco
+  normalizado como TOTAL a pagar (Sympla já embute a taxa; Ingresse e Zig
+  somam preço+taxa separada; Ticket and Go soma
   valor + valor×taxa_conveniencia). preco_min/esgotado/tem_gratis de eventos
   são AGREGAÇÕES dos lotes: preco_min = menor lote PAGO (cortesia não mascara
   mais o preço real), tem_gratis = há lote grátis não esgotado, esgotado =
@@ -150,6 +151,37 @@ def _lotes_shotgun(p):
     return lotes
 
 
+def _lotes_zig(p):
+    """pageProps.tickets da pagina publica (NI-23): tickets[] com value (R$)
+    e fee separada (~12%) — preco = total a pagar (value + fee), como no
+    Ingresse. unavailables[] traz os esgotados na mesma forma. O nome ja vem
+    com setor e condicao embutidos ("Geral [Adulto - Meia Entrada]
+    Individual") — quando nao vem, prefixamos o sector_name."""
+    esgotados = {t.get("id") for t in (p.get("unavailables") or [])
+                 if isinstance(t, dict)}
+    lotes, vistos = [], set()
+    for t in (p.get("tickets") or []) + (p.get("unavailables") or []):
+        if (not isinstance(t, dict) or t.get("public") == 0
+                or t.get("id") in vistos):
+            continue
+        vistos.add(t.get("id"))
+        valor = t.get("value")
+        taxa = t.get("fee")
+        taxa = float(taxa) if isinstance(taxa, (int, float)) else None
+        preco = (round(float(valor) + (taxa or 0.0), 2)
+                 if isinstance(valor, (int, float)) else None)
+        nome = (t.get("name") or "").strip() or None
+        setor = (t.get("sector_name") or "").strip()
+        if setor and nome and not nome.casefold().startswith(setor.casefold()):
+            nome = f"{setor} — {nome}"
+        elif setor and not nome:
+            nome = setor
+        lotes.append({"nome": nome, "preco": preco, "taxa": taxa,
+                      "gratis": preco == 0,
+                      "esgotado": 1 if t.get("id") in esgotados else 0})
+    return lotes
+
+
 def _lotes_ticketandgo(p):
     """Detalhe do evento: os lotes vêm em bilhetes[] (evento simples) OU
     aninhados em setores[].bilhetes[] (evento com setor — nome vira
@@ -190,6 +222,7 @@ _LOTES = {
     ("sympla", "tickets"): _lotes_sympla,
     ("ingresse", "tickets"): _lotes_ingresse,
     ("shotgun", "catalogo"): _lotes_shotgun,
+    ("zig", "tickets"): _lotes_zig,
     ("ticketandgo", "tickets"): _lotes_ticketandgo,
 }
 

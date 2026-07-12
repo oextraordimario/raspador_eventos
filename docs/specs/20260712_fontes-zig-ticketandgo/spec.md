@@ -70,8 +70,17 @@ local, `ULTIMA_RASPAGEM` com `coletados`/`total_site` ao fim.
   `raspar_descricao(slug)` → `{"descricao", "nome", "payload"}` (HTML limpo
   pelo mesmo `_limpar_html` de Sympla/Ingresse; devolve `nome` para a guarda
   uniforme de nome do `_descrever` — barata, mesmo sem namespace ambíguo
-  conhecido tipo Bileto/NI-17). `raspar_tickets(id)` existe e documenta o
-  endpoint, mas **não é chamado pelo pipeline** (§3).
+  conhecido tipo Bileto/NI-17). `raspar_tickets(slug)` (NI-23, resolvido no
+  mesmo dia): a página pública é SSR e embute o payload de tickets no
+  `__NEXT_DATA__` (`pageProps.tickets`) — lê de lá por HTTP puro, sem
+  navegador, e devolve também o `nome` da página para a guarda do
+  `_precificar`. O endpoint JSON `/events/{id}/tickets` segue respondendo
+  vazio sem códigos opcionais do front (`d`/`s` — cupom/vendedor); a página
+  dispensa mapeá-los. Nota: o `json_ld` da página TEM offers, mas com preços
+  ERRADOS (bug da fonte: mistura os percentuais de desconto do
+  `event_sectors` com preço) — não usar; `pageProps.tickets` é o que a UI
+  renderiza. O `event_sectors` do detalhe ficou decifrado de tabela:
+  `price × (1 − discount/100)` = o `value` real do ingresso.
 - Ticket and Go: `raspar()` faz o POST de pesquisa vazia e filtra DF.
   Normaliza `descricao` direto do catálogo (HTML → texto). `raspar_tickets(slug)`
   → `{"payload"}` = o `data` do detalhe (bilhetes + sessoes + taxa), para o
@@ -92,14 +101,21 @@ marcas) é aceitável: erro para o lado de perder, não de poluir outra cidade.
 - `_descrever`: passa a incluir `zig` (branch por slug no fim da URL, guarda
   `_mesmo_nome` como no Sympla). Ticket and Go NÃO entra (descrição já vem no
   catálogo; o COALESCE do upsert a preserva).
-- `_precificar`: passa a incluir `ticketandgo` (slug da URL →
-  `raspar_tickets`), dentro da mesma janela de 30 dias. Zig fica fora (§3).
+- `_precificar`: passa a incluir `ticketandgo` e `zig` (slug da URL →
+  `raspar_tickets`), dentro da mesma janela de 30 dias. No Zig o payload só
+  entra na Bronze se o nome da página bater com o da base (`_mesmo_nome`).
 - Relatório/`execucoes`: nada a fazer — fontes novas aparecem sozinhas
   (dicts por fonte, comparação vs. rodada anterior idem).
 
 ### 2.4 Derivação (`derivar.py`)
 
 - `("zig", "catalogo")` → `bairro` (= `event_location.neighborhood`, trim).
+- `("zig", "tickets")` → lotes do `pageProps.tickets` (NI-23): para cada
+  ticket público de `tickets[] + unavailables[]`, `preco = value + fee`
+  (fee é a taxa separada, ~12%), `gratis = preco == 0`, `esgotado = 1` se o
+  id está em `unavailables`. O nome já embute setor e condição ("Geral
+  [Adulto - Meia Entrada] Individual"); `sector_name` só prefixa quando o
+  nome não o traz.
 - `("ticketandgo", "tickets")` → lotes: vêm em `bilhetes[]` (evento simples)
   **OU aninhados em `setores[].bilhetes[]`** (evento com setor — achado na
   primeira rodada real: 26/37 payloads só tinham setores; o nome do lote vira
@@ -120,11 +136,9 @@ marcas) é aceitável: erro para o lado de perder, não de poluir outra cidade.
 
 ## 3. Fora de escopo
 
-- **Preço/lotes do Zig**: `GET /events/{id}/tickets` respondeu vazio em todos
-  os testes (o front manda params de sessão não mapeados) e `event_sectors`
-  tem semântica ambígua (inteiros sem nome de lote, "discounts" percentuais).
-  `preco_min` fica NULL ("fonte não informou", convenção existente). Reabrir
-  se o catálogo DF do Zig crescer a ponto de valer o reverse-engineering.
+- ~~**Preço/lotes do Zig**~~ — ficou fora do v1 (endpoint de tickets vazio,
+  `event_sectors` ambíguo), virou o **NI-23** a pedido do usuário e foi
+  **resolvido no mesmo dia** via `__NEXT_DATA__` da página pública (§2.1/§2.4).
 - **Ruído de teste do Ticket and Go** ("Tarifa top" com fim em 2040, "teste
   jp"): política de ruído existente (enriquecer v1 / NI-04), não é papel do
   scraper. Se poluir o dogfooding, vira termo novo no filtro v1.
