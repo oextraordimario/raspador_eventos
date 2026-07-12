@@ -13,7 +13,7 @@
 ## 1. Visão e problema
 
 Descobrir "o que tem pra fazer hoje à noite em Brasília" hoje exige **pingar de
-site em site** — Sympla, Ingresse, Shotgun, Instagram — cada um com sua busca
+site em site** — Sympla, Ingresse, Shotgun, Zig, Ticket and Go, Instagram — cada um com sua busca
 capenga, sem linguagem natural, e no caso do Sympla com uma **UX sofrível**. Ninguém
 tem paciência de varrer tudo, então a pessoa vê só um pedaço do que está rolando e
 decide no escuro.
@@ -30,8 +30,8 @@ sobre uma base limpa e estruturada. **Essa é a razão de existir do produto.**
 A proposta do MVP é fazer isso **desaparecer dentro do agente de IA que a pessoa já
 usa**. Ela pergunta — *"quais festas de pagode tem neste fim de semana em Brasília?"* —
 e o agente responde com eventos reais (data, local, link), tendo por baixo uma base
-unificada e limpa das três plataformas. Sem abrir site nenhum, sem aprender filtro
-nenhum.
+unificada e limpa das cinco plataformas de ingresso. Sem abrir site nenhum, sem
+aprender filtro nenhum.
 
 A ambição de longo prazo é que isso funcione **sem a pessoa configurar nada**: o
 raspador surge naturalmente quando ela pergunta ao agente, porque o agente encontra
@@ -170,7 +170,7 @@ e agora também pela restrição de disponibilidade acima):
 
 ```
   WRITE (raspagem — processo pesado, Playwright/Chromium)
-    eventos:   [ Sympla ] [ Ingresse ] [ Shotgun ]   [ Cinemark / Kinoplex … ]
+    eventos:   [ Sympla ] [ Ingresse ] [ Shotgun ] [ Zig ] [ Ticket and Go ]   [ Cinemark / Kinoplex … ]
     contexto:  [ Instagram da festa / da casa ]  (última etapa — enriquecimento)
          └────────────────────┬────────────────────┘
                               ▼
@@ -202,10 +202,11 @@ e agora também pela restrição de disponibilidade acima):
   o "sempre no ar" é exatamente o que a restrição de disponibilidade exige; por isso
   ele sobe já na Fase 0b, não na Fase 1.
 - **A técnica de raspagem** (herdada da PoC): interceptar a API JSON interna do
-  front, não parsear HTML. Sympla e Ingresse via HTTP puro; **Shotgun exige
-  Playwright** (bloqueia HTTP puro com 429 e renderiza via RSC). **Cinemas** (Cinemark,
-  Kinoplex...) e **Instagram** são frentes novas, com técnica a mapear — Instagram em
-  especial é frágil e resistente à raspagem (por isso, última etapa).
+  front, não parsear HTML. Sympla, Ingresse, Zig e Ticket and Go via HTTP puro;
+  **Shotgun exige Playwright** (bloqueia HTTP puro com 429 e renderiza via RSC).
+  **Cinemas** (Cinemark, Kinoplex...) já entraram pela API da Ingresso.com;
+  **Instagram** é a frente com técnica a mapear — frágil e resistente à raspagem
+  (por isso, última etapa).
 
 ## 6. Roadmap por fases
 
@@ -277,8 +278,8 @@ As fases 0/1/2 acima são o **eixo de distribuição** (quem descobre/usa). Em p
 a **cobertura de dados** cresce numa trilha própria, toda dogfoodada pelo autor e
 ordenada do mais barato ao mais trabalhoso:
 
-1. **Núcleo — festas/baladas/shows** (Sympla, Ingresse, Shotgun). É o que já existe;
-   base da Fase 0.
+1. **Núcleo — festas/baladas/shows** (Sympla, Ingresse, Shotgun; Zig e Ticket and
+   Go somados em 2026-07-12, NI-22). É o que já existe; base da Fase 0.
 2. **Cinema** (Cinemark, Kinoplex...): novas fontes, mesmo schema cidade-aware. Subetapa
    separada por adicionar complexidade, mas ainda no MVP.
 3. **Instagram + classificação por LLM (última etapa do MVP):** raspar o Instagram da
