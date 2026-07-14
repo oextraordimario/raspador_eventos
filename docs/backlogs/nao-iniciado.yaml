@@ -349,14 +349,14 @@
     precisam de cláusula especial numa PoC.
 
 - codigo: NI-11
-  status: nao-iniciado
+  status: pendente
   prioridade: media
   rank: 2
   esforco: M
   eixo: distribuicao
   fase: 1
-  titulo: "Abrir o MCP remoto a conhecidos + instrumentação de uso"
-  resumo: "transformar o MCP remoto de uso próprio (NI-20) em connector instalável por terceiro, com auth adequada e registro de quem/quando consultou — sem medição o critério da Fase 1 ('um conhecido usa') não fecha"
+  titulo: "Abrir o MCP remoto ao público, com OAuth + instrumentação de uso"
+  resumo: "transformar o MCP remoto de uso próprio (NI-20) em connector público com login/consentimento (OAuth via provedor gerenciado) e registro de quem/quando consultou — sem medição o critério da Fase 1 ('um conhecido usa') não fecha"
   data: 2026-07-09
   depende_de: [NI-20]
   relacionado: [NI-10]
@@ -367,3 +367,22 @@
     auth adequada (o token único de uso próprio não distingue pessoas) e
     instrumentação. Instrumentação é requisito, não enfeite (PRD §10): o critério de
     fase só fecha com uso de terceiro comprovado por registro.
+
+    **SPEC APROVADA (2026-07-14): docs/specs/20260714_abrir-mcp-a-conhecidos/**
+    (com anexo `pesquisa-clientes-mcp.md`). Desenho: a URL do connector vira
+    PÚBLICA (https://raspador-eventos.vercel.app/mcp) e o controle vai para o
+    login — OAuth com Dynamic Client Registration, servidor de autorização
+    gerenciado (WorkOS AuthKit; Auth0 de fallback). O SDK mcp (1.10.1) já é
+    Resource Server: 401 + WWW-Authenticate, /.well-known/oauth-protected-resource
+    e validação do token vêm prontos; escrevemos só o TokenVerifier (JWKS).
+    Tabelas novas `usuarios` + `acessos`; landing page estática com o passo a
+    passo; MCP_SEGREDO morre.
+
+    Decisões confirmadas pelo autor na revisão: acesso ABERTO a quem logar (sem
+    allowlist; controle reativo por teto + bloqueio), guardar e-mail/nome do
+    login (com aviso na landing) e NI-10 (cron) ANTES de divulgar o link — base
+    parada vira resposta errada com cara de certa para quem não é o autor.
+
+    Alternativa descartada (não reabrir sem fato novo): token por pessoa na URL.
+    A Anthropic desaconselha credencial na URL do connector e a spec de
+    authorization do MCP proíbe access token em query string — ver spec §0.
