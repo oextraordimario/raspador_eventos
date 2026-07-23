@@ -13,17 +13,50 @@
 #   tipo           casa | produtora — casa: o local do evento E a casa;
 #                  produtora: o local vem do flyer (quando extraido)
 #   ativo          false = pula na raspagem sem perder o historico ja na base
+#   adicionado_em  data (ISO AAAA-MM-DD) em que a casa entrou nesta watchlist —
+#                  historico da curadoria legivel no proprio dado (o git ja versiona,
+#                  mas nem sempre e comodo escavar o blame)
 #   local_aliases  grafias do local vistas nas plataformas de ingresso — ajudam
 #                  o dedupe a conciliar o post com o evento do Sympla/Zig/etc.
+#   nota           (opcional) observacao livre da curadoria — quirks uteis pra
+#                  interpretar a casa: "so divulga no Insta", "posta agenda semanal
+#                  em carrossel", motivo de ativo:false, etc.
 
 - usuario: cultorockbar
   nome: Culto Rock Bar
   tipo: casa
   ativo: true
+  adicionado_em: 2026-07-23
   local_aliases: ["Culto", "Culto Rock Bar", "Culto Bar"]
 
 - usuario: ordinariobar
   nome: Ordinário Bar & Música
   tipo: casa
   ativo: true
+  adicionado_em: 2026-07-23
   local_aliases: ["Ordinário", "Ordinário Bar", "Ordinario Bar e Musica"]
+
+# Semeados em 2026-07-23 (pelo autor).
+- usuario: galpao17df
+  nome: Galpão 17
+  tipo: casa
+  ativo: true
+  adicionado_em: 2026-07-23
+  local_aliases: ["Galpão 17", "Galpao 17", "Galpão 17 DF"]
+  nota: "nome e local_aliases inferidos do @; validar quando o dedupe conciliar com um evento real"
+
+- usuario: londonmusicbar
+  nome: London Music Bar
+  tipo: casa
+  ativo: true
+  adicionado_em: 2026-07-23
+  local_aliases: ["London Music Bar", "London Bar"]
+  nota: "nome e local_aliases inferidos do @; validar quando o dedupe conciliar com um evento real"
+
+- usuario: ukmusichall
+  nome: UK Music Hall
+  tipo: casa
+  ativo: true
+  adicionado_em: 2026-07-23
+  local_aliases: ["UK Music Hall", "UK Music"]
+  nota: "nome e local_aliases inferidos do @; validar quando o dedupe conciliar com um evento real"
