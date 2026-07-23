@@ -158,11 +158,13 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   (`dados/perfis_instagram.yaml`) via CLI do **Monid** (`monid`, subprocess —
   revenda dos endpoints TikHub; chave no config do monid, nunca no repo; ~$0,006
   por perfil/rodada, o 1º custo recorrente aceito do projeto). Também abriga
-  `extrair(...)` (legenda + flyer → JSON estruturado, via `claude -p` headless com
-  Sonnet na ASSINATURA — o env do subprocesso remove `ANTHROPIC_API_KEY`, que
-  teria precedência sobre o login) e `montar_start_date(...)` (data "25/07" do
-  flyer + `taken_at` do post → próxima ocorrência; ano explícito no passado =
-  retrospectiva, não vira evento). Quem transforma post em evento
+  `extrair(...)` (legenda + TODAS as páginas do carrossel numa chamada de visão →
+  JSON com **LISTA de eventos** — carrossel-agenda vira um item por evento, v1.1
+  §8; via `claude -p` headless com Sonnet na ASSINATURA — o env do subprocesso
+  remove `ANTHROPIC_API_KEY`, que teria precedência sobre o login) e
+  `montar_start_date(...)` (data "25/07" do flyer + `taken_at` do post → próxima
+  ocorrência no fuso de Brasília; ano explícito no passado = retrospectiva, e ano
+  inferido a mais de 270 dias não vira evento). Quem transforma post em evento
   (`fonte='instagram'`) é `derivar.aplicar_instagram`. Spec:
   `docs/specs/20260723_instagram-como-fonte/`.
 - Cada scraper preenche `ULTIMA_RASPAGEM` (módulo) com `coletados`/`total_site`
@@ -200,22 +202,30 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   não tem id estável entre semanas, então a grade nova substitui a anterior —
   sem upsert, sem dedupe, sem `sumido`; o id do FILME é estável e é a PK).
   **Instagram**: `aplicar_instagram(con)` reconstrói os eventos `fonte='instagram'`
-  do zero a partir de `instagram_raw` (payload do post + extração do flyer, ambos
-  na Bronze — a "Prata" do Instagram é a própria `eventos`). Guarda de entrada:
-  só vira evento post com `e_evento=true` + confiança ALTA + data resolvida (errar
-  p/ o lado de NÃO criar). Preço do flyer vira lote sintético ("entrada (do
-  flyer)") p/ as agregações funcionarem sem caso especial. Roda DEPOIS de
-  `aplicar()` (que trunca `lotes`).
+  do zero a partir de `instagram_raw` (payload do post + extração, ambos na
+  Bronze — a "Prata" do Instagram é a própria `eventos`). A extração é uma LISTA
+  (v1.1): post comum = 1 item → `instagram:<code>`; carrossel-agenda = N itens →
+  `instagram:<code>:<n>` com URL `?img_index=<n>` (n = posição na lista, estável
+  — itens reprovados não renumeram); formato antigo (objeto com `e_evento`) é
+  lido por adaptador, sem re-extrair. Guarda POR ITEM: confiança ALTA + nome +
+  data resolvida (errar p/ o lado de NÃO criar). Preço do flyer vira lote
+  sintético ("entrada (do flyer)") p/ as agregações funcionarem sem caso
+  especial. Roda DEPOIS de `aplicar()` (que trunca `lotes`).
 - `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
-  (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas cross-fonte
-  (mesmo dia + nome/local similares). **Marca, não apaga** — quem esconde é a
-  consulta. `aplicar(con)` é idempotente: reseta e recalcula tudo, então mudar
-  regra não exige re-raspar (`python src/atualizar.py --so-enriquecer`).
-  O dedupe também é a **conciliação Instagram ↔ plataforma** (NI-25): o post que
-  virou evento agrupa com o evento do Sympla/Zig pelo mesmo mecanismo, com os
-  `local_aliases` da watchlist canonizando o local ("Culto" ↔ "Culto Rock Bar")
-  via parâmetro `aliases_local`; `instagram` é o último em `_PREF_FONTE` (quem
-  vende o ingresso é o canônico; o post entra em `outras_urls`).
+  (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas — cross-fonte
+  (mesmo dia + nome/local similares) e **intra-fonte** (NI-01, regra mais
+  apertada: mesmo dia + mesmo local OBRIGATÓRIO + nome ≥ `SIM_NOME_INTRA`).
+  O "mesmo dia" é o dia LOCAL de Brasília (bucket UTC separava 20h de 22h da
+  mesma noite). **Marca, não apaga** — quem esconde é a consulta. `aplicar(con)`
+  é idempotente: reseta e recalcula tudo, então mudar regra não exige re-raspar
+  (`python src/atualizar.py --so-enriquecer`).
+  O dedupe também é a **conciliação Instagram ↔ plataforma** (NI-25) e
+  **agenda ↔ post do dia** (v1.1 §8.4): o post que virou evento agrupa pelo
+  mesmo mecanismo, com os `local_aliases` da watchlist canonizando o local
+  ("Culto" ↔ "Culto Rock Bar") via parâmetro `aliases_local`; `instagram` é o
+  último em `_PREF_FONTE` (quem vende o ingresso é o canônico; o post entra em
+  `outras_urls`) e `preco_min` conta na completude (o post individual, com
+  preço do flyer, vence a linha da agenda).
 - `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite,
   incluir_ruido)`, todos os args opcionais, retorno JSON-serializável. Por padrão
   esconde ruído, não-canônicos de dedupe, **cancelados** e **sumidos** (evento
@@ -255,8 +265,10 @@ rodada anterior e ALERTA queda > 50% — detector de scraper quebrado) →
 `consulta.buscar_eventos()` →
 tool MCP → agente de IA. `atualizar.py` orquestra tudo isso sob demanda;
 `mcp_server.py` é o ponto de entrada em uso real; `demo.py` é a demo da PoC.
-O FTS indexa nome/categoria/atracoes/**descricao** — "eletrônica" acha evento sem o
-gênero no nome (em filmes: titulo/generos).
+O FTS indexa nome/categoria/atracoes/**descricao** + **local_nome/organizador**
+(v1.1: "o que tem no Ordinário?" acha pela casa rotulada, mesmo com a legenda
+dizendo só "Ordi") — "eletrônica" acha evento sem o gênero no nome (em filmes:
+titulo/generos).
 
 ## Convenções e armadilhas
 

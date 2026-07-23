@@ -28,30 +28,17 @@
 
 # ─────────────────────────── Enriquecimento ───────────────────────────
 
-- codigo: NI-01
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: enriquecimento
-  fase: 0
-  titulo: "Dedupe intra-fonte (mesmo evento anunciado N vezes na mesma plataforma)"
-  resumo: "o dedupe v1 só compara fontes diferentes; o Sympla tem o mesmo evento publicado por organizadores diferentes (casa + produtor) — estender com regra mais apertada que a cross-fonte"
-  data: 2026-07-09
-  depende_de: []
-  relacionado: []
-  caso_real: ["'DEU BENZA' 3x na Arena CCB em 11/07 (Pagode do Quadradinho / 'Organizador' / Benzadeus Produções)", "'Vem de pagode - Tá na medida + Kaique' x 'Kaique, Tá na Medida e DJ Kacá' — Brazolia, mesmo dia/hora", "'Samba de Chinelo' 2x na Estação Beira Lago, mesmo dia/hora"]
-  detalhe: |
-    Achado do dogfooding de 2026-07-09 (fim de semana 10–12/07). Em
-    `src/enriquecer.py`, `_agrupar_duplicatas` exige `a["fonte"] != b["fonte"]`.
-
-    **Correção desenhada:** permitir pares da mesma fonte com regra **mais apertada**
-    que a cross-fonte (falso positivo intra-fonte é mais provável — edições/lotes
-    diferentes do mesmo produtor): mesmo dia **e mesmo `local_cmp`** (não vazio) **e**
-    similaridade de nome ≥ limiar a calibrar (~0.55), ou nome ≥ 0.85 com mesmo local.
-    Manter cross-fonte como está. Calibrar contra os 3 casos reais (devem agrupar) e
-    contra séries de eventos distintos do mesmo local (as festas semanais da LAH NÃO
-    podem agrupar entre si). Testes em `tests/test_enriquecer.py`.
+# NI-01 (dedupe intra-fonte) foi IMPLEMENTADO em 2026-07-23, puxado pela v1.1
+# do Instagram (spec 20260723_instagram-como-fonte §8.4): a agenda semanal do
+# carrossel ↔ o post individual do dia é o MESMO problema do "DEU BENZA" 3x.
+# Regra conforme desenhada aqui: par da mesma fonte agrupa com mesmo dia +
+# mesmo local (OBRIGATÓRIO, mesmo com nome idêntico) + similaridade ≥ 0.55
+# (SIM_NOME_INTRA); cross-fonte inalterada. De quebra o "mesmo dia" passou a
+# ser o dia LOCAL de Brasília (bucket UTC separava 20h de 22h da mesma noite)
+# e preco_min entrou na completude do canônico. Casos DEU BENZA e agenda↔post
+# travados em tests/test_instagram.py; o caso "Kaique/Tá na Medida" (nomes
+# muito reordenados) depende do limiar — monitorar no relatório e recalibrar
+# com --so-enriquecer se não colar.
 
 - codigo: NI-04
   status: nao-iniciado
