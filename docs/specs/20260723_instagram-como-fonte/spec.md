@@ -314,3 +314,93 @@ Dentro do "free tier + soluções locais" do PRD? **Não** — é o primeiro cus
 recorrente em dinheiro do projeto. **Exceção aprovada pelo autor em 2026-07-23**
 (o Monid é insumo de dado, ~1 café/mês; enquanto a cadência for manual, o
 gasto real fica bem abaixo do teto diário).
+
+## 8. v1.1 — Carrossel e agenda semanal (aprovada em 2026-07-23)
+
+**Motivação (dogfooding do autor no dia da entrega do v1):** o post
+`DbBhV7VFcZP` do @ordinariobar é um carrossel de 13 páginas com a AGENDA DA
+SEMANA (7 eventos, um por dia) — e o v1 o descartou de propósito
+(`e_evento=false`, regra "agenda não é evento" do prompt §2.3). Diagnóstico
+confirmado na Bronze: a visão entendeu perfeitamente o post ("Post é a agenda
+semanal do Ordi, não um evento único") e obedeceu a regra. O problema é a
+regra: **quase toda casa divulga assim** — carrossel-agenda é o formato
+principal, não a exceção. Taxonomia levantada pelo autor:
+
+| Padrão | Realidade |
+|---|---|
+| Imagem única | info completa em imagem + legenda (v1 já cobre) |
+| Carrossel, 1 evento | info pulverizada em VÁRIAS páginas |
+| Carrossel-agenda | N eventos, um por página; legenda resume |
+| Vídeo | capa + info no meio do vídeo — **fora de escopo** (custo/retorno ruim) |
+
+Complicação transversal: casas postam a agenda na terça E o post individual
+de cada evento no dia — o mesmo evento chega 2x e precisa conciliar.
+
+### 8.1 Contrato de extração vira LISTA
+
+O JSON extraído passa de objeto com `e_evento` para:
+
+```json
+{"eventos": [ {"nome": ..., "data": ..., "hora": ..., "preco": ...,
+               "lineup": ..., "local": ..., "observacoes": ...,
+               "confianca": "alta"} , ... ]}
+```
+
+0 itens = não-evento; 1 item = post comum; N itens = agenda. **Elimina a
+ramificação**: não há "detectar agenda" — o caso único é a lista degenerada.
+A regra "agenda → e_evento=false" morre. Guarda da derivação passa a valer
+POR ITEM (nome + data resolvida + confiança alta).
+
+### 8.2 Todas as páginas do carrossel
+
+`baixar_midias(post)` baixa TODAS as páginas (`carousel_media[]`, teto de 15;
+`midias/instagram/<code>_p<N>.jpg`) e todas entram na MESMA chamada de visão
+(1 call por post; só sobe o nº de imagens no contexto). Cobre tanto a agenda
+quanto o evento único com info espalhada. Vídeo continua como no v1 (frame de
+capa via `image_versions`).
+
+### 8.3 Identidade dos sub-eventos
+
+- 1 item extraído → `instagram:<code>` e URL do post, como no v1 (compatível
+  com o que já está na base).
+- N itens → `instagram:<code>:<n>` (posição na lista extraída — estável
+  porque a extração roda 1x e fica cacheada na Bronze) e URL
+  `instagram.com/p/<code>/?img_index=<n+1>` (parâmetro real do Instagram:
+  abre o carrossel na página aproximada; e dá a URL ÚNICA que o
+  `detalhar_evento` exige).
+- Datas passadas da agenda (postada na terça listando desde segunda): a regra
+  do v1 já descarta de graça (data sem ano no passado rola o ano e estoura o
+  teto `INFERENCIA_MAX_DIAS` → None).
+
+### 8.4 Duplicação agenda ↔ post individual = dedupe INTRA-fonte (NI-01)
+
+Rota escolhida (vs. merge na derivação, descartado por reimplementar dedupe e
+fundir dado cedo demais): **implementar o NI-01** que já estava desenhado no
+backlog. `_e_duplicata` deixa de exigir `fonte_a != fonte_b`; par da MESMA
+fonte agrupa com regra mais apertada — mesmo dia + **mesmo local (obrigatório)**
++ similaridade de nome ≥ `SIM_NOME_INTRA` (0.55, a calibrar nos casos reais do
+NI-01: "DEU BENZA" 3x na Arena CCB etc.). O canônico sai pela completude;
+`preco_min` entra em `_CAMPOS_COMPLETUDE` para o post individual (que tem
+preço do flyer) ganhar da linha da agenda. Efeitos aceitos: evento semanal
+recorrente vira um evento POR SEMANA (dado real, âncora de mesmo-dia impede
+agrupar semanas distintas); par que o dedupe perder aparece 2x (tolerável,
+calibrável com `--so-enriquecer`).
+
+### 8.5 Backfill sem re-raspar
+
+A derivação ganha um adaptador do formato antigo de extração (objeto único →
+lista de 0/1 itens), então nada re-extrai em massa. Re-extração dirigida: só
+posts cuja extração está no formato antigo COM `e_evento=false` (candidatos a
+agenda perdida) voltam pra fila — 1 vez, na rodada seguinte. Extração nova com
+`eventos: []` NÃO re-tenta (não-evento é resposta válida).
+
+### 8.6 Validação (mesmas 3 camadas do §5)
+
+Camada 1: fixtures novas — carrossel-agenda (3 itens → 3 eventos com
+`?img_index`), item com data passada descartado, adaptador do formato antigo
+(true deriva, false não), dedupe intra-fonte (casos reais do NI-01 agrupam;
+duas festas distintas da mesma casa no mesmo dia NÃO agrupam; agenda ↔ post
+individual agrupa com canônico no individual). Camada 2: re-extração real do
+`DbBhV7VFcZP` (13 páginas) e conferência dos 7 eventos. Camada 3: rodada
+`--so-derivar` + rodada real; consulta canônica "o que tem no Ordinário essa
+semana" respondendo os dias da agenda.
