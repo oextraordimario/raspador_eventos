@@ -7,15 +7,18 @@ descrever (busca incremental da descrição p/ eventos sem ela) → precificar
 (tickets/lotes de Sympla, Ingresse, Zig e Ticket and Go, refeito a cada
 rodada porque preço é volátil — dentro de uma janela de 30 dias) →
 cinema (grade dos 8 cinemas via Ingresso.com, snapshot → cinema_raw) →
-derivar (colunas calculadas do bruto, sem rede; inclui filmes/sessoes) →
-enriquecimento v1 (ruído + dedupe, recalculado do zero) → reconstrói o FTS →
-relatório de saúde (com comparação vs. rodada anterior) → grava a rodada em
-`execucoes` (NI-19).
+instagram (posts/stories da watchlist via Monid → instagram_raw + extração
+do flyer por visão, incremental) → derivar (colunas calculadas do bruto, sem
+rede; inclui filmes/sessoes e eventos fonte='instagram') → enriquecimento v1
+(ruído + dedupe, recalculado do zero — o dedupe concilia post ↔ evento de
+plataforma) → reconstrói o FTS → relatório de saúde (com comparação vs.
+rodada anterior) → grava a rodada em `execucoes` (NI-19).
 
 Uso (da raiz do repo):
     python src/atualizar.py                    # pipeline completo
     python src/atualizar.py --sem-shotgun      # pula o Shotgun (lento, usa navegador)
     python src/atualizar.py --sem-cinema       # pula a grade de cinema
+    python src/atualizar.py --sem-instagram    # pula o Instagram (Monid/claude -p)
     python src/atualizar.py --precificar-tudo  # tickets de TODOS os futuros (ex.: 1ª carga)
     python src/atualizar.py --so-derivar       # não raspa; re-deriva do bruto + regras + FTS
     python src/atualizar.py --so-enriquecer    # não raspa; só reaplica regras + FTS
@@ -32,7 +35,8 @@ import derivar
 import enriquecer
 import store
 import tempo
-from scrapers import cinema, ingresse, shotgun, sympla, ticketandgo, zig
+from scrapers import (cinema, ingresse, instagram, shotgun, sympla,
+                      ticketandgo, zig)
 
 # Preço/lote é volátil, mas quem pergunta ao agente pergunta de "hoje"/"este
 # fim de semana": o precificar só refaz eventos nesta janela; os demais mantêm
@@ -42,6 +46,11 @@ JANELA_PRECIFICAR_DIAS = 30
 # Queda de coleta vs. rodada anterior que dispara alerta no relatório
 # (provável scraper quebrado). Calibrar se der falso positivo.
 QUEDA_ALERTA = 0.5
+
+# Post mais velho que isso não vale extração de flyer (evento já passou ou
+# está na base desde a rodada em que o post era novo): protege a 1ª rodada de
+# um perfil novo de gastar visão com o feed histórico.
+EXTRAIR_POSTS_DIAS = 60
 
 
 def _checar_schema(con):
@@ -109,11 +118,16 @@ def _marcar_sumidos(con, resultados, iniciada_em):
     lista futuros; marcá-lo apagaria o histórico da consulta). Idempotente:
     quem reaparece no upsert é desmarcado aqui. Marcar, não apagar — quem
     esconde é a consulta. Spec: 20260710_alinhamento-constituicao.
+
+    Instagram fica FORA (guarda explícita, além da ordem dos passos no main):
+    o feed do perfil não é um catálogo de eventos futuros — post que sai da
+    1ª página não significa cancelamento; evento do Instagram morre por data
+    passada. Spec: 20260723_instagram-como-fonte §2.6.
     """
     inicio = tempo.instante(iniciada_em)
     sumidos = []
     for fonte, res in resultados.items():
-        if "erro" in res:
+        if "erro" in res or fonte in ("instagram", "cinema"):
             continue
         for r in con.execute("SELECT id, nome, start_date, raspado_em "
                              "FROM eventos WHERE fonte = %s", (fonte,)).fetchall():
@@ -300,6 +314,82 @@ def _raspar_cinema(con, erros):
     return dict(cinema.ULTIMA_RASPAGEM)
 
 
+def _raspar_instagram(con, erros):
+    """Posts/stories da watchlist → Bronze (instagram_raw) + extração do
+    flyer dos posts novos (visão via `claude -p`, incremental — a fila é o
+    shortcode sem origem='extracao'; falha re-tenta na próxima rodada).
+
+    A mídia é baixada AGORA porque a URL do CDN expira em horas; a Bronze
+    recém-gravada garante URL fresca até para post pendente de rodada
+    anterior. Quem transforma post em evento é derivar.aplicar_instagram.
+    """
+    perfis = instagram.watchlist_ativos()
+    if not perfis:
+        print("\n[instagram] watchlist vazia ou ausente "
+              "(dados/perfis_instagram.yaml) — pulando.")
+        return None
+    print(f"\n[instagram] {len(perfis)} perfis da watchlist (via Monid)...")
+    try:
+        r = instagram.raspar(perfis)
+    except Exception as e:
+        traceback.print_exc()
+        print("[instagram] FALHOU — dados anteriores mantidos.")
+        return {"erro": f"{type(e).__name__}: {e}"}
+    store.gravar_instagram_raw(con, r["raw"],
+                               datetime.now(timezone.utc).isoformat())
+    for f in r["erros"]:
+        erros.append({"passo": "instagram", "evento_id": f"@{f['perfil']}",
+                      "erro": f["erro"]})
+    resultado = dict(instagram.ULTIMA_RASPAGEM)
+
+    corte = (datetime.now(timezone.utc)
+             - timedelta(days=EXTRAIR_POSTS_DIAS)).timestamp()
+    alvos, antigos = [], 0
+    for row in con.execute(
+            "SELECT p.perfil, p.code, p.payload FROM instagram_raw p "
+            "LEFT JOIN instagram_raw x "
+            "  ON x.code = p.code AND x.origem = 'extracao' "
+            "WHERE p.origem = 'post' AND x.code IS NULL "
+            "ORDER BY p.code").fetchall():
+        post = json.loads(row["payload"])
+        if (post.get("taken_at") or 0) < corte:
+            antigos += 1
+            continue
+        alvos.append((row, post))
+    extraidos = falhas = 0
+    if alvos:
+        print(f"[instagram] extraindo o flyer de {len(alvos)} posts "
+              "(claude -p, visão)..."
+              + (f" — {antigos} posts com mais de {EXTRAIR_POSTS_DIAS} dias "
+                 "ficam sem extração" if antigos else ""))
+    for row, post in alvos:
+        caminho = None
+        try:
+            caminho = instagram.baixar_midia(post)
+        except Exception as e:
+            erros.append({"passo": "instagram",
+                          "evento_id": f"instagram:{row['code']}",
+                          "erro": f"mídia (seguiu só com a legenda): "
+                                  f"{type(e).__name__}: {e}"})
+        try:
+            ext = instagram.extrair(instagram.legenda_do_post(post), caminho)
+            store.gravar_instagram_raw(
+                con, [(row["perfil"], row["code"], "extracao", ext)],
+                datetime.now(timezone.utc).isoformat(), commit=False)
+            extraidos += 1
+        except Exception as e:
+            falhas += 1
+            erros.append({"passo": "instagram",
+                          "evento_id": f"instagram:{row['code']}",
+                          "erro": f"extração: {type(e).__name__}: {e}"})
+    con.commit()
+    if alvos:
+        print(f"  {extraidos} flyers extraídos | {falhas} falhas "
+              "(re-tentam na próxima rodada)")
+    resultado.update(extraidos=extraidos, falhas_extracao=falhas)
+    return resultado
+
+
 def _coleta_anterior(con):
     """Última coleta registrada por fonte em execucoes: {fonte: (coletados,
     iniciada_em)}. Ignora rodadas em que a fonte falhou ou não foi raspada —
@@ -313,7 +403,8 @@ def _coleta_anterior(con):
     return ant
 
 
-def _relatorio(con, resultados, derivado, cine, enriq, sumidos, duracao):
+def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
+               duracao):
     agora = datetime.now(timezone.utc)
     print("\n" + "=" * 64)
     print(f"Saúde da base — {agora.strftime('%Y-%m-%d %H:%M UTC')}")
@@ -392,6 +483,15 @@ def _relatorio(con, resultados, derivado, cine, enriq, sumidos, duracao):
               ", ".join(f"{c}: {n} eventos" for c, n in derivado.items()))
         print(f"  lotes de ingresso (tabela lotes): {lotes_n}")
 
+    # --- instagram: eventos derivados de instagram_raw (post + extração) ---
+    if insta is not None:
+        res = resultados.get("instagram") or {}
+        cobertura = (f" de {res['coletados']}/{res['total_site']} perfis"
+                     if "coletados" in res else "")
+        print(f"\nInstagram (watchlist{cobertura}): {insta['eventos']} eventos"
+              f" derivados, {insta['lotes']} com preço no flyer"
+              f" ({insta['descartados']} posts sem evento pela guarda)")
+
     # --- cinema: grade derivada de cinema_raw (snapshot da rodada) ---
     if cine is not None:
         res = resultados.get("cinema") or {}
@@ -430,6 +530,7 @@ def main():
     so_derivar = "--so-derivar" in sys.argv
     sem_shotgun = "--sem-shotgun" in sys.argv
     sem_cinema = "--sem-cinema" in sys.argv
+    sem_instagram = "--sem-instagram" in sys.argv
     modo = ("so-enriquecer" if so_enriquecer else "so-derivar" if so_derivar
             else "sem-shotgun" if sem_shotgun else "completo")
 
@@ -450,22 +551,31 @@ def main():
         prec = _precificar(con, erros, tudo="--precificar-tudo" in sys.argv)
         if not sem_cinema:
             resultados["cinema"] = _raspar_cinema(con, erros)
+        # depois do _marcar_sumidos de propósito: a fonte instagram fica FORA
+        # da lógica de sumido (post que sai da 1ª página do perfil não
+        # significa cancelamento — evento do Instagram morre por data passada).
+        if not sem_instagram:
+            r_insta = _raspar_instagram(con, erros)
+            if r_insta is not None:
+                resultados["instagram"] = r_insta
 
     # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
-    # o fluxo normal e o --so-derivar recalculam as derivadas a partir da Bronze.
+    # o fluxo normal e o --so-derivar recalculam as derivadas a partir da
+    # Bronze. aplicar_instagram roda DEPOIS de aplicar() (que trunca lotes).
     derivado = None if so_enriquecer else derivar.aplicar(con)
+    insta = None if so_enriquecer else derivar.aplicar_instagram(con)
     cine = None if so_enriquecer else derivar.aplicar_cinema(con)
 
-    enriq = enriquecer.aplicar(con)
+    enriq = enriquecer.aplicar(con, aliases_local=instagram.aliases_local())
     store.reconstruir_fts(con)
     duracao = time.monotonic() - inicio
     # O relatório lê execucoes ANTES do registro: a comparação é com a rodada
     # anterior de verdade, não com esta.
-    _relatorio(con, resultados, derivado, cine, enriq, sumidos, duracao)
+    _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos, duracao)
     store.registrar_execucao(
         con, iniciada_em, round(duracao, 1), modo, resultados,
         {"descrever": desc, "precificar": prec, "derivado": derivado,
-         "cinema": cine, "ruido": len(enriq["ruido"]),
+         "cinema": cine, "instagram": insta, "ruido": len(enriq["ruido"]),
          "dedupe_grupos": len(enriq["grupos"]),
          "sumidos": len(sumidos) if sumidos is not None else None},
         erros)

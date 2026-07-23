@@ -31,6 +31,11 @@ distintas), então a ordem de aplicação não importa.
 Domínio cinema (spec 20260711_raspagem-cinema): aplicar_cinema() reconstrói
 filmes/sessoes do zero a partir de cinema_raw — mesmo princípio, tabelas
 próprias (sessão de cinema não vira evento).
+
+Instagram (spec 20260723_instagram-como-fonte): aplicar_instagram() reconstrói
+os eventos fonte='instagram' do zero a partir de instagram_raw (post +
+extração do flyer) — a Prata do Instagram é a própria tabela eventos. Roda
+DEPOIS de aplicar() (que trunca lotes e zera as colunas derivadas de todos).
 """
 
 import json
@@ -326,6 +331,122 @@ def aplicar_cinema(con):
             [[s[c] for c in cols] for s in sessoes.values()])
     con.commit()
     return {"filmes": len(filmes), "sessoes": len(sessoes)}
+
+
+def _evento_instagram(perfil_info, code, post, ext):
+    """Post + extração do flyer → dict de evento normalizado, ou None se a
+    guarda reprova (só vira evento anúncio com e_evento, confiança ALTA e
+    data resolvida ≥ a data do post — errar para o lado de NÃO criar: falso
+    evento é pior que evento perdido, a plataforma de ingresso cobre o grosso).
+    """
+    from scrapers import instagram
+
+    nome = (ext.get("nome") or "").strip()
+    if (ext.get("e_evento") is not True or ext.get("confianca") != "alta"
+            or not nome):
+        return None
+    start = instagram.montar_start_date(ext, post.get("taken_at"))
+    if not start:
+        return None
+    legenda = (instagram.legenda_do_post(post) or "").strip()
+    preco = ext.get("preco")
+    if not isinstance(preco, (int, float)) or isinstance(preco, bool):
+        preco = None  # "true"/texto do LLM não é preço
+    flyer = [f"{rotulo}: {valor}" for rotulo, valor in [
+        ("Data", ext.get("data")), ("Hora", ext.get("hora")),
+        ("Entrada", f"R$ {preco:.2f}".replace(".", ",")
+         if preco is not None else None),
+        ("Line-up", ", ".join(ext["lineup"]) if ext.get("lineup") else None),
+        ("Local", ext.get("local")), ("Obs", ext.get("observacoes")),
+    ] if valor]
+    descricao = (legenda + ("\n\n[Do flyer] " + " · ".join(flyer)
+                            if flyer else "")).strip() or None
+    e_casa = perfil_info.get("tipo") != "produtora"
+    return {
+        "id": f"instagram:{code}",
+        "fonte": "instagram",
+        "id_nativo": code,
+        "nome": nome,
+        "start_date": start,
+        "end_date": None,
+        # cidade/estado rotulados (recorte da watchlist é Brasília — mesmo
+        # precedente do Shotgun/Ticket and Go); a casa É o local, exceto em
+        # perfil de produtora (aí o local vem do flyer, quando extraído).
+        "cidade": "Brasília",
+        "estado": "DF",
+        "local_nome": (perfil_info["nome"] if e_casa
+                       else (ext.get("local") or None)),
+        "endereco": None, "lat": None, "lon": None,
+        "categoria": None,
+        "organizador": perfil_info["nome"],
+        "url": f"https://www.instagram.com/p/{code}/",
+        "imagem": None,   # a URL do CDN expira — não gravar link morto
+        "descricao": descricao,
+        "atracoes": "; ".join(ext["lineup"]) if ext.get("lineup") else None,
+        "preco_min": None,   # agregado do lote sintético, como nas outras fontes
+        "_preco_flyer": preco,   # já saneado; vira o lote sintético (não é coluna)
+    }
+
+
+def aplicar_instagram(con):
+    """Reconstrói os eventos fonte='instagram' do zero a partir de
+    instagram_raw (post + extração). Idempotente e a seco: mudar a guarda ou
+    o mapeamento é `--so-derivar`, sem re-raspar nem re-extrair.
+
+    Roda DEPOIS de aplicar(): aquele trunca a tabela lotes inteira e zera as
+    colunas derivadas; este reinsere o lote sintético do flyer e as agregações
+    dos eventos do Instagram. `raspado_em` = o da raspagem do post — mas a
+    fonte fica FORA do _marcar_sumidos (post sai da 1ª página do perfil sem
+    significar cancelamento; evento do Instagram morre por data passada).
+
+    Retorna {"eventos": n, "lotes": n, "descartados": n} para o relatório.
+    """
+    import store
+    from scrapers import instagram
+
+    perfis = {p["usuario"]: p for p in instagram.carregar_watchlist()}
+    rows = con.execute(
+        "SELECT p.perfil, p.code, p.payload AS post, p.raspado_em, "
+        "       x.payload AS extracao "
+        "FROM instagram_raw p JOIN instagram_raw x "
+        "  ON x.code = p.code AND x.origem = 'extracao' "
+        "WHERE p.origem = 'post' ORDER BY p.code").fetchall()
+    eventos, lotes, descartados = [], [], 0
+    for r in rows:
+        post, ext = json.loads(r["post"]), json.loads(r["extracao"])
+        # perfil que saiu da watchlist ainda deriva (o dado já foi pago);
+        # fallback: o próprio @ como nome.
+        info = perfis.get(r["perfil"], {"nome": r["perfil"], "tipo": "casa"})
+        ev = _evento_instagram(info, r["code"], post, ext)
+        if not ev:
+            descartados += 1
+            continue
+        ev["raspado_em"] = r["raspado_em"]
+        preco = ev.pop("_preco_flyer")
+        eventos.append(ev)
+        if preco is not None:
+            lotes.append({"evento_id": ev["id"], "ordem": 0,
+                          "nome": "entrada (do flyer)",
+                          "preco": float(preco), "taxa": None,
+                          "gratis": preco == 0, "esgotado": 0})
+    con.execute("DELETE FROM lotes WHERE evento_id LIKE 'instagram:%'")
+    con.execute("DELETE FROM eventos WHERE fonte = 'instagram'")
+    if eventos:
+        store.upsert_eventos(con, eventos)
+    for lt in lotes:
+        con.execute(
+            "INSERT INTO lotes (evento_id, ordem, nome, preco, taxa, gratis, "
+            "esgotado) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (lt["evento_id"], lt["ordem"], lt["nome"], lt["preco"], lt["taxa"],
+             1 if lt["gratis"] else 0, lt["esgotado"]))
+        agg = _agregar([lt])
+        con.execute(
+            "UPDATE eventos SET preco_min = %s, tem_gratis = %s, esgotado = %s"
+            " WHERE id = %s", (agg["preco_min"], agg["tem_gratis"],
+                               agg["esgotado"], lt["evento_id"]))
+    con.commit()
+    return {"eventos": len(eventos), "lotes": len(lotes),
+            "descartados": descartados}
 
 
 def aplicar(con):

@@ -143,6 +143,22 @@ CREATE TABLE IF NOT EXISTS execucoes (
     erros       TEXT             -- JSON [{passo, evento_id, erro}] — falha POR EVENTO
 );
 
+-- Bronze do Instagram (spec docs/specs/20260723_instagram-como-fonte/): posts
+-- e stories crus dos perfis da watchlist (dados/perfis_instagram.yaml), via
+-- Monid/TikHub, + o JSON extraido do flyer por visao (origem 'extracao' —
+-- incremental: 1 extracao por post, nunca refeita). A Prata do Instagram e a
+-- propria tabela eventos: derivar.aplicar_instagram reconstroi os eventos
+-- fonte='instagram' do zero a partir daqui (post + extracao). Acumula rodada a
+-- rodada (post que sai da 1a pagina do perfil NAO some daqui); ultimo vence.
+CREATE TABLE IF NOT EXISTS instagram_raw (
+    perfil     TEXT NOT NULL,   -- @ da watchlist (sem arroba)
+    code       TEXT NOT NULL,   -- shortcode do post/story (instagram.com/p/<code>/)
+    origem     TEXT NOT NULL,   -- 'post' | 'story' | 'extracao'
+    payload    TEXT NOT NULL,   -- JSON bruto (post/story) ou JSON extraido do flyer
+    raspado_em TEXT NOT NULL,   -- ISO UTC "+00:00"
+    PRIMARY KEY (code, origem)
+);
+
 -- ============================================================================
 -- Dominio CINEMA (NI-07, spec docs/specs/20260711_raspagem-cinema/): a grade
 -- dos 8 cinemas-alvo de Brasilia, raspada da API de conteudo da Ingresso.com.

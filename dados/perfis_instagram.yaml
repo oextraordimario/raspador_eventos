@@ -1,0 +1,29 @@
+# Watchlist de perfis do Instagram que o raspador acompanha (NI-24).
+# Spec: docs/specs/20260723_instagram-como-fonte/spec.md §2.1.
+#
+# Mora em arquivo versionado (nao em tabela) de proposito: a base e descartavel
+# por convencao, e lista curada a mao nao pode morrer num DROP SCHEMA. Adicionar
+# casa nova = somar um bloco e commitar (raspar custa ~$0,006/perfil/rodada, a
+# lista pode ser generosa).
+#
+# Campos:
+#   usuario        o @ do perfil, sem arroba (obrigatorio)
+#   nome           nome canonico da casa/produtora -> vira local_nome/organizador
+#                  dos eventos derivados (obrigatorio)
+#   tipo           casa | produtora — casa: o local do evento E a casa;
+#                  produtora: o local vem do flyer (quando extraido)
+#   ativo          false = pula na raspagem sem perder o historico ja na base
+#   local_aliases  grafias do local vistas nas plataformas de ingresso — ajudam
+#                  o dedupe a conciliar o post com o evento do Sympla/Zig/etc.
+
+- usuario: cultorockbar
+  nome: Culto Rock Bar
+  tipo: casa
+  ativo: true
+  local_aliases: ["Culto", "Culto Rock Bar", "Culto Bar"]
+
+- usuario: ordinariobar
+  nome: Ordinário Bar & Música
+  tipo: casa
+  ativo: true
+  local_aliases: ["Ordinário", "Ordinário Bar", "Ordinario Bar e Musica"]

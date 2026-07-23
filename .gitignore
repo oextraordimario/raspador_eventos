@@ -7,6 +7,10 @@
 # Capturas de descoberta (grandes, regeneráveis)
 capturas_*.json
 
+# Mídia baixada do Instagram (flyers p/ extração/auditoria; URLs do CDN expiram,
+# mas a extração já persistida na base torna os arquivos regeneráveis-o-bastante)
+midias/
+
 # Python
 __pycache__/
 *.py[cod]

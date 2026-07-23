@@ -147,6 +147,37 @@ def gravar_raw(con, evento_id, origem, payload, raspado_em, commit=True):
         con.commit()
 
 
+def gravar_instagram_raw(con, itens, raspado_em, commit=True):
+    """Grava payloads do Instagram na Bronze (instagram_raw, último vence).
+
+    itens = [(perfil, code, origem, payload)] — origem 'post'/'story' vem da
+    raspagem; 'extracao' é o JSON do flyer (1 por post, incremental). Ao
+    contrário do cinema, NÃO há poda: a Bronze acumula (post que sai da 1ª
+    página do perfil continua aqui — é dele que o evento deriva).
+    Spec: 20260723_instagram-como-fonte.
+
+    Post em COLABORAÇÃO entre dois perfis da watchlist chega no lote com o
+    mesmo (code, origem) duas vezes — o Postgres rejeita ON CONFLICT repetido
+    no mesmo comando, então o lote é deduplicado antes (o PRIMEIRO perfil do
+    lote fica dono do post; o payload é o mesmo).
+    """
+    if itens:
+        unicos = {}
+        for perfil, code, origem, payload in itens:
+            unicos.setdefault((code, origem), (perfil, code, origem, payload))
+        con.cursor().executemany(
+            "INSERT INTO instagram_raw (perfil, code, origem, payload, "
+            "raspado_em) VALUES (%s, %s, %s, %s, %s) "
+            "ON CONFLICT(code, origem) DO UPDATE SET "
+            "payload = excluded.payload, raspado_em = excluded.raspado_em",
+            [(perfil, code, origem, json.dumps(payload, ensure_ascii=False),
+              raspado_em)
+             for perfil, code, origem, payload in unicos.values()])
+    if commit:
+        con.commit()
+    return len(itens)
+
+
 def gravar_cinema_raw(con, itens, raspado_em):
     """Grava a grade bruta do cinema na Bronze (cinema_raw, último vence) e
     poda os dias que já ficaram no passado — o snapshot da grade corrente é o

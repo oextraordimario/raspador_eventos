@@ -40,9 +40,10 @@ SIM_NOME_FORTE = 0.85   # nome sozinho basta
 SIM_NOME_FRACA = 0.55   # exige também o mesmo local
 
 # Ordem de preferência para o canônico em caso de empate de completude
-# (Sympla costuma trazer mais metadados).
+# (Sympla costuma trazer mais metadados). Instagram por último: quem vende o
+# ingresso tem o dado transacional; o post entra como outras_urls do canônico.
 _PREF_FONTE = {"sympla": 0, "shotgun": 1, "ingresse": 2, "zig": 3,
-               "ticketandgo": 4}
+               "ticketandgo": 4, "instagram": 5}
 
 # Campos cuja presença mede a "completude" de um registro (escolha do canônico).
 _CAMPOS_COMPLETUDE = ["endereco", "local_nome", "organizador", "imagem",
@@ -100,12 +101,19 @@ def _e_duplicata(a, b):
     return False
 
 
-def _agrupar_duplicatas(con):
+def _agrupar_duplicatas(con, aliases_local=None):
     """Agrupa duplicatas cross-fonte (mesmo dia UTC + regras de similaridade).
+
+    aliases_local ({grafia: nome canônico}, tipicamente da watchlist do
+    Instagram) canoniza o local ANTES de comparar: "Culto" e "Culto Rock Bar"
+    passam a ser o mesmo local_cmp — é o elo da conciliação post ↔ evento de
+    plataforma (spec 20260723_instagram-como-fonte §2.7).
 
     Retorna a lista de grupos, cada um como lista de dicts dos membros
     (canônico primeiro).
     """
+    canon_local = {_normalizar_texto(a): _normalizar_texto(nome)
+                   for a, nome in (aliases_local or {}).items()}
     rows = [dict(r) for r in con.execute(
         "SELECT id, fonte, nome, start_date, local_nome, endereco, organizador,"
         "       imagem, end_date, lat FROM eventos WHERE ruido = 0")]
@@ -116,7 +124,8 @@ def _agrupar_duplicatas(con):
         if dt is None:
             continue
         r["nome_cmp"] = _nome_comparavel(r["nome"])
-        r["local_cmp"] = _normalizar_texto(r["local_nome"])
+        local = _normalizar_texto(r["local_nome"])
+        r["local_cmp"] = canon_local.get(local, local)
         por_dia.setdefault(dt.date(), []).append(r)
 
     # Union-find sobre os ids (fecho transitivo dos pares).
@@ -165,8 +174,11 @@ def _agrupar_duplicatas(con):
     return grupos
 
 
-def aplicar(con):
+def aplicar(con, aliases_local=None):
     """Reseta e reaplica todo o enriquecimento v1. Retorna dados p/ relatório.
+
+    aliases_local: grafias equivalentes de local p/ o dedupe (ver
+    _agrupar_duplicatas); o atualizar.py passa as da watchlist do Instagram.
 
     Returns:
         dict com:
@@ -177,6 +189,6 @@ def aplicar(con):
     con.execute("UPDATE eventos SET ruido = 0, ruido_motivo = NULL, "
                 "dedupe_grupo = NULL, dedupe_canonico = 1")
     ruido = _marcar_ruido(con)
-    grupos = _agrupar_duplicatas(con)
+    grupos = _agrupar_duplicatas(con, aliases_local)
     con.commit()
     return {"ruido": ruido, "grupos": grupos}
