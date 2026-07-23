@@ -44,10 +44,12 @@ EP_STORIES = "/api/v1/instagram/v2/fetch_user_stories"
 TERMINAIS = {"COMPLETED", "FAILED", "BLOCKED", "STOPPED", "TIME_OUT"}
 UA = {"User-Agent": "Mozilla/5.0"}
 
-# O que o subagente de visão devolve por post. O flyer estiliza e mente
-# (achado do spike): a legenda entra na MESMA chamada para validar, e quem
-# decide se o resultado vira evento é a guarda de derivar.aplicar_instagram
-# (e_evento + confianca alta + data futura) — não este prompt.
+# O que o subagente de visão devolve por post — uma LISTA de eventos (v1.1,
+# spec §8.1): post comum = 1 item, carrossel-agenda = um item por evento,
+# não-evento = lista vazia. O flyer estiliza e mente (achado do spike): a
+# legenda entra na MESMA chamada para validar, e quem decide o que vira evento
+# é a guarda POR ITEM de derivar.aplicar_instagram (confiança alta + nome +
+# data futura) — não este prompt.
 PROMPT_EXTRACAO = """Você extrai dados de divulgações de eventos do Instagram de casas noturnas de Brasília.
 
 {instrucao_imagem}
@@ -58,19 +60,23 @@ Legenda do post:
 ---
 
 Responda SOMENTE com um JSON (sem markdown, sem comentários) no formato:
-{{"e_evento": true/false, "confianca": "alta"/"media"/"baixa",
-  "nome": "nome do evento ou null", "data": "DD/MM ou DD/MM/AAAA ou null",
-  "hora": "HH:MM ou null", "preco": numero em reais ou null,
-  "lineup": ["atração", ...] ou null, "local": "local se citado ou null",
-  "observacoes": "condições relevantes (ex.: entrada grátis até 22h) ou null"}}
+{{"eventos": [
+  {{"nome": "nome do evento", "data": "DD/MM ou DD/MM/AAAA ou null",
+    "hora": "HH:MM ou null", "preco": numero em reais ou null,
+    "lineup": ["atração", ...] ou null, "local": "local se citado ou null",
+    "observacoes": "condições relevantes (ex.: entrada grátis até 22h) ou null",
+    "confianca": "alta"/"media"/"baixa"}}
+]}}
 
 Regras:
-- e_evento=true SÓ para divulgação de UM evento datado (festa/show/balada).
-  Retrospectiva ("foi incrível"), meme, aviso de funcionamento e agenda de
-  vários eventos de uma vez NÃO são (e_evento=false).
-- confianca "alta" só quando nome E data estão legíveis sem ambiguidade.
+- Um item por EVENTO DATADO (festa/show/balada) divulgado no post. Post de um
+  evento só = 1 item; carrossel com a agenda da semana = um item POR EVENTO
+  (junte o que a página do carrossel e a legenda dizem sobre aquele dia).
+- Post sem evento datado (retrospectiva "foi incrível", meme, aviso de
+  funcionamento, sorteio) = {{"eventos": []}}.
+- confianca "alta" só quando nome E data DO ITEM estão legíveis sem ambiguidade.
 - preco é o menor valor de ENTRADA anunciado (couvert/ingresso), não consumo.
-- Não invente: campo ausente na imagem e na legenda = null."""
+- Não invente: campo ausente nas imagens e na legenda = null."""
 
 
 # ── watchlist (NI-24) ───────────────────────────────────────────────────────
@@ -190,43 +196,82 @@ def raspar(perfis):
     return {"raw": raw, "erros": erros}
 
 
+# Teto de páginas de carrossel baixadas/enviadas à visão (o Instagram limita
+# carrossel a ~20; acima de 15 páginas é álbum de fotos, não divulgação).
+MAX_PAGINAS_CARROSSEL = 15
+
+
 def url_imagem(post):
-    """Maior imagem do post (1080px vem primeiro em image_versions.items).
+    """Maior imagem de UMA mídia (1080px vem primeiro em image_versions.items).
     Em vídeo, image_versions é o poster — serve como flyer parado."""
     iv = post.get("image_versions") or {}
     cands = iv.get("items") or iv.get("candidates") or []
-    if not cands and (post.get("carousel_media") or []):
-        return url_imagem(post["carousel_media"][0])  # carrossel: 1ª mídia
     return cands[0].get("url") if cands else post.get("thumbnail_url")
 
 
-def baixar_midia(post, dest=None):
-    """Baixa a imagem do post (as URLs do CDN expiram em horas — chamar logo
-    após a raspagem). Devolve o Path ou None se o post não tem imagem."""
-    url = url_imagem(post)
-    if not url:
-        return None
-    dest = Path(dest) if dest else MIDIAS / f"{post['code']}.jpg"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dados = urllib.request.urlopen(
-        urllib.request.Request(url, headers=UA), timeout=90).read()
-    dest.write_bytes(dados)
-    return dest
+def urls_imagens(post):
+    """URLs de TODAS as imagens do post, na ordem do carrossel (v1.1, spec
+    §8.2): info de evento vem pulverizada nas páginas — agenda com um evento
+    por página, ou evento único com detalhes espalhados."""
+    paginas = post.get("carousel_media") or []
+    if paginas:
+        urls = [url_imagem(m) for m in paginas[:MAX_PAGINAS_CARROSSEL]]
+        return [u for u in urls if u]
+    u = url_imagem(post)
+    return [u] if u else []
+
+
+def baixar_midias(post, pasta=None):
+    """Baixa todas as imagens do post (as URLs do CDN expiram em horas —
+    chamar logo após a raspagem). Devolve a lista de Paths (página única =
+    <code>.jpg; carrossel = <code>_p1.jpg, _p2.jpg, ...).
+
+    Tolerante por página (perder a 7ª de 13 não pode custar as outras — a
+    visão trabalha com o que veio + legenda); só levanta erro se NENHUMA
+    página baixou tendo o que baixar.
+    """
+    urls = urls_imagens(post)
+    pasta = Path(pasta) if pasta else MIDIAS
+    pasta.mkdir(parents=True, exist_ok=True)
+    caminhos, falha = [], None
+    for n, url in enumerate(urls, 1):
+        dest = pasta / (f"{post['code']}.jpg" if len(urls) == 1
+                        else f"{post['code']}_p{n}.jpg")
+        try:
+            dados = urllib.request.urlopen(
+                urllib.request.Request(url, headers=UA), timeout=90).read()
+        except Exception as e:
+            falha = falha or e
+            continue
+        dest.write_bytes(dados)
+        caminhos.append(dest)
+    if urls and not caminhos:
+        raise RuntimeError(f"nenhuma das {len(urls)} páginas baixou "
+                           f"({type(falha).__name__}: {falha})")
+    return caminhos
 
 
 # ── extração do flyer (NI-26) ───────────────────────────────────────────────
 
-def extrair(legenda, imagem=None, timeout=300):
-    """Lê legenda + flyer com o subagente de visão e devolve o dict extraído.
+def extrair(legenda, imagens=None, timeout=300):
+    """Lê legenda + imagens do post com o subagente de visão e devolve o dict
+    extraído ({"eventos": [...]}).
 
-    `claude -p` headless com Sonnet (PRD §7: assinatura, não API paga); a
-    imagem entra via tool Read (única permitida). Sem imagem (post sem mídia
-    ou download falhou), extrai só da legenda — melhor que perder o post.
-    Erros sobem: o chamador registra e re-tenta na próxima rodada (fila
-    natural: shortcode sem origem='extracao' na Bronze).
+    `claude -p` headless com Sonnet (PRD §7: assinatura, não API paga); as
+    imagens entram via tool Read (única permitida) — TODAS as páginas do
+    carrossel na mesma chamada. Sem imagem (post sem mídia ou download
+    falhou), extrai só da legenda — melhor que perder o post. Erros sobem: o
+    chamador registra e re-tenta na próxima rodada (fila natural: shortcode
+    sem origem='extracao' na Bronze).
     """
-    if imagem:
-        instrucao = (f"Leia a imagem do flyer em {Path(imagem).as_posix()} "
+    imagens = [Path(i) for i in (imagens or [])]
+    if len(imagens) > 1:
+        lista = "\n".join(f"  {n}. {p.as_posix()}"
+                          for n, p in enumerate(imagens, 1))
+        instrucao = (f"Leia as {len(imagens)} páginas do post (tool Read, "
+                     f"nesta ordem):\n{lista}\ne cruze com a legenda abaixo.")
+    elif imagens:
+        instrucao = (f"Leia a imagem do flyer em {imagens[0].as_posix()} "
                      "(tool Read) e cruze com a legenda abaixo.")
     else:
         instrucao = ("Não há imagem disponível — extraia apenas da legenda "
@@ -254,9 +299,20 @@ def extrair(legenda, imagem=None, timeout=300):
         ext = json.loads(texto[texto.index("{"): texto.rindex("}") + 1])
     except ValueError:
         raise RuntimeError(f"extração não devolveu JSON: {texto[:300]}")
-    if "e_evento" not in ext:
-        raise RuntimeError(f"extração sem o campo e_evento: {texto[:300]}")
+    if not isinstance(ext.get("eventos"), list):
+        raise RuntimeError(f"extração sem a lista eventos: {texto[:300]}")
     return ext
+
+
+def extracao_pendente(ext):
+    """O post precisa (re)passar pela extração? True sem extração nenhuma e
+    para o formato antigo (objeto único, pré-v1.1) marcado e_evento=false —
+    candidato a agenda que a regra antiga descartava (spec §8.5). Formato
+    antigo com e_evento=true NÃO re-extrai (o adaptador da derivação o lê);
+    formato novo nunca re-extrai (eventos=[] é resposta válida)."""
+    if ext is None:
+        return True
+    return "eventos" not in ext and ext.get("e_evento") is not True
 
 
 def legenda_do_post(post):

@@ -84,8 +84,9 @@ CREATE TABLE IF NOT EXISTS eventos (
     dedupe_grupo    TEXT,                        -- id do grupo de duplicatas cross-fonte (= id do evento canonico); NULL = sem duplicata
     dedupe_canonico INTEGER NOT NULL DEFAULT 1,  -- 1 = registro que representa o grupo na consulta
 
-    -- Indice de busca textual (nome/categoria/atracoes/descricao) para as
-    -- consultas em linguagem natural. NAO e coluna gerada (unaccent nao e
+    -- Indice de busca textual (nome/categoria/atracoes/descricao +
+    -- local_nome/organizador — "o que tem no Ordinario?" acha pela casa) para
+    -- as consultas em linguagem natural. NAO e coluna gerada (unaccent nao e
     -- IMMUTABLE): quem a preenche e sql/reconstruir_fts.sql, chamado por
     -- store.reconstruir_fts(con) ao fim de toda rodada — mesmo papel do rebuild
     -- do FTS5 na era SQLite.

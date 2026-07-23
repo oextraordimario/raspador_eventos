@@ -345,12 +345,18 @@ def _raspar_instagram(con, erros):
     corte = (datetime.now(timezone.utc)
              - timedelta(days=EXTRAIR_POSTS_DIAS)).timestamp()
     alvos, antigos = [], 0
+    # fila: post sem extração OU com extração do formato antigo marcada
+    # e_evento=false — candidato a carrossel-agenda que a regra pré-v1.1
+    # descartava (backfill dirigido, spec §8.5; instagram.extracao_pendente).
     for row in con.execute(
-            "SELECT p.perfil, p.code, p.payload FROM instagram_raw p "
+            "SELECT p.perfil, p.code, p.payload, x.payload AS ext "
+            "FROM instagram_raw p "
             "LEFT JOIN instagram_raw x "
             "  ON x.code = p.code AND x.origem = 'extracao' "
-            "WHERE p.origem = 'post' AND x.code IS NULL "
-            "ORDER BY p.code").fetchall():
+            "WHERE p.origem = 'post' ORDER BY p.code").fetchall():
+        if not instagram.extracao_pendente(
+                json.loads(row["ext"]) if row["ext"] else None):
+            continue
         post = json.loads(row["payload"])
         if (post.get("taken_at") or 0) < corte:
             antigos += 1
@@ -358,21 +364,21 @@ def _raspar_instagram(con, erros):
         alvos.append((row, post))
     extraidos = falhas = 0
     if alvos:
-        print(f"[instagram] extraindo o flyer de {len(alvos)} posts "
-              "(claude -p, visão)..."
+        print(f"[instagram] extraindo eventos de {len(alvos)} posts "
+              "(claude -p, visão; todas as páginas do carrossel)..."
               + (f" — {antigos} posts com mais de {EXTRAIR_POSTS_DIAS} dias "
                  "ficam sem extração" if antigos else ""))
     for row, post in alvos:
-        caminho = None
+        caminhos = []
         try:
-            caminho = instagram.baixar_midia(post)
+            caminhos = instagram.baixar_midias(post)
         except Exception as e:
             erros.append({"passo": "instagram",
                           "evento_id": f"instagram:{row['code']}",
-                          "erro": f"mídia (seguiu só com a legenda): "
-                                  f"{type(e).__name__}: {e}"})
+                          "erro": f"mídia (seguiu com {len(caminhos)} páginas"
+                                  f" + legenda): {type(e).__name__}: {e}"})
         try:
-            ext = instagram.extrair(instagram.legenda_do_post(post), caminho)
+            ext = instagram.extrair(instagram.legenda_do_post(post), caminhos)
             store.gravar_instagram_raw(
                 con, [(row["perfil"], row["code"], "extracao", ext)],
                 datetime.now(timezone.utc).isoformat(), commit=False)

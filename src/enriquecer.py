@@ -13,9 +13,16 @@ Políticas (ver docs/specs/20260709_mvp-fase-0/spec.md):
 
 import re
 import unicodedata
+from datetime import timedelta, timezone
 from difflib import SequenceMatcher
 
 import tempo
+
+# O "mesmo dia" do dedupe é o dia LOCAL de Brasília (UTC-3 fixo, escopo do
+# PRD), não o dia UTC: festa das 21h local cai no dia UTC seguinte, e o par
+# dela sem hora (agenda do Instagram, 00:00 local) ficava em bucket diferente
+# — item da agenda nunca casava com o post do dia (achado do teste da v1.1).
+_FUSO_BRASILIA = timezone(timedelta(hours=-3))
 
 # Termos que denunciam não-evento (anúncio, curso, corporativo). Casados por
 # fronteira de palavra sobre o nome normalizado (sem acento/pontuação), então
@@ -39,6 +46,13 @@ RUIDO_TERMOS = [
 SIM_NOME_FORTE = 0.85   # nome sozinho basta
 SIM_NOME_FRACA = 0.55   # exige também o mesmo local
 
+# Duplicata INTRA-fonte (NI-01, spec instagram §8.4): regra mais apertada que
+# a cross-fonte (falso positivo é mais provável — edições/lotes do mesmo
+# produtor): mesmo local é OBRIGATÓRIO, além do mesmo dia. Cobre o mesmo
+# evento anunciado N vezes na mesma plataforma ("DEU BENZA" 3x na Arena CCB)
+# e a agenda semanal do Instagram ↔ o post individual do dia.
+SIM_NOME_INTRA = 0.55
+
 # Ordem de preferência para o canônico em caso de empate de completude
 # (Sympla costuma trazer mais metadados). Instagram por último: quem vende o
 # ingresso tem o dado transacional; o post entra como outras_urls do canônico.
@@ -46,8 +60,10 @@ _PREF_FONTE = {"sympla": 0, "shotgun": 1, "ingresse": 2, "zig": 3,
                "ticketandgo": 4, "instagram": 5}
 
 # Campos cuja presença mede a "completude" de um registro (escolha do canônico).
+# preco_min entrou na v1.1 do Instagram: entre a linha da agenda semanal e o
+# post individual do evento (que tem o preço do flyer), o individual vence.
 _CAMPOS_COMPLETUDE = ["endereco", "local_nome", "organizador", "imagem",
-                      "end_date", "lat"]
+                      "end_date", "lat", "preco_min"]
 
 
 def _normalizar_texto(s):
@@ -94,15 +110,24 @@ def _marcar_ruido(con):
 
 def _e_duplicata(a, b):
     sim = _sim(a["nome_cmp"], b["nome_cmp"])
-    if sim >= SIM_NOME_FORTE:
-        return True
-    if sim >= SIM_NOME_FRACA and a["local_cmp"] and a["local_cmp"] == b["local_cmp"]:
-        return True
-    return False
+    mesmo_local = bool(a["local_cmp"]) and a["local_cmp"] == b["local_cmp"]
+    if a["fonte"] != b["fonte"]:
+        return sim >= SIM_NOME_FORTE or (sim >= SIM_NOME_FRACA and mesmo_local)
+    # sub-eventos do MESMO post do Instagram (instagram:<code>:<n>) são
+    # distintos por construção — a extração já os separou. Sem esta guarda,
+    # "Samba Dona" e "Samba da Tia Zélia" no mesmo sábado do carrossel-agenda
+    # colavam por similaridade (falso positivo real de 2026-07-23, que
+    # escondia festa da consulta).
+    if a["id"].split(":")[:2] == b["id"].split(":")[:2]:
+        return False
+    # mesma fonte (NI-01): local igual é obrigatório mesmo com nome idêntico
+    # (séries de festas distintas do mesmo dia não podem colar pelo nome só)
+    return mesmo_local and sim >= SIM_NOME_INTRA
 
 
 def _agrupar_duplicatas(con, aliases_local=None):
-    """Agrupa duplicatas cross-fonte (mesmo dia UTC + regras de similaridade).
+    """Agrupa duplicatas (mesmo dia UTC + regras de similaridade) — entre
+    fontes E dentro da mesma fonte (NI-01, regra apertada em _e_duplicata).
 
     aliases_local ({grafia: nome canônico}, tipicamente da watchlist do
     Instagram) canoniza o local ANTES de comparar: "Culto" e "Culto Rock Bar"
@@ -116,7 +141,7 @@ def _agrupar_duplicatas(con, aliases_local=None):
                    for a, nome in (aliases_local or {}).items()}
     rows = [dict(r) for r in con.execute(
         "SELECT id, fonte, nome, start_date, local_nome, endereco, organizador,"
-        "       imagem, end_date, lat FROM eventos WHERE ruido = 0")]
+        "       imagem, end_date, lat, preco_min FROM eventos WHERE ruido = 0")]
 
     por_dia = {}
     for r in rows:
@@ -126,7 +151,7 @@ def _agrupar_duplicatas(con, aliases_local=None):
         r["nome_cmp"] = _nome_comparavel(r["nome"])
         local = _normalizar_texto(r["local_nome"])
         r["local_cmp"] = canon_local.get(local, local)
-        por_dia.setdefault(dt.date(), []).append(r)
+        por_dia.setdefault(dt.astimezone(_FUSO_BRASILIA).date(), []).append(r)
 
     # Union-find sobre os ids (fecho transitivo dos pares).
     pai = {}
@@ -147,7 +172,9 @@ def _agrupar_duplicatas(con, aliases_local=None):
     for _, evs in sorted(por_dia.items()):
         for i, a in enumerate(evs):
             for b in evs[i + 1:]:
-                if a["fonte"] != b["fonte"] and _e_duplicata(a, b):
+                # pares da MESMA fonte também entram (NI-01) — a regra
+                # apertada fica dentro de _e_duplicata
+                if _e_duplicata(a, b):
                     unir(a["id"], b["id"])
 
     membros = {}

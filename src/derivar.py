@@ -333,39 +333,54 @@ def aplicar_cinema(con):
     return {"filmes": len(filmes), "sessoes": len(sessoes)}
 
 
-def _evento_instagram(perfil_info, code, post, ext):
-    """Post + extração do flyer → dict de evento normalizado, ou None se a
-    guarda reprova (só vira evento anúncio com e_evento, confiança ALTA e
-    data resolvida ≥ a data do post — errar para o lado de NÃO criar: falso
-    evento é pior que evento perdido, a plataforma de ingresso cobre o grosso).
+def _itens_extracao(ext):
+    """Itens de evento de uma extração, nos DOIS formatos: v1.1 é
+    {"eventos": [...]} (0 = não-evento, 1 = post comum, N = carrossel-agenda);
+    o formato antigo (objeto único com e_evento, pré-v1.1) vira lista de 0/1 —
+    adaptador do backfill (spec §8.5): nada precisa re-extrair em massa."""
+    if "eventos" in ext:
+        return [i for i in (ext["eventos"] or []) if isinstance(i, dict)]
+    return [ext] if ext.get("e_evento") is True else []
+
+
+def _evento_instagram(perfil_info, code, post, item, n=None):
+    """Um ITEM extraído (+ post) → dict de evento normalizado, ou None se a
+    guarda reprova (só vira evento item com confiança ALTA, nome e data
+    resolvida ≥ a data do post — errar para o lado de NÃO criar: falso evento
+    é pior que evento perdido, a plataforma de ingresso cobre o grosso).
+
+    n = posição 1-based do item quando o post tem VÁRIOS eventos (spec §8.3):
+    id vira instagram:<code>:<n> e a URL ganha ?img_index=<n> (parâmetro real
+    do Instagram — abre o carrossel perto da página certa e dá a URL única
+    que o detalhar_evento exige). Post de item único mantém id/URL do v1.
     """
     from scrapers import instagram
 
-    nome = (ext.get("nome") or "").strip()
-    if (ext.get("e_evento") is not True or ext.get("confianca") != "alta"
-            or not nome):
+    nome = (item.get("nome") or "").strip()
+    if item.get("confianca") != "alta" or not nome:
         return None
-    start = instagram.montar_start_date(ext, post.get("taken_at"))
+    start = instagram.montar_start_date(item, post.get("taken_at"))
     if not start:
         return None
     legenda = (instagram.legenda_do_post(post) or "").strip()
-    preco = ext.get("preco")
+    preco = item.get("preco")
     if not isinstance(preco, (int, float)) or isinstance(preco, bool):
         preco = None  # "true"/texto do LLM não é preço
     flyer = [f"{rotulo}: {valor}" for rotulo, valor in [
-        ("Data", ext.get("data")), ("Hora", ext.get("hora")),
+        ("Data", item.get("data")), ("Hora", item.get("hora")),
         ("Entrada", f"R$ {preco:.2f}".replace(".", ",")
          if preco is not None else None),
-        ("Line-up", ", ".join(ext["lineup"]) if ext.get("lineup") else None),
-        ("Local", ext.get("local")), ("Obs", ext.get("observacoes")),
+        ("Line-up", ", ".join(item["lineup"]) if item.get("lineup") else None),
+        ("Local", item.get("local")), ("Obs", item.get("observacoes")),
     ] if valor]
     descricao = (legenda + ("\n\n[Do flyer] " + " · ".join(flyer)
                             if flyer else "")).strip() or None
     e_casa = perfil_info.get("tipo") != "produtora"
+    sufixo = f":{n}" if n else ""
     return {
-        "id": f"instagram:{code}",
+        "id": f"instagram:{code}{sufixo}",
         "fonte": "instagram",
-        "id_nativo": code,
+        "id_nativo": f"{code}{sufixo}",
         "nome": nome,
         "start_date": start,
         "end_date": None,
@@ -375,14 +390,15 @@ def _evento_instagram(perfil_info, code, post, ext):
         "cidade": "Brasília",
         "estado": "DF",
         "local_nome": (perfil_info["nome"] if e_casa
-                       else (ext.get("local") or None)),
+                       else (item.get("local") or None)),
         "endereco": None, "lat": None, "lon": None,
         "categoria": None,
         "organizador": perfil_info["nome"],
-        "url": f"https://www.instagram.com/p/{code}/",
+        "url": f"https://www.instagram.com/p/{code}/"
+               + (f"?img_index={n}" if n else ""),
         "imagem": None,   # a URL do CDN expira — não gravar link morto
         "descricao": descricao,
-        "atracoes": "; ".join(ext["lineup"]) if ext.get("lineup") else None,
+        "atracoes": "; ".join(item["lineup"]) if item.get("lineup") else None,
         "preco_min": None,   # agregado do lote sintético, como nas outras fontes
         "_preco_flyer": preco,   # já saneado; vira o lote sintético (não é coluna)
     }
@@ -417,18 +433,28 @@ def aplicar_instagram(con):
         # perfil que saiu da watchlist ainda deriva (o dado já foi pago);
         # fallback: o próprio @ como nome.
         info = perfis.get(r["perfil"], {"nome": r["perfil"], "tipo": "casa"})
-        ev = _evento_instagram(info, r["code"], post, ext)
-        if not ev:
+        itens = _itens_extracao(ext)
+        # n é a POSIÇÃO na lista extraída (estável: a extração roda 1x e fica
+        # cacheada na Bronze), contando também itens reprovados pela guarda —
+        # mudar a guarda não renumera os ids dos que sobrevivem.
+        multi = len(itens) > 1
+        do_post = 0
+        for n, item in enumerate(itens, 1):
+            ev = _evento_instagram(info, r["code"], post, item,
+                                   n=n if multi else None)
+            if not ev:
+                continue
+            ev["raspado_em"] = r["raspado_em"]
+            preco = ev.pop("_preco_flyer")
+            eventos.append(ev)
+            do_post += 1
+            if preco is not None:
+                lotes.append({"evento_id": ev["id"], "ordem": 0,
+                              "nome": "entrada (do flyer)",
+                              "preco": float(preco), "taxa": None,
+                              "gratis": preco == 0, "esgotado": 0})
+        if not do_post:
             descartados += 1
-            continue
-        ev["raspado_em"] = r["raspado_em"]
-        preco = ev.pop("_preco_flyer")
-        eventos.append(ev)
-        if preco is not None:
-            lotes.append({"evento_id": ev["id"], "ordem": 0,
-                          "nome": "entrada (do flyer)",
-                          "preco": float(preco), "taxa": None,
-                          "gratis": preco == 0, "esgotado": 0})
     con.execute("DELETE FROM lotes WHERE evento_id LIKE 'instagram:%'")
     con.execute("DELETE FROM eventos WHERE fonte = 'instagram'")
     if eventos:
