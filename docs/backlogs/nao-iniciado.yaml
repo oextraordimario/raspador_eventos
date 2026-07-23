@@ -115,14 +115,16 @@
   resumo: "averiguar raspar e modelar uma tabela de locais e/ou organizadores recorrentes pra enriquecer o evento (vibe/estilo da casa, redes, histórico) em vez de só o texto solto do evento"
   data: 2026-07-10
   depende_de: []
-  relacionado: [NI-06, NI-05]
+  relacionado: [NI-06, NI-05, NI-24]
   caso_real: ["dogfooding 2026-07-10: 'Complexo Fora do Eixo' e 'P.House' aparecem como string solta em local_nome; a casa carrega o estilo (Fora do Eixo = eletrônica/underground) que hoje não é dado, só conhecimento externo"]
   detalhe: |
     Casas e produtores recorrentes (Externa, Fora do Eixo, P.House, LAH...) carregam
     sinal forte de vibe/público que hoje vive só como string em `local_nome`/
     `organizador`. Modelar como entidade própria (tabela `locais` e/ou
     `organizadores`, com FK dos eventos) permitiria enriquecer: estilo típico, @ do
-    Instagram (casa cola com NI-06), endereço canônico, histórico de eventos.
+    Instagram (casa cola com NI-06), **endereço canônico — incluindo o `bairro`/
+    região administrativa**, **site/website oficial** (algumas casas têm, além do
+    @ — agenda própria, página "sobre"), histórico de eventos.
 
     **A averiguar:** (a) vale a normalização numa PoC de uma cidade, ou é over-
     engineering agora? (b) resolução de entidade é o custo real — mesma casa vem com
@@ -131,6 +133,13 @@
     Brasília, que é pequeno). Casa como âncora do classificador de gênero (NI-05) e
     ponto de entrada do Instagram (NI-06). Se aprovado, spec própria + decisão de
     schema (tabela nova exige apagar/recriar a base — ver CLAUDE.md).
+
+    **Nota (2026-07-23):** dois atributos levantados ao expandir a watchlist do
+    Instagram (NI-24), a modelar AQUI e não no YAML de perfis (evitar meia-
+    modelagem no dado curado): (a) **bairro/endereço da casa** preenche o `bairro`
+    de evento `fonte='instagram'` cujo flyer não traz local — hoje fica nulo;
+    (b) **site/website oficial** da casa como fonte extra de informação (nem toda
+    casa vende em plataforma, mas várias têm site com agenda própria).
 
 # NI-25 (conciliação Instagram ↔ plataforma) e NI-26 (ler o flyer por visão)
 # foram IMPLEMENTADOS em 2026-07-23, na mesma entrega do NI-06/NI-24 (spec
@@ -217,6 +226,45 @@
 # _descrever pula URLs bileto.* e valida o nome devolvido pelo BFF antes de
 # gravar (atualizar._mesmo_nome; testado em tests/test_bronze.py). Base
 # contaminada foi descartada e re-raspada.
+
+- codigo: NI-27
+  status: nao-iniciado
+  prioridade: media
+  rank: 2
+  esforco: G
+  eixo: raspagem
+  fase: 0
+  titulo: "Novas fontes de ingresso a avaliar/raspar (Bilheteria Digital, Meaple, Viagogo...)"
+  resumo: "backlog ACUMULATIVO de plataformas de ingresso candidatas a virar scraper; cada uma passa pelo mesmo crivo do NI-22 (tem API JSON aberta? dá pra filtrar DF?) antes de valer o esforço — anexar candidata nova aqui, não abrir NI por site"
+  data: 2026-07-23
+  depende_de: []
+  relacionado: [NI-22, NI-15]
+  caso_real: []
+  candidatas:
+    - url: https://www.bilheteriadigital.com/
+      nota: "plataforma nacional; recon da API de descoberta + filtro por Brasília/DF"
+    - url: https://meaple.com.br/
+      nota: "plataforma de ingressos; recon do catálogo + endpoint de busca"
+    - url: https://www.viagogo.com/
+      nota: "MARKETPLACE DE REVENDA e GLOBAL — natureza de dado diferente (preço de revenda, não o da casa); avaliar se cabe no escopo DF/vida noturna antes de investir, e anti-bot forte esperado"
+  detalhe: |
+    Estoque de fontes de ingresso candidatas a entrar no fluxo. NÃO é compromisso de
+    raspar todas — cada uma passa pelo mesmo funil do NI-22 (Zig/Ticket and Go):
+
+    (1) **spike de reconhecimento** — tem API JSON aberta (sem navegador, sem auth)?
+        O site rende catálogo paginável? (`src/scrapers/discover_sympla.py` é o modelo
+        de interceptação de XHR/fetch quando não há API óbvia.)
+    (2) **filtro DF** — dá pra recortar Brasília/DF, server-side ou textual (como o
+        `_do_df` do Ticket and Go)? Se o recorte DF for vazio, não vale o scraper.
+    (3) **normalizar** — só então `_normalizar(...) → dict` no schema unificado +
+        passo no `atualizar.py`. Playwright só se HTTP puro for bloqueado (caso
+        Shotgun/429).
+
+    **Candidatas semeadas** (2026-07-23, pelo autor) no campo `candidatas` acima.
+    Ressalva do Viagogo: revenda e global — preço não é o da casa e o escopo DF
+    precisa ser filtrado com cuidado; pode não caber na PoC. As páginas de Instagram
+    dessas casas entram por outro caminho — a watchlist `dados/perfis_instagram.yaml`
+    (NI-06/NI-24), não aqui.
 
 - codigo: NI-15
   status: nao-iniciado
