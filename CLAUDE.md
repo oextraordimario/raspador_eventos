@@ -12,12 +12,14 @@ neste fim de semana?"*). Desde a Fase 0b o read-path vive na nuvem: a raspagem r
 local (na mão) e grava direto na base remota; a consulta funciona com o PC desligado.
 
 **Escopo deliberadamente estreito:** só **Brasília (DF)**. O código hoje cobre
-**festas/baladas/shows** (vida noturna) e **cinema** (a grade de 8 cinemas-alvo via
-API da Ingresso.com — NI-07, domínio próprio `filmes`/`sessoes`, fora de `eventos`).
-O roadmap do MVP prevê ainda o **Instagram** como fonte de contexto/enriquecimento —
-**planejado, não implementado** (ver `docs/PRD_MVP.md`). Outras cidades seguem fora.
-Ao mexer nos scrapers ou nas consultas, não generalize além do escopo do PRD sem
-pedido explícito.
+**festas/baladas/shows** (vida noturna), **cinema** (a grade de 8 cinemas-alvo via
+API da Ingresso.com — NI-07, domínio próprio `filmes`/`sessoes`, fora de `eventos`)
+e o **Instagram** como fonte de contexto E de eventos (casas que só divulgam no
+Insta — spec `docs/specs/20260723_instagram-como-fonte/`): posts/stories da
+watchlist (`dados/perfis_instagram.yaml`) via API paga do Monid, flyer lido por
+visão (`claude -p`), post com data vira evento `fonte='instagram'`. Outras cidades
+seguem fora. Ao mexer nos scrapers ou nas consultas, não generalize além do escopo
+do PRD sem pedido explícito.
 
 A hipótese de risco central do produto é a **raspagem** (se ela funciona, o resto é
 considerado tranquilo). Prioridade nº 1 do usuário: validar/manter a raspagem.
@@ -30,6 +32,9 @@ pip install -r requirements.txt
 python -m playwright install chromium          # necessário só p/ o Shotgun
 # .env na raiz (gitignorado) com EVENTOS_DB_URL e EVENTOS_DB_URL_TESTE
 # (connection strings dos bancos eventos/eventos_teste no Neon)
+# Instagram (opcional): npm i -g @monid-ai/cli && monid keys add -k <key> -l main
+# (conta em app.monid.ai; a chave fica no config do monid, NÃO no repo) +
+# CLI `claude` logado na assinatura (extração do flyer por visão)
 
 # Atualização sob demanda — o comando da Fase 0 (raspa as 5 fontes → marca sumidos
 # → descreve/precifica → raspa a grade de cinema → deriva (inclui filmes/sessoes)
@@ -38,6 +43,7 @@ python -m playwright install chromium          # necessário só p/ o Shotgun
 python src/atualizar.py
 python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
 python src/atualizar.py --sem-cinema            # pula a grade de cinema
+python src/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
 python src/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: janela de 30 dias)
 python src/atualizar.py --so-derivar            # não raspa; re-deriva do payload bruto + regras + FTS
 python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
@@ -66,6 +72,7 @@ python tests/test_bronze.py                     # camadas Bronze/Prata (eventos_
 python tests/test_observabilidade.py            # execucoes + sumido + janela do precificar
 python tests/test_cinema.py                     # domínio cinema: cinema_raw + snapshot, filmes/sessoes, buscar_filmes/sessoes_filme
 python tests/test_zig_ticketandgo.py            # fontes novas (NI-22): normalização, filtro DF textual, lotes c/ taxa fracionária
+python tests/test_instagram.py                  # fonte Instagram: guarda da derivação, data do flyer, conciliação via dedupe, sumido
 python tests/test_mcp_server.py                 # age como cliente MCP real (stdio); exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
@@ -91,9 +98,10 @@ src/
   store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
-    sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  discover_sympla.py
+    sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  instagram.py  discover_sympla.py
 api/           # entrypoint serverless do MCP remoto (Vercel): index.py (deps: pyproject.toml da raiz)
 sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver/psql)
+dados/         # dado curado à mão, versionado (perfis_instagram.yaml — a watchlist NI-24)
 docs/          # PRD, backlogs/, specs/ (specs técnicas de implementação)
 tests/         # scripts executáveis + base_teste.py (redireciona p/ eventos_teste)
 ```
@@ -145,9 +153,22 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   (dict `CINEMAS`: theaterId → apelido canônico). 404 = dia sem sessão (não é
   erro). Raspa 8 dias corridos (a programação vira na quinta). Fallbacks por rede
   mapeados em `spikes/cinema/README.md`. Spec: `docs/specs/20260711_raspagem-cinema/`.
+- `src/scrapers/instagram.py` — **contrato próprio** (devolve payloads brutos por perfil,
+  não lista de eventos): posts + stories ativos dos perfis da watchlist
+  (`dados/perfis_instagram.yaml`) via CLI do **Monid** (`monid`, subprocess —
+  revenda dos endpoints TikHub; chave no config do monid, nunca no repo; ~$0,006
+  por perfil/rodada, o 1º custo recorrente aceito do projeto). Também abriga
+  `extrair(...)` (legenda + flyer → JSON estruturado, via `claude -p` headless com
+  Sonnet na ASSINATURA — o env do subprocesso remove `ANTHROPIC_API_KEY`, que
+  teria precedência sobre o login) e `montar_start_date(...)` (data "25/07" do
+  flyer + `taken_at` do post → próxima ocorrência; ano explícito no passado =
+  retrospectiva, não vira evento). Quem transforma post em evento
+  (`fonte='instagram'`) é `derivar.aplicar_instagram`. Spec:
+  `docs/specs/20260723_instagram-como-fonte/`.
 - Cada scraper preenche `ULTIMA_RASPAGEM` (módulo) com `coletados`/`total_site`
   ao fim de `raspar()` — é daí que o `atualizar.py` mede cobertura (no cinema,
-  coletados = cinemas que responderam ≥ 1 dia).
+  coletados = cinemas que responderam ≥ 1 dia; no Instagram, perfis cujos posts
+  responderam).
 - `src/scrapers/discover_sympla.py` — ferramenta de reconhecimento, não faz parte do pipeline:
   intercepta XHR/fetch num navegador para achar a API interna quando um site muda.
 
@@ -178,11 +199,23 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   `filmes`/`sessoes` do zero a partir de `cinema_raw` (SNAPSHOT: sessão de cinema
   não tem id estável entre semanas, então a grade nova substitui a anterior —
   sem upsert, sem dedupe, sem `sumido`; o id do FILME é estável e é a PK).
+  **Instagram**: `aplicar_instagram(con)` reconstrói os eventos `fonte='instagram'`
+  do zero a partir de `instagram_raw` (payload do post + extração do flyer, ambos
+  na Bronze — a "Prata" do Instagram é a própria `eventos`). Guarda de entrada:
+  só vira evento post com `e_evento=true` + confiança ALTA + data resolvida (errar
+  p/ o lado de NÃO criar). Preço do flyer vira lote sintético ("entrada (do
+  flyer)") p/ as agregações funcionarem sem caso especial. Roda DEPOIS de
+  `aplicar()` (que trunca `lotes`).
 - `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
   (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas cross-fonte
   (mesmo dia + nome/local similares). **Marca, não apaga** — quem esconde é a
   consulta. `aplicar(con)` é idempotente: reseta e recalcula tudo, então mudar
   regra não exige re-raspar (`python src/atualizar.py --so-enriquecer`).
+  O dedupe também é a **conciliação Instagram ↔ plataforma** (NI-25): o post que
+  virou evento agrupa com o evento do Sympla/Zig pelo mesmo mecanismo, com os
+  `local_aliases` da watchlist canonizando o local ("Culto" ↔ "Culto Rock Bar")
+  via parâmetro `aliases_local`; `instagram` é o último em `_PREF_FONTE` (quem
+  vende o ingresso é o canônico; o post entra em `outras_urls`).
 - `src/consulta.py` — `buscar_eventos(texto, cidade, data_inicio, data_fim, limite,
   incluir_ruido)`, todos os args opcionais, retorno JSON-serializável. Por padrão
   esconde ruído, não-canônicos de dedupe, **cancelados** e **sumidos** (evento
@@ -210,7 +243,11 @@ erro → `sumido=1`; a consulta esconde) → descrever (busca incremental da des
 p/ Sympla/Ingresse/Zig; upsert usa COALESCE p/ nunca zerá-la) → precificar (tickets/
 lotes p/ a Bronze, refeito a cada rodada na janela de 30 dias) → cinema
 (`cinema.raspar()` → `store.gravar_cinema_raw()`, snapshot com poda de dias
-passados) → `derivar.aplicar()` + `derivar.aplicar_cinema()` → `enriquecer.aplicar()` →
+passados) → instagram (`instagram.raspar()` → `store.gravar_instagram_raw()`,
+Bronze acumulativa + extração do flyer via `claude -p` só p/ post NOVO ≤ 60 dias;
+falha re-tenta na próxima rodada) → `derivar.aplicar()` +
+`derivar.aplicar_instagram()` + `derivar.aplicar_cinema()` →
+`enriquecer.aplicar(aliases_local=...)` →
 `store.reconstruir_fts()` (eventos E filmes) → relatório (compara coleta com a
 rodada anterior e ALERTA queda > 50% — detector de scraper quebrado) →
 `store.registrar_execucao()`
@@ -241,6 +278,14 @@ gênero no nome (em filmes: titulo/generos).
   pelo parâmetro de busca (`cidade_label`), não pelo dado bruto. No **Ticket and
   Go**, cidade/estado vêm NULOS da fonte e também são rotulados (pelo filtro
   textual `_do_df`).
+- **Instagram tem regras próprias:** (a) URL de mídia do CDN **expira em horas** —
+  baixar na hora da ingestão (`midias/instagram/`, gitignorado), nunca gravar a
+  URL na base; (b) a fonte fica **FORA** do `_marcar_sumidos` (guarda explícita:
+  post que sai da 1ª página do perfil não significa cancelamento); (c) a
+  watchlist é dado **curado à mão e versionado** (`dados/perfis_instagram.yaml`)
+  — não mover para a base, que é descartável; (d) a extração do flyer roda na
+  ASSINATURA (`claude -p`; o subprocess remove `ANTHROPIC_API_KEY` do env) e é
+  incremental — nunca re-extrai shortcode que já tem origem `extracao` na Bronze.
 - **URLs do Bileto (`bileto.sympla.com.br`) não passam pelo "descrever":** o id no
   fim delas é de OUTRO namespace, e o BFF de página devolveria um evento alheio sem
   erro HTTP (bug NI-17, achado no spike da Bronze). Além do filtro de URL, o

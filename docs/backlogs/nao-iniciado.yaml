@@ -111,6 +111,12 @@
     depender do FTS no nome. Medida de sucesso já definida no PRD §10: "festa de
     pagode" retornar pagodes SEM a palavra no nome.
 
+    **Nota (2026-07-23): DESTRAVADO** — o NI-06 foi implementado (spec
+    20260723_instagram-como-fonte): a base já recebe legenda + extração do flyer
+    (descricao/atracoes dos eventos fonte='instagram'), e o executor por
+    subagente (`claude -p` na assinatura) estreou na extração do flyer — o
+    mesmo caminho serve a este classificador. É o próximo candidato natural.
+
 - codigo: NI-16
   status: nao-iniciado
   prioridade: media
@@ -139,98 +145,38 @@
     ponto de entrada do Instagram (NI-06). Se aprovado, spec própria + decisão de
     schema (tabela nova exige apagar/recriar a base — ver CLAUDE.md).
 
-- codigo: NI-25
-  status: nao-iniciado
-  prioridade: alta
-  rank: 1
-  esforco: G
-  eixo: enriquecimento
-  fase: dados
-  titulo: "Conciliar evento do Instagram vs. evento da plataforma de ingresso (Sympla etc.)"
-  resumo: "casar o que a casa anuncia no Insta com o mesmo evento já raspado do Sympla/Ingresse/Zig — pra enriquecer o registro existente com o contexto do post, e detectar o que só existe no Insta (sem link de ingresso)"
-  data: 2026-07-21
-  depende_de: [NI-06]
-  relacionado: [NI-01, NI-16, NI-24, NI-26]
-  caso_real: ["spike instagram-monid (2026-07-21): @cultorockbar anuncia 'Substance Goth Party' (7/8) e 'Alquimia Dark' (25/7) — é o MESMO evento se/quando aparecer no Sympla; tem que casar, não duplicar"]
-  detalhe: |
-    O Instagram é fonte de CONTEXTO (vibe, line-up, flyer), não de venda. O valor
-    aparece ao ligar o post da casa ao evento correspondente já na base (Sympla/
-    Ingresse/Zig). Dois lados: (1) MATCH — post ↔ evento existente (mesma casa + data
-    próxima + nome parecido) pra anexar contexto/flyer ao registro CERTO; (2) GAP —
-    evento anunciado no Insta que NÃO está em nenhuma plataforma de ingresso (festa sem
-    venda online, ou lançada só no story): decidir se entra como evento "só-Instagram"
-    (sem link de compra) ou fica de fora.
-
-    **A resolver na spec:** é o mesmo problema de resolução de entidade do dedupe
-    (NI-01) e da base de casas (NI-16), agora cross-fonte com uma fonte SEM id nativo de
-    evento e com data que muitas vezes só está no flyer (NI-26). Chave provável: casa
-    (via NI-24/NI-16) + data + similaridade de nome; cuidar do falso positivo (casa faz
-    2 festas no mês). **Modelagem na base:** decidir contexto como coluna(s) no evento
-    vs. tabela de posts ligada por FK — decisão de schema da spec (base recriável).
-
-- codigo: NI-26
-  status: nao-iniciado
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: enriquecimento
-  fase: dados
-  titulo: "Ler o flyer: extrair info da imagem/vídeo do post (OCR/visão)"
-  resumo: "passo do pipeline que olha a imagem/vídeo do post e extrai data, preço, line-up, horário — dado que muitas vezes NÃO está na legenda, só no flyer"
-  data: 2026-07-21
-  depende_de: [NI-06]
-  relacionado: [NI-05, NI-25]
-  caso_real: ["spike instagram-monid (2026-07-21): flyer do 'Alquimia Dark' (@cultorockbar) traz data 25/7, preço 20$ e DJs GABZ/VELOZZ — o preço NÃO estava na legenda"]
-  detalhe: |
-    Achado central do spike: a IMAGEM é o flyer e carrega o que a legenda não tem.
-    Precisa de um passo que leia a mídia (visão multimodal) e devolva campos
-    estruturados: data, horário, preço/entrada, line-up, local. A mídia baixa direto do
-    CDN do Instagram (o probe já faz), mas a URL EXPIRA — ler na hora da ingestão.
-
-    **A definir na spec:** (a) executor — mesmo caminho do NI-05 (subagente multimodal
-    no Claude Code CLI, assinatura e não API paga) processando a imagem; (b) vídeo/story
-    — extrair frame(s) ou passar direto; (c) confiança/validação (flyer estiliza/mente;
-    cruzar com a caption e com a plataforma via NI-25); (d) o que da extração vira coluna
-    vs. texto pro agente interpretar. Alimenta o classificador de gênero (NI-05) e a
-    conciliação (NI-25).
+# NI-25 (conciliação Instagram ↔ plataforma) e NI-26 (ler o flyer por visão)
+# foram IMPLEMENTADOS em 2026-07-23, na mesma entrega do NI-06/NI-24 (spec
+# docs/specs/20260723_instagram-como-fonte/). NI-25: o post que vira evento
+# (fonte='instagram') entra na tabela eventos e a conciliação É o dedupe
+# cross-fonte existente — local canonizado pelos local_aliases da watchlist
+# (enriquecer.aplicar ganhou o parâmetro aliases_local); plataforma de ingresso
+# fica canônica (instagram por último em _PREF_FONTE), post entra em
+# outras_urls; festa só-Insta (caso Culto/Ordinário) fica canônica sozinha e
+# aparece na busca. NI-26: extração legenda+flyer numa chamada de visão
+# (claude -p com Sonnet, na assinatura — decisão do PRD §7), JSON na Bronze
+# (instagram_raw origem='extracao', incremental), guarda na derivação
+# (e_evento + confiança alta + data futura); preço do flyer vira lote
+# sintético. Visão de VÍDEO/story ficou fora do v1 (spec §4). Validado com
+# flyer real: 'Alquimia Dark' rendeu data 25/7 e R$ 20 que não estão na
+# legenda. Testes em tests/test_instagram.py.
 
 # ─────────────────────────── Raspagem ───────────────────────────
 
-- codigo: NI-06
-  status: nao-iniciado
-  prioridade: alta
-  rank: 1
-  esforco: G
-  eixo: raspagem
-  fase: dados
-  titulo: "Instagram como fonte de contexto (da festa e da casa)"
-  resumo: "raspar o Instagram para suprir a descrição pobre das plataformas de ingresso — última etapa do MVP, fonte mais frágil/resistente; principal insumo do classificador (NI-05)"
-  data: 2026-07-09
-  depende_de: []
-  relacionado: [NI-05]
-  caso_real:
-    - "@cultorockbar (2026-07-21): flyer do post 'Alquimia Dark' traz data 25/7,
-       preço 20$ e line-up de DJs que NÃO estão na legenda — insumo direto de OCR."
-  detalhe: |
-    PRD §3/§6 (trilha de dados, item 3): sem o contexto do Instagram, o raspador
-    dificilmente é *realmente* útil para vida noturna — página de ingresso costuma ser
-    enxuta. Trabalhoso (achar o @ certo, login wall, bloqueios, layout volátil), por
-    isso é a última etapa. Escopo mínimo: só o suficiente para inferir estilo/vibe;
-    tolerância a falha (perfil não raspou → evento segue existindo pela plataforma).
-    Merece spec própria em docs/specs/ antes de começar.
-
-    RISCO Nº1 DESRISCADO no spike spikes/instagram-monid/ (2026-07-21): o login
-    wall/bloqueio/layout volátil sai da nossa conta ao terceirizar a raspagem para o
-    Monid (CLI, revende endpoints TikHub), que devolve o payload interno do Instagram
-    em JSON — posts (legenda, hashtags, @menções, likes, taken_at, IMAGEM 1080px),
-    stories ativos (vídeo/imagem + expiring_at), comentários e detalhe por URL. Sem
-    navegador. Barato: cobrança por CALL (posts/stories $0,003; detalhe $0,0015), a
-    janela inteira num run. O que SOBRA (decomposto em itens próprios, 2026-07-21):
-    (a) a lista de @s a seguir e como somar casas → NI-24; (b) OCR/visão do flyer, onde
-    mora dado que a legenda não tem → NI-26; (c) conciliar com o evento da plataforma de
-    ingresso e modelar na base → NI-25; (d) dependência de fornecedor pago (é fonte de
-    contexto, não de verdade — tolerância a falha mantida). Este NI-06 vira a raspagem
-    em si (dado um @, puxar posts/stories via Monid para a base).
+# NI-06 (Instagram como fonte) e NI-24 (watchlist de perfis) foram
+# IMPLEMENTADOS em 2026-07-23 (spec docs/specs/20260723_instagram-como-fonte/,
+# junto com NI-25/NI-26 — ver o bloco na seção Enriquecimento). Scraper
+# src/scrapers/instagram.py (contrato próprio, como o cinema): posts + stories
+# ativos por perfil via CLI do Monid (endpoints TikHub, ~$0,006/perfil/rodada —
+# 1ª exceção consciente ao free-tier-only, aprovada pelo autor), Bronze
+# ACUMULATIVA instagram_raw (post que sai da 1ª página não some), mídia baixada
+# na hora (URL do CDN expira) p/ midias/instagram/. Watchlist = YAML versionado
+# dados/perfis_instagram.yaml (base é descartável; dado curado não pode morar
+# só nela) com nome canônico, tipo casa/produtora, ativo e local_aliases;
+# semeada com @cultorockbar e @ordinariobar. Passo novo "instagram" no
+# atualizar.py (--sem-instagram p/ pular; fonte FORA do _marcar_sumidos, guarda
+# explícita). Cadência segue manual por decisão do autor (2026-07-23) — o valor
+# pleno dos stories só chega com o cron (NI-10). Testes: tests/test_instagram.py.
 
 # NI-07 (cinema) foi IMPLEMENTADO em 2026-07-11 (spike spikes/cinema/ + spec
 # docs/specs/20260711_raspagem-cinema/): a API de conteúdo da Ingresso.com
@@ -311,33 +257,6 @@
     do upsert (que hoje protege a descrição de ser zerada) já é meio-caminho — formalizar.
     Cuidado com corretude: evento pode ser DESmarcado/adiado; não pode ficar preso a
     dado velho só por já existir. Medir o ganho antes de complicar o `atualizar.py`.
-
-- codigo: NI-24
-  status: nao-iniciado
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: raspagem
-  fase: dados
-  titulo: "Watchlist de perfis do Instagram a acompanhar (+ jeito fácil de somar casas)"
-  resumo: "curar a lista de @s de casas/produtoras que o raspador segue e ter um caminho de baixo atrito pra adicionar um lugar novo — sem a lista, o NI-06 não tem alvos pra rodar em escala"
-  data: 2026-07-21
-  depende_de: []
-  relacionado: [NI-06, NI-16, NI-25]
-  caso_real: ["spike instagram-monid (2026-07-21): rodou 1 @ na mão (@cultorockbar); em produção o NI-06 precisa de uma lista MANTIDA de @s pra varrer"]
-  detalhe: |
-    O NI-06 puxa dados DADO um @; falta de onde vem a lista de @s. O recorte de Brasília
-    é pequeno (dezenas de casas/produtoras), então curadoria manual é viável — mas
-    precisa de baixo atrito pra somar um lugar novo quando aparecer (o Mário monta a
-    lista inicial e ela cresce com o tempo).
-
-    **A definir na spec:** (a) onde mora a lista — tabela no Postgres (cola com NI-16,
-    casa/organizador como entidade, que já quer guardar o @) vs. arquivo versionado
-    simples; (b) o "jeito fácil de adicionar" — tool MCP tipo adicionar_perfil(@),
-    comando CLI, ou editar o arquivo; (c) atributos por perfil (ativo/inativo, casa vs.
-    produtora, cidade). Raspar é barato (NI-06: ~$0,003/perfil/rodada), então a lista
-    pode ser generosa. Fonte dos @s: manual no começo; depois pode sair do próprio NI-16
-    (casa recorrente → descobrir o @).
 
 # ─────────────────────────── Consulta / MCP ───────────────────────────
 
