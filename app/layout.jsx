@@ -2,7 +2,6 @@ import './globals.css'
 import Link from 'next/link'
 import { MARCA, ORIGEM } from '../lib/config'
 import Tema from './Tema'
-import Analytics from './Analytics'
 
 export const metadata = {
   metadataBase: new URL(ORIGEM),
@@ -61,7 +60,6 @@ export default function RootLayout({ children }) {
           não vendemos ingresso — cada evento leva para quem está vendendo
         </footer>
 
-        <Analytics />
       </body>
     </html>
   )

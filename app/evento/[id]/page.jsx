@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { detalharEvento, slugParaId } from '../../../lib/api'
 import { diaSemana, diaMes, hora, reais } from '../../../lib/formato'
 import { MARCA, ORIGEM } from '../../../lib/config'
+import { TicketCta, OtherPlatformCta } from './CtaButton'
 
 export const revalidate = 300
 
@@ -120,14 +121,10 @@ export default async function Evento({ params }) {
           </>
         )}
 
-        <a className="cta" href={ev.url} target="_blank" rel="noopener nofollow">
-          &gt; abrir no {ev.fonte}
-        </a>
+        <TicketCta href={ev.url} fonte={ev.fonte} haPrice={ev.preco_min != null} />
 
         {outras.map((u) => (
-          <a key={u} className="cta ghost" href={u} target="_blank" rel="noopener nofollow">
-            ver este evento em outra plataforma
-          </a>
+          <OtherPlatformCta key={u} href={u} />
         ))}
       </article>
     </>

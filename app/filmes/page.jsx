@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { listarFilmes } from '../../lib/api'
 import { MARCA } from '../../lib/config'
+import FilmCard from './FilmCard'
 
 export const revalidate = 300
 
@@ -41,27 +42,9 @@ export default async function Filmes({ searchParams }) {
         </div>
       ) : (
         <div className="list">
-          {filmes.map((f) => {
-            const cinemas = (f.cinemas || '').split(', ').filter(Boolean)
-            return (
-              <a className="card solo" key={f.id} href={f.url}
-                 target="_blank" rel="noopener nofollow">
-                <div className="body">
-                  <h3 className="title">{f.titulo}</h3>
-                  <div className="venue">{f.generos}</div>
-                  <div className="meta">
-                    <span className="sess">{f.sessoes} sessões</span>
-                    {f.duracao_min && <span className="tag tag-src">{f.duracao_min} min</span>}
-                    {f.classificacao && <span className="tag tag-src">{f.classificacao}</span>}
-                    {f.em_pre_venda === 1 && <span className="tag tag-hot">pré-venda</span>}
-                  </div>
-                  <div className="cinemas">
-                    {cinemas.length} {cinemas.length === 1 ? 'cinema' : 'cinemas'} // {f.cinemas}
-                  </div>
-                </div>
-              </a>
-            )
-          })}
+          {filmes.map((f) => (
+            <FilmCard key={f.id} filme={f} />
+          ))}
         </div>
       )}
     </>
