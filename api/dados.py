@@ -186,3 +186,15 @@ class handler(BaseHTTPRequestHandler):
 
     def log_message(self, *_):
         pass  # o log da Vercel já registra a requisição
+
+
+if __name__ == "__main__":
+    # Servidor local para desenvolver o front sem depender de deploy:
+    #     python api/dados.py            (porta 8000)
+    # Na Vercel quem instancia o handler é a plataforma; isto é só o atalho
+    # de dev, e por isso não tem nenhuma configuração além da porta.
+    from http.server import HTTPServer
+
+    porta = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+    print(f"API de leitura em http://localhost:{porta}/api/dados/eventos")
+    HTTPServer(("127.0.0.1", porta), handler).serve_forever()

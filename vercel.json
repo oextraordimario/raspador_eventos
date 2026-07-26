@@ -1,10 +1,36 @@
 {
-    "rewrites": [
-        { "source": "/(.*)", "destination": "/api/index" }
+    "$comment": [
+        "Roteamento das DUAS portas de leitura no mesmo domínio.",
+        "",
+        "Antes desta spec havia um catch-all mandando TODAS as rotas para",
+        "/api/index (o MCP), porque o MCP era a única porta. Com o site entrando,",
+        "esse catch-all sai — e é exatamente aqui que dá para derrubar o MCP sem",
+        "querer, então as duas rotas abaixo são explícitas e o Next fica com o",
+        "resto (páginas, sitemap, robots, llms.txt).",
+        "",
+        "Por que /:segredo/mcp e não o segredo literal: o prefixo vem da env",
+        "MCP_SEGREDO e não pode ser escrito num arquivo versionado. O padrão casa",
+        "qualquer primeiro segmento terminando em /mcp; quem valida o segredo é o",
+        "proprio app ASGI, que so monta a rota no path certo e devolve 404 no",
+        "resto. Quando o NI-11 substituir o segredo por OAuth, esta linha vira",
+        "/mcp puro."
     ],
     "functions": {
         "api/index.py": {
             "maxDuration": 60
+        },
+        "api/dados.py": {
+            "maxDuration": 30
         }
-    }
+    },
+    "rewrites": [
+        {
+            "source": "/api/dados/:rota",
+            "destination": "/api/dados"
+        },
+        {
+            "source": "/:segredo/mcp",
+            "destination": "/api/index"
+        }
+    ]
 }

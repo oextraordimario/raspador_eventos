@@ -30,3 +30,8 @@ venv/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Front (Next.js) — build e dependências
+node_modules/
+.next/
+next-env.d.ts

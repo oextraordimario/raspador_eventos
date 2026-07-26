@@ -1,7 +1,9 @@
-# Só o read-path sobe no deploy: api/, src/, sql/, vercel.json.
+# Só o read-path sobe no deploy: o front (app/, lib/, package.json,
+# next.config.mjs) e as funções Python (api/, src/, sql/, vercel.json).
 # Nunca subir segredo local nem peso morto.
 # O requirements.txt da raiz é do write-path local (playwright/pandas) — fica
-# fora do upload; as deps da função vêm do pyproject.toml (só mcp + psycopg).
+# fora do upload; as deps das funções vêm do pyproject.toml (só mcp + psycopg),
+# e as do front, do package.json.
 requirements.txt
 .env
 .env.*

@@ -15,11 +15,15 @@ import store
 import tempo
 
 # Campos uteis expostos ao agente (subconjunto enxuto da tabela).
+# `id` (<fonte>:<id_nativo>) entrou em 2026-07-26: o site publico precisa de
+# endereco proprio por evento (uma pagina por evento e o que a Fase 2 marca em
+# JSON-LD) e a url da fonte nao serve de identificador de rota. Serve ao agente
+# tambem — detalhar_evento aceita id ou url.
 # preco_min = menor lote PAGO em R$ (total, com taxa); tem_gratis 1 = ha lote
 # gratis nao esgotado (com preco_min NULL = evento gratis); esgotado 1 = sem
 # ingressos; bairro/popularidade derivados da camada Bronze (specs camada-prata
 # e lotes-ingressos).
-CAMPOS = ["nome", "fonte", "start_date", "end_date", "cidade", "estado",
+CAMPOS = ["id", "nome", "fonte", "start_date", "end_date", "cidade", "estado",
           "local_nome", "endereco", "bairro", "categoria", "organizador",
           "url", "imagem", "atracoes", "preco_min", "tem_gratis", "esgotado",
           "popularidade"]
@@ -105,10 +109,18 @@ def detalhar_evento(url):
     Lookup pela url exata que buscar_eventos devolveu (em url ou outras_urls).
     Se a url for de um membro nao-canonico de grupo de dedupe, responde o
     canonico. Nao achou -> {"erro": ...}.
+
+    Aceita tambem o ID interno (`<fonte>:<id_nativo>`) no lugar da url — o
+    site publico precisa de endereco proprio por evento (uma pagina por
+    evento e o que a Fase 2 marca em JSON-LD), e a url da fonte nao serve de
+    identificador de rota. A tool MCP continua passando url; quem chama com
+    id e a API do site.
     """
     con = store.conectar()
-    row = con.execute("SELECT id, dedupe_grupo, dedupe_canonico FROM eventos "
-                      "WHERE url = %s", ((url or "").strip(),)).fetchone()
+    alvo = (url or "").strip()
+    coluna = "url" if alvo.startswith("http") else "id"
+    row = con.execute(f"SELECT id, dedupe_grupo, dedupe_canonico FROM eventos "
+                      f"WHERE {coluna} = %s", (alvo,)).fetchone()
     if row and not row["dedupe_canonico"] and row["dedupe_grupo"]:
         row = con.execute(
             "SELECT id FROM eventos WHERE dedupe_grupo = %s "
