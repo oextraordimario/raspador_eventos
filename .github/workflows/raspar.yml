@@ -1,0 +1,90 @@
+# Cron da raspagem — NI-10, spec docs/specs/20260726_abrir-ao-publico §3 passo 2.
+#
+# Tira o humano da cadência: o atualizar.py deixa de depender de o autor
+# lembrar de rodar. Grava direto na base remota (Neon), como já fazia local.
+#
+# Por que GitHub Actions e não Cloud Run/Lambda: o processo leva 10-15 min e
+# precisa de Python + Node + Chromium ao mesmo tempo — é container, não
+# function. O runner ubuntu já traz os três e, como o repo é PÚBLICO, os
+# minutos são gratuitos e ilimitados. Comparativo das 7 opções e o plano B
+# (Cloud Run Jobs) no anexo cron.md da spec.
+#
+# ATENÇÃO — a extração de flyer do Instagram NÃO roda aqui (--sem-extracao-flyer):
+# ela usa `claude -p` na ASSINATURA e não existe login de assinatura em CI.
+# É o "caminho 1" decidido na spec. Os posts entram na Bronze normalmente e a
+# fila de extração é processada na próxima rodada LOCAL:
+#     python src/atualizar.py --so-instagram
+# O relatório desta rodada avisa quantos posts estão aguardando.
+
+name: raspar
+
+on:
+  schedule:
+    # 06:00 UTC = 03:00 em Brasília. Fila do GitHub mais curta fora do pico
+    # americano, e a base fica pronta antes de alguém acordar e perguntar o
+    # que tem hoje. O cron do Actions é best effort — atraso de 10-30 min é
+    # esperado e irrelevante para raspagem diária de vida noturna.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      sem_shotgun:
+        description: "Pular o Shotgun (mais rápido; usa navegador)"
+        type: boolean
+        default: false
+
+# Duas rodadas simultâneas fariam UPSERT concorrente na mesma base. Não
+# corrompe (a chave é <fonte>:<id_nativo>), mas desperdiça e embaralha o
+# relatório de comparação com a rodada anterior.
+concurrency:
+  group: raspar
+  cancel-in-progress: false
+
+jobs:
+  raspar:
+    runs-on: ubuntu-latest
+    # Teto de 6h no plano; a rodada real leva 10-15 min. 40 min corta um
+    # travamento de rede sem cortar uma rodada lenta de verdade.
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # A CLI do Monid é npm global — o Instagram sai por ela.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar dependências Python
+        run: pip install -r requirements.txt
+
+      # O binário do Chromium muda de versão junto do Playwright; a chave do
+      # cache carrega o hash do requirements para não servir binário velho.
+      - name: Cache do Chromium
+        id: cache-chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Instalar Chromium (Shotgun)
+        if: steps.cache-chromium.outputs.cache-hit != 'true'
+        run: python -m playwright install --with-deps chromium
+
+      - name: Instalar e configurar a CLI do Monid (Instagram)
+        env:
+          MONID_KEY: ${{ secrets.MONID_KEY }}
+        run: |
+          npm i -g @monid-ai/cli
+          monid keys add -k "$MONID_KEY" -l main
+
+      - name: Raspar
+        env:
+          EVENTOS_DB_URL: ${{ secrets.EVENTOS_DB_URL }}
+        run: |
+          python src/atualizar.py --sem-extracao-flyer \
+            ${{ inputs.sem_shotgun && '--sem-shotgun' || '' }}

@@ -314,7 +314,7 @@ def _raspar_cinema(con, erros):
     return dict(cinema.ULTIMA_RASPAGEM)
 
 
-def _raspar_instagram(con, erros):
+def _raspar_instagram(con, erros, extrair=True):
     """Posts/stories da watchlist → Bronze (instagram_raw) + extração do
     flyer dos posts novos (visão via `claude -p`, incremental — a fila é o
     shortcode sem origem='extracao'; falha re-tenta na próxima rodada).
@@ -322,6 +322,14 @@ def _raspar_instagram(con, erros):
     A mídia é baixada AGORA porque a URL do CDN expira em horas; a Bronze
     recém-gravada garante URL fresca até para post pendente de rodada
     anterior. Quem transforma post em evento é derivar.aplicar_instagram.
+
+    `extrair=False` (flag --sem-extracao-flyer) faz a coleta parar na Bronze:
+    raspa os perfis, grava os posts e NÃO chama a visão. É o modo do cron
+    (spec 20260726_abrir-ao-publico §3 passo 2, "caminho 1"): o `claude -p`
+    roda na ASSINATURA e não há login de assinatura em CI. A fila é
+    incremental e re-tentável por desenho, então o que ficou pendente é
+    extraído na próxima rodada LOCAL — o resultado reporta quantos são, para
+    o pendente não virar invisível.
     """
     perfis = instagram.watchlist_ativos()
     if not perfis:
@@ -362,6 +370,15 @@ def _raspar_instagram(con, erros):
             antigos += 1
             continue
         alvos.append((row, post))
+    if not extrair:
+        # Caminho 1: a Bronze está atualizada, a visão fica para a rodada
+        # local. Não é erro nem falha — é escopo do cron.
+        print(f"[instagram] extração do flyer PULADA (--sem-extracao-flyer): "
+              f"{len(alvos)} posts aguardando a próxima rodada local.")
+        resultado.update(extraidos=None, falhas_extracao=None,
+                         pendentes_extracao=len(alvos))
+        return resultado
+
     extraidos = falhas = 0
     if alvos:
         print(f"[instagram] extraindo eventos de {len(alvos)} posts "
@@ -497,6 +514,12 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
         print(f"\nInstagram (watchlist{cobertura}): {insta['eventos']} eventos"
               f" derivados, {insta['lotes']} com preço no flyer"
               f" ({insta['descartados']} posts sem evento pela guarda)")
+        # Caminho 1 (cron): a visão não roda em CI. Sem esta linha, o pendente
+        # ficaria invisível justamente na rodada que não o processa.
+        if res.get("pendentes_extracao"):
+            print(f"  *** {res['pendentes_extracao']} posts aguardando "
+                  "extração do flyer — rode `python src/atualizar.py "
+                  "--so-instagram` localmente (a visão exige a assinatura)")
 
     # --- cinema: grade derivada de cinema_raw (snapshot da rodada) ---
     if cine is not None:
@@ -534,10 +557,14 @@ def main():
     iniciada_em = datetime.now(timezone.utc).isoformat()
     so_enriquecer = "--so-enriquecer" in sys.argv
     so_derivar = "--so-derivar" in sys.argv
+    so_instagram = "--so-instagram" in sys.argv
     sem_shotgun = "--sem-shotgun" in sys.argv
     sem_cinema = "--sem-cinema" in sys.argv
     sem_instagram = "--sem-instagram" in sys.argv
+    sem_extracao = "--sem-extracao-flyer" in sys.argv
     modo = ("so-enriquecer" if so_enriquecer else "so-derivar" if so_derivar
+            else "so-instagram" if so_instagram
+            else "cron" if sem_extracao
             else "sem-shotgun" if sem_shotgun else "completo")
 
     con = store.conectar()
@@ -546,22 +573,28 @@ def main():
     resultados, erros = {}, []
     sumidos = desc = prec = None
     if not (so_enriquecer or so_derivar):
-        resultados = _raspar(con, incluir_shotgun=not sem_shotgun)
-        if resultados and all("erro" in r for r in resultados.values()):
-            con.close()
-            sys.exit("Todas as fontes falharam — base não atualizada.")
-        # sumidos primeiro: cinema não entra em resultados ainda (grade não
-        # tem sumido — sessão que sai simplesmente não volta no snapshot).
-        sumidos = _marcar_sumidos(con, resultados, iniciada_em)
-        desc = _descrever(con, erros)
-        prec = _precificar(con, erros, tudo="--precificar-tudo" in sys.argv)
-        if not sem_cinema:
-            resultados["cinema"] = _raspar_cinema(con, erros)
+        # --so-instagram: rodada curta que processa só a fila de extração
+        # deixada pelo cron (que roda com --sem-extracao-flyer). Re-raspa os
+        # perfis de propósito — a URL de mídia do CDN expira em horas, então
+        # a Bronze precisa estar fresca para a visão conseguir baixar o flyer.
+        if not so_instagram:
+            resultados = _raspar(con, incluir_shotgun=not sem_shotgun)
+            if resultados and all("erro" in r for r in resultados.values()):
+                con.close()
+                sys.exit("Todas as fontes falharam — base não atualizada.")
+            # sumidos primeiro: cinema não entra em resultados ainda (grade não
+            # tem sumido — sessão que sai simplesmente não volta no snapshot).
+            sumidos = _marcar_sumidos(con, resultados, iniciada_em)
+            desc = _descrever(con, erros)
+            prec = _precificar(con, erros,
+                               tudo="--precificar-tudo" in sys.argv)
+            if not sem_cinema:
+                resultados["cinema"] = _raspar_cinema(con, erros)
         # depois do _marcar_sumidos de propósito: a fonte instagram fica FORA
         # da lógica de sumido (post que sai da 1ª página do perfil não
         # significa cancelamento — evento do Instagram morre por data passada).
         if not sem_instagram:
-            r_insta = _raspar_instagram(con, erros)
+            r_insta = _raspar_instagram(con, erros, extrair=not sem_extracao)
             if r_insta is not None:
                 resultados["instagram"] = r_insta
 
