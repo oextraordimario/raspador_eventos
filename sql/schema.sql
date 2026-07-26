@@ -213,3 +213,37 @@ CREATE TABLE IF NOT EXISTS sessoes (
 );
 CREATE INDEX IF NOT EXISTS idx_sessoes_inicio ON sessoes(inicio);
 CREATE INDEX IF NOT EXISTS idx_sessoes_filme ON sessoes(filme_id);
+
+-- ── Instrumentacao do MCP remoto (NI-11) ──────────────────────────────────
+-- ATENCAO: `usuarios` e o PRIMEIRO dado do projeto NAO derivavel de raspagem.
+-- A convencao de base descartavel (DROP SCHEMA public CASCADE + re-raspar)
+-- apaga o historico de quem usou. Isso NAO quebra o acesso de ninguem — a
+-- identidade vive no provedor de login e a tabela se repovoa sozinha no
+-- proximo acesso —, mas o historico se perde. Antes de dropar, exportar
+-- usuarios/acessos para CSV se o historico importar.
+
+-- Quem conectou o MCP remoto. Preenchida no PRIMEIRO acesso autenticado
+-- (upsert pelo sub do provedor); nao ha cadastro nosso.
+CREATE TABLE IF NOT EXISTS usuarios (
+    sub        TEXT PRIMARY KEY,  -- id estavel do usuario no IdP (claim `sub` do JWT)
+    email      TEXT,              -- claim `email` — e o que torna o registro legivel
+    nome       TEXT,
+    criado_em  TEXT NOT NULL,     -- ISO UTC "+00:00" — primeiro acesso
+    visto_em   TEXT,              -- ISO UTC — ultimo acesso
+    bloqueado  INTEGER NOT NULL DEFAULT 0  -- 1 = corta o acesso; reativo, sem allowlist previa
+);
+
+-- Uma linha por chamada de tool. Registra a INTENCAO (os argumentos, incl. o
+-- texto buscado): e o insumo de produto da abertura, nao so contagem de
+-- trafego. sub NULL = chamada local (stdio, sem auth).
+CREATE TABLE IF NOT EXISTS acessos (
+    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    sub        TEXT,
+    em         TEXT NOT NULL,     -- ISO UTC "+00:00"
+    tool       TEXT NOT NULL,
+    args       TEXT,              -- JSON dos argumentos da chamada
+    resultados INTEGER,           -- nº de itens devolvidos (quando devolve lista)
+    ms         INTEGER,
+    erro       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_acessos_sub_em ON acessos(sub, em);
