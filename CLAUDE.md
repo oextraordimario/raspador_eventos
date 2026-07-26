@@ -334,4 +334,14 @@ Não faça commit sem pedido. Mensagens em português.
   antigo `docs/PROXIMOS_PASSOS.md` (hoje só um ponteiro).
 - `docs/specs/` — specs técnicas de implementação (o "como" de cada item, uma pasta
   datada por spec com `spec.md`). Ver `docs/specs/README.md`.
+- `docs/specs/20260726_abrir-ao-publico/` — **spec APROVADA, implementação NÃO
+  iniciada** (2026-07-26). É o plano de abrir o sistema a terceiros, em 5 passos:
+  LICENSE/README (NI-21), **cron da raspagem no GitHub Actions** (NI-10), **site
+  público de leitura** (NI-28 — front Next.js + API fina em Python sobre a
+  `consulta.py`; o repo ainda não tem runtime Node), OAuth no MCP (NI-11) e
+  JSON-LD/sitemap (Fase 2). **Nada disso existe no código ainda** — ao mexer em
+  `vercel.json`, `api/`, cadência de raspagem ou camada de consulta, ler a spec
+  antes, porque as decisões já estão travadas lá. Anexos: `tos.md` (postura sobre
+  Termos de Uso: agregador com atribuição) e `cron.md` (por que Actions, e o
+  plano B em Cloud Run Jobs).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.

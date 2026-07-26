@@ -136,6 +136,14 @@ O produto é **invisível por padrão** (alimenta agentes); "cara própria" (sit
 humanos) só entra se provar vantagem — e, se entrar, reaproveita as mesmas páginas da
 Porta B.
 
+> **Esta condicional FOI FECHADA em 2026-07-26.** A vantagem se provou por
+> demanda espontânea: o autor mostrou o sistema a conhecidos e passou a ser
+> cobrado por uma forma de usar que não exigisse ser um agente de IA. O site
+> entra como **segunda porta sobre a mesma base**, não como produto principal — o
+> §9 segue valendo. Ele reaproveita a Porta B exatamente como previsto aqui: as
+> páginas do site são as mesmas que a Fase 2 marca em JSON-LD. Plano completo em
+> `docs/specs/20260726_abrir-ao-publico/`.
+
 ### Risco estrutural: cold-start de descoberta
 
 Ser "conteúdo achável" só vale se a busca do agente **chegar** até você. Um domínio
@@ -267,6 +275,12 @@ porta para terceiros e tirar o humano da cadência:
 - **Instrumentação (parte do escopo):** o MCP remoto precisa **registrar uso**
   (quem/quando consultou, ainda que anonimizado) — sem medição não dá para saber se o
   critério abaixo fechou. Instrumentar é requisito, não enfeite.
+  **Plataforma decidida em 2026-07-26: PostHog**, cobrindo as **duas portas** (MCP
+  e site). O critério das Fases 1 e 2 não é pageview, é *"usa de verdade"* —
+  retenção e recorrência, que é product analytics. Como o PostHog ingere evento de
+  backend, os acessos ao MCP (tabela `acessos`, NI-11) são espelhados como evento
+  com o `distinct_id` vindo do login OAuth: **uma medição só**, em vez de dois
+  painéis que não conversam.
 - **Critério de sucesso:** **um conhecido** (amigo a quem o autor mostrou o sistema)
   instala o MCP e passa a usar — **e o autor consegue comprovar esse uso pela
   instrumentação**, não por "acho que ele usou".
@@ -342,6 +356,14 @@ ordenada do mais barato ao mais trabalhoso:
   para essa fonte e ela é necessária ao MVP (§6, trilha de dados). Foi o primeiro
   custo recorrente aceito no projeto. A regra segue valendo para todo o resto:
   exceção nova exige decisão explícita, não vira precedente automático.
+  **Nota de 2026-07-26:** com o cron diário (Fase 1), esse custo passa de eventual
+  a **recorrente de fato** — 6 perfis na watchlist ≈ US$ 1,10/mês, crescendo
+  linearmente com ela.
+- **Limites de plano gratuito a vigiar** (registrado em 2026-07-26): o plano
+  **Vercel Hobby não cobre uso comercial** — enquanto o projeto for gratuito e sem
+  receita, está dentro dos termos. **Gatilho:** qualquer receita, patrocínio ou uso
+  comercial exige migrar para o Pro. O **GitHub Actions** é gratuito e ilimitado
+  por o repositório ser **público**; se ele fechar, os minutos passam a ter teto.
 - **Enriquecimento:** faseado — regras na v1; LLM na v2 com **Sonnet** (não Haiku),
   rodado **por subagente no Claude Code CLI** (aproveitando a assinatura), **não por
   API paga**.
@@ -384,14 +406,30 @@ ordenada do mais barato ao mais trabalhoso:
 - **Uso de terceiros não medido:** sem instrumentação, "um conhecido/estranho usou"
   vira achismo e as Fases 1 e 2 nunca fecham de verdade. Mitigação: instrumentação de
   uso é escopo obrigatório dessas fases (seção 6).
-- **Legal / Termos de Uso:** raspagem de catálogo público vs. ToS de cada plataforma —
-  a avaliar antes de qualquer operação comercial. Vale em dobro para o **Instagram**.
+- **Legal / Termos de Uso:** raspagem de catálogo público vs. ToS de cada plataforma.
+  Vale em dobro para o **Instagram**. **Postura DECIDIDA em 2026-07-26 (antes era
+  "a avaliar"): agregador com atribuição.** O site público exibe o **fato** (nome,
+  data, local, preço, disponibilidade) sempre com a fonte visível e o link para
+  comprar na plataforma de origem — mandando tráfego para quem vende, em vez de
+  competir com ela. Três medidas decorrem daí: descrição em **trecho + link** na
+  página pública (a tool MCP segue integral, porque serve um agente em contexto
+  privado, não uma página indexada); fonte sempre visível; e uma página "sobre"
+  explicando de onde vem o dado e como pedir remoção. Análise das quatro posturas
+  possíveis em `docs/specs/20260726_abrir-ao-publico/tos.md`. A ressalva original
+  segue de pé: **operação comercial** reabre o tema, aí com advogado.
+- **Dado pessoal na superfície pública (LGPD):** o campo `organizador` às vezes é
+  nome de pessoa física. Mitigação decidida em 2026-07-26: não exibi-lo no site
+  quando for pessoa natural. Não afeta a porta MCP.
 
 ## 9. Não-objetivos (MVP)
 
 - Outras cidades além de Brasília no lançamento.
 - Outros tipos de evento além de festas/baladas/shows e cinema.
-- App ou site como produto principal (produto é invisível).
+- App ou site como produto principal (produto é invisível). **Segue valendo mesmo
+  depois de 2026-07-26:** o site aprovado na spec `20260726_abrir-ao-publico` é
+  uma **segunda porta de leitura** sobre a mesma base, servida pela mesma
+  `consulta.py` que alimenta o MCP — não o centro do produto. O não-objetivo aqui
+  é promover o site a produto principal, e isso não mudou.
 - Compra de ingressos, contas de usuário, pagamentos.
 - LLM na ingestão **no núcleo inicial** — ele só estreia na última etapa do MVP
   (Instagram/gênero), não no lançamento de festas.

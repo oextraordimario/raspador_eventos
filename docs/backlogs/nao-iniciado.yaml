@@ -350,7 +350,7 @@
 # mantido) está registrada na spec — não reabrir sem fato novo.
 
 - codigo: NI-10
-  status: nao-iniciado
+  status: em-andamento
   prioridade: media
   rank: 2
   esforco: M
@@ -371,7 +371,7 @@
     este item só tira o humano da cadência, não muda o destino dos dados.
 
 - codigo: NI-21
-  status: nao-iniciado
+  status: em-andamento
   prioridade: media
   rank: 2
   esforco: P
@@ -400,7 +400,7 @@
     precisam de cláusula especial numa PoC.
 
 - codigo: NI-11
-  status: pendente
+  status: em-andamento
   prioridade: media
   rank: 2
   esforco: M
@@ -437,3 +437,42 @@
     Alternativa descartada (não reabrir sem fato novo): token por pessoa na URL.
     A Anthropic desaconselha credencial na URL do connector e a spec de
     authorization do MCP proíbe access token em query string — ver spec §0.
+
+- codigo: NI-28
+  status: em-andamento
+  prioridade: alta
+  rank: 1
+  esforco: G
+  eixo: distribuicao
+  fase: 1
+  titulo: "Site público de leitura (segunda porta, para humanos)"
+  resumo: "front Next.js + API de leitura em Python sobre a consulta.py — busca com filtros e botões, sem login, para quem não quer instalar connector; as mesmas páginas viram a Porta B da Fase 2"
+  data: 2026-07-26
+  depende_de: [NI-10]
+  relacionado: [NI-11, NI-21, NI-04]
+  caso_real: ["2026-07-26: o autor mostrou o sistema a conhecidos e passou a ser cobrado ('quero usar isso, põe pra jogo'); nenhuma porta existente serve essa pessoa — a consulta exige ser um agente de IA falando MCP"]
+  detalhe: |
+    **SPEC APROVADA (2026-07-26): docs/specs/20260726_abrir-ao-publico/**, com os
+    anexos `tos.md` (postura sobre Termos de Uso) e `cron.md` (comparativo de
+    plataformas de execução). Este item é o passo 3 daquela spec; os passos 1, 2 e
+    4 são NI-21, NI-10 e NI-11.
+
+    Fecha a condicional do PRD §4 ("cara própria só entra se provar vantagem") —
+    a demanda espontânea foi a evidência. **Não** promove o site a produto
+    principal (PRD §9 segue valendo): é uma segunda porta sobre a mesma base.
+
+    **Decisões travadas na spec** (não rediscutir sem fato novo): busca com
+    filtros e botões, não chat (chat teria custo de LLM por pergunta, por
+    usuário); stack Next.js consumindo uma API de leitura fina em Python
+    (`api/site.py`) — o front NÃO lê o Neon direto, senão dedupe/ruído/sumido/FTS
+    seriam duplicados em JS; visual pelo ZeroUm Design System; nome `role.bsb`
+    PROVISÓRIO e isolado em config; sem imagens no v1 (adiadas, ver §9 da spec);
+    instrumentação por PostHog cobrindo site e MCP; postura de ToS "agregador com
+    atribuição" — descrição em TRECHO + link na página pública (a tool MCP segue
+    integral), fonte sempre visível, página "sobre" com canal de remoção, e
+    `organizador` omitido quando for pessoa física (LGPD).
+
+    **Atenção no roteamento:** o vercel.json hoje reescreve TODAS as rotas para
+    api/index (o MCP). Com o Next assumindo o domínio esse catch-all sai — é onde
+    dá pra derrubar o MCP sem querer, e o NI-11 mexe no mesmo arquivo. Desenhar o
+    roteamento das duas portas de uma vez.
