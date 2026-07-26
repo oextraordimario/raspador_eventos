@@ -349,57 +349,192 @@
 # A reavaliação do banco (Turso e arquivo SQLite publicado rejeitados; Neon
 # mantido) está registrada na spec — não reabrir sem fato novo.
 
-- codigo: NI-11
-  status: em-andamento   # METADE feita em 2026-07-26 — falta só o OAuth
+# NI-11 (abrir o MCP ao público) foi IMPLEMENTADO em 2026-07-26, em duas
+# etapas do mesmo dia: primeiro a instrumentação (tabelas usuarios + acessos,
+# decorator @registrado nas 5 tools, teto de 120/hora e bloqueio reativo), e
+# depois o OAuth, quando a conta WorkOS ficou de pé. src/auth.py verifica o JWT
+# do AuthKit contra o JWKS; o connector virou PÚBLICO em
+# https://raspador-eventos.vercel.app/mcp. Specs: 20260714_abrir-mcp-a-conhecidos
+# (desenho) e 20260726_abrir-ao-publico passo 4 (o que mudou na execução).
+# Pendências registradas na spec, não aqui: issuer ainda no Staging do WorkOS
+# (troca é a env AUTHKIT_ISSUER) e MCP_SEGREDO só sai depois do fluxo rodar com
+# gente de verdade. A decisão "cron ANTES de divulgar o link" segue de pé.
+# Alternativa descartada (não reabrir sem fato novo): token por pessoa na URL —
+# a spec de authorization do MCP proíbe access token em query string.
+
+- codigo: NI-29
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: P
+  eixo: distribuicao
+  fase: 1
+  titulo: "Validar o fluxo OAuth do MCP de ponta a ponta — nenhum login concluiu ainda"
+  resumo: "o OAuth está no ar e recusa acesso corretamente, mas ninguém completou o login; até alguém completar, não se sabe se o token que o AuthKit emite é aceito — e o connector remoto fica inutilizável"
+  data: 2026-07-26
+  depende_de: []
+  relacionado: [NI-10, NI-11]
+  caso_real: ["autor tentou refazer o connector em 2026-07-26 e o claude.ai travou no meio do fluxo; a tela do AuthKit pedia criar conta com senha (corrigido no mesmo dia: senha desligada, só login social)"]
+  detalhe: |
+    **Estado em 2026-07-26.** O que está PROVADO: o metadado da RFC 9728 responde
+    200 em /.well-known/oauth-protected-resource/mcp, POST /mcp sem token dá 401
+    com o WWW-Authenticate correto, token inválido é recusado, e o AuthKit publica
+    registration_endpoint + JWKS. O que NÃO está provado: que um token de verdade
+    passa. `usuarios` está VAZIA e todo acesso em `acessos` tem sub NULL.
+
+    O trecho não testado é pequeno mas é o que importa — a verificação em
+    `src/auth.py`. O suspeito nº 1 é o `aud`: validamos contra MCP_RECURSO, e se o
+    AuthKit puser outra coisa no claim o token cai em 401 silencioso. O motivo real
+    fica no log da função na Vercel (`[auth] token recusado: ...`); o cliente MCP só
+    mostra "unauthorized". Olhar lá ANTES de mexer no código.
+
+    Enquanto isso o MCP remoto está inutilizável na prática (o caminho antigo com
+    MCP_SEGREDO deixou de existir e o connector velho ficou em loop de 404 — apagar
+    e recriar, não editar: o cliente guarda estado de autorização por connector).
+    O stdio local segue funcionando e mascara o problema: chamada pelo Claude
+    Desktop responde normal, porque roda na máquina do autor e não autentica nada.
+
+    Bloqueia divulgar o link, junto com o cron (decisão travada na spec do NI-11 §10).
+
+    Pontas soltas que aparecem quando isso destravar:
+    - **Issuer ainda no Staging do WorkOS.** Trocar para Production é a env
+      AUTHKIT_ISSUER, mas exige ativar Production no painel E configurar
+      credenciais próprias de login social (Google Cloud etc.) — o Staging usa as
+      credenciais emprestadas do WorkOS, o Production não. `connectionsByType`
+      volta vazio nos dois. Ao trocar, todo mundo re-autentica: `sub` é por ambiente.
+    - **MCP_SEGREDO e a rewrite `/:segredo/mcp`** só saem depois disso rodar —
+      hoje são o rollback sem tocar em código.
+
+    Alternativa se o atrito do login se provar proibitivo (é reabrir decisão
+    travada, não configuração): MCP aberto sem token. Custo — some o teto por
+    pessoa (sobra teto global, que um laço automático consome sozinho, com o free
+    tier do Neon atrás) e some a evidência de uso de terceiro que o PRD §10 exige
+    para fechar a Fase 1.
+
+- codigo: NI-30
+  status: pendente
   prioridade: media
   rank: 2
   esforco: M
-  eixo: distribuicao
-  fase: 1
-  titulo: "Abrir o MCP remoto ao público, com OAuth + instrumentação de uso"
-  resumo: "transformar o MCP remoto de uso próprio (NI-20) em connector público com login/consentimento (OAuth via provedor gerenciado) e registro de quem/quando consultou — sem medição o critério da Fase 1 ('um conhecido usa') não fecha"
-  data: 2026-07-09
-  depende_de: [NI-20]
-  relacionado: [NI-10]
-  caso_real: []
+  eixo: infra
+  fase: dados
+  titulo: "Extração do flyer do Instagram não tem automação — a fila só anda com rodada local"
+  resumo: "o cron (NI-10) roda com --sem-extracao-flyer porque o `claude -p` usa a ASSINATURA e não há login de assinatura em CI; a fila de posts sem extração cresce sozinha até alguém rodar --so-instagram na mão"
+  data: 2026-07-26
+  depende_de: [NI-10]
+  relacionado: [NI-24]
+  caso_real: ["em 2026-07-26, mesmo depois de uma rodada --so-instagram às 12:37, 40 shortcodes seguiam sem extração na Bronze"]
   detalhe: |
-    PRD §6 Fase 1: porta A pública. Reescopado em 2026-07-10: o MCP remoto em si
-    virou NI-20 (Fase 0b, uso próprio); o que resta aqui é a abertura a terceiros —
-    auth adequada (o token único de uso próprio não distingue pessoas) e
-    instrumentação. Instrumentação é requisito, não enfeite (PRD §10): o critério de
-    fase só fecha com uso de terceiro comprovado por registro.
+    É o buraco conhecido do "caminho 1" (spec 20260726_abrir-ao-publico §3 passo 2):
+    tudo menos a visão do flyer roda no cron. A ingestão é automática — o post
+    entra na Bronze na rodada do Actions —, mas o post SÓ VIRA EVENTO depois da
+    extração, que exige `claude -p` logado na assinatura. Em CI não existe esse
+    login (o subprocesso remove ANTHROPIC_API_KEY de propósito, senão a chave
+    teria precedência e viraria custo de API).
 
-    **METADE IMPLEMENTADA em 2026-07-26** (spec 20260726_abrir-ao-publico,
-    passo 4): tabelas `usuarios` + `acessos` no schema e decorator
-    `@registrado` nas 5 tools — a INSTRUMENTAÇÃO JÁ MEDE (tool, argumentos,
-    nº de resultados, ms, erro), hoje com `sub` NULL porque não há login. Teto
-    por hora (120) e bloqueio reativo também prontos, devolvendo erro de DADO
-    para o agente conseguir explicar. FALTA: TokenVerifier (JWKS) + servidor de
-    autorização, que dependem de uma conta WorkOS AuthKit do autor — não foi
-    implementado às cegas, porque código de auth não testável contra um issuer
-    real é pior que ausência de código. Gancho pronto em
-    `mcp_server._identidade()`. Enquanto isso o MCP segue no prefixo secreto e
-    a URL NÃO deve ser divulgada.
+    Consequência prática: casa que só divulga no Insta fica invisível no site e
+    no MCP até o autor lembrar de rodar `python src/atualizar.py --so-instagram`.
+    Quanto mais o site for usado, mais isso pesa — e o modo de falha é silencioso:
+    a fila cresce, ninguém vê erro, o evento simplesmente não aparece.
 
-    **SPEC APROVADA (2026-07-14): docs/specs/20260714_abrir-mcp-a-conhecidos/**
-    (com anexo `pesquisa-clientes-mcp.md`). Desenho: a URL do connector vira
-    PÚBLICA (https://raspador-eventos.vercel.app/mcp) e o controle vai para o
-    login — OAuth com Dynamic Client Registration, servidor de autorização
-    gerenciado (WorkOS AuthKit; Auth0 de fallback). O SDK mcp (1.10.1) já é
-    Resource Server: 401 + WWW-Authenticate, /.well-known/oauth-protected-resource
-    e validação do token vêm prontos; escrevemos só o TokenVerifier (JWKS).
-    Tabelas novas `usuarios` + `acessos`; landing page estática com o passo a
-    passo; MCP_SEGREDO morre.
+    O relatório da rodada já informa o tamanho da fila; falta o passo de agir.
+    Caminhos possíveis, do mais barato ao mais caro:
+    - runner self-hosted do Actions na máquina do autor (herda o login da
+      assinatura; troca automação por a máquina precisar estar ligada);
+    - aceitar custo de API só para esse passo (usar ANTHROPIC_API_KEY no CI) —
+      quebra a premissa de custo zero, mas é o único caminho 100% automático.
+      Dimensionar: é 1 chamada de visão por post NOVO, não por rodada;
+    - notificação quando a fila passar de N, transformando o problema de
+      "lembrar" em "reagir" — não automatiza, mas tira do esquecimento.
 
-    Decisões confirmadas pelo autor na revisão: acesso ABERTO a quem logar (sem
-    allowlist; controle reativo por teto + bloqueio), guardar e-mail/nome do
-    login (com aviso na landing) e NI-10 (cron) ANTES de divulgar o link — base
-    parada vira resposta errada com cara de certa para quem não é o autor.
+    Decidir só com número na mão: medir por quantos dias a fila fica parada e
+    quantos eventos deixaram de existir por causa disso.
 
-    Alternativa descartada (não reabrir sem fato novo): token por pessoa na URL.
-    A Anthropic desaconselha credencial na URL do connector e a spec de
-    authorization do MCP proíbe access token em query string — ver spec §0.
+- codigo: NI-31
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: M
+  eixo: raspagem
+  fase: 0
+  titulo: "Shotgun quebrado — a listagem da cidade não devolve mais nenhum slug"
+  resumo: "o scraper roda sem erro e extrai ZERO eventos desde 2026-07-17; o site perdeu a fonte inteira e ninguém percebeu por 9 dias, porque não havia rodada recorrente para comparar"
+  data: 2026-07-26
+  depende_de: []
+  relacionado: [NI-32, NI-10]
+  caso_real: ["rodada do cron 2026-07-26T15:34 (Actions run 30208493685): '[shotgun] pagina 1: +0 slugs ineditos | 0 eventos encontrados em brasilia'; ALERTA no relatório: coleta caiu 100% (77 → 0)"]
+  detalhe: |
+    **Não é falha de ambiente.** No run do Actions o Chromium instalou, o
+    Playwright subiu e a página foi aberta — o scraper simplesmente não extraiu
+    slug nenhum:
 
+        [shotgun] raspando...
+          pagina 1: +0 slugs ineditos | acumulado: 0
+          0 eventos encontrados em 'brasilia'
+          0 eventos futuros normalizados
+
+    Última coleta boa: 2026-07-17T10:56 (77 eventos). Ou seja, a fonte está
+    morta há mais de uma semana e só apareceu agora, porque o relatório
+    comparativo precisa de DUAS rodadas seguidas para acusar — e antes do cron
+    isso nunca acontecia de forma confiável.
+
+    **Hipótese principal:** o Shotgun mudou a listagem de cidade. O CLAUDE.md já
+    registra que essa fonte é a mais frágil (HTTP puro dá 429, tudo depende do
+    render RSC) e que a regex tem de casar link RELATIVO `/events/<slug>`. Os
+    candidatos, em ordem: (a) a rota `/pt/cities/<slug>?page=N` mudou; (b) o
+    HTML deixou de trazer os links no primeiro render (virou fetch posterior);
+    (c) a regex de slug parou de casar por mudança de formato.
+
+    **Como investigar:** abrir a listagem com o Playwright em modo visível e
+    olhar o que volta, antes de mexer em regex. Se a página mudou de estrutura,
+    `src/scrapers/discover_sympla.py` é o modelo de ferramenta de reconhecimento
+    (intercepta XHR/fetch) — vale o equivalente aqui.
+
+    **Impacto medido em 2026-07-26:** ZERO eventos futuros do Shotgun visíveis
+    na consulta (eram 46). Não é só dado velho — é fonte inteira fora do ar, com
+    o site já público. Ver NI-32: o desaparecimento foi causado pela guarda do
+    `sumido`, não pelo scraper.
+
+- codigo: NI-32
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: P
+  eixo: raspagem
+  fase: 0
+  titulo: "Guarda do `sumido` confia em 'não levantou exceção' — fonte que volta ZERO apaga o próprio catálogo"
+  resumo: "_marcar_sumidos pula fonte com erro, mas fonte que devolve lista vazia sem exceção passa na guarda e faz TODOS os futuros dela virarem sumido=1 numa rodada"
+  data: 2026-07-26
+  depende_de: []
+  relacionado: [NI-31]
+  caso_real: ["rodada 2026-07-26T15:34: Shotgun devolveu 0 eventos sem erro; 46 dos 49 futuros da fonte foram marcados sumido=1 e sumiram do site na mesma rodada"]
+  detalhe: |
+    `atualizar.py:130` pula a fonte quando `"erro" in res`. A intenção está certa
+    e documentada ("um 500 do Sympla não pode esconder a agenda inteira"), mas o
+    critério é frágil: scraper que RODA e devolve lista vazia não tem "erro". Aí
+    todo evento futuro da fonte fica com `raspado_em` anterior ao início da
+    rodada e é marcado `sumido = 1` — que é exatamente o que a consulta esconde.
+
+    O resultado é o pior dos dois mundos: a fonte quebra em silêncio e, na
+    primeira rodada seguinte, o catálogo dela some do site como se cada evento
+    tivesse sido cancelado. Foi o que aconteceu com o Shotgun (NI-31).
+
+    **A informação para evitar isso JÁ EXISTE e não é usada.** O relatório de
+    saúde da mesma rodada acusou "coleta caiu 100% (77 → 0) — scraper quebrado?".
+    Detectamos e mesmo assim apagamos. Falta ligar um no outro.
+
+    Correção desenhada: tratar coleta VAZIA (ou queda abrupta além de um limiar)
+    como fonte não confiável e pular a marcação, do mesmo jeito que se pula
+    fonte com erro. Zero coletado num catálogo que tinha 77 não é "todos os
+    eventos foram cancelados" — é ausência de informação, e ausência de
+    informação não deve apagar dado bom.
+
+    Como é idempotente, a recuperação é automática: reconsertado o scraper, o
+    upsert atualiza `raspado_em` e a própria função desmarca. Mas até lá o site
+    mente por omissão — e agora ele é público.
+
+    Vale um teste em tests/test_observabilidade.py travando o caso: fonte que
+    devolve [] sem erro NÃO pode marcar sumido.
 
 # NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
 # IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).
