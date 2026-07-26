@@ -10,6 +10,14 @@ export const metadata = {
     template: `%s · ${MARCA.nome}`,
   },
   description: MARCA.descricao,
+  // Canônica relativa: o Next resolve './' contra o metadataBase e a rota
+  // ATUAL, então cada página aponta para si mesma. Existe por causa do
+  // skipTrailingSlashRedirect que o PostHog exige no next.config.mjs (o proxy
+  // /ph/ tem endpoints terminados em barra, que o redirect automático
+  // quebraria): sem ele o Next mandava /sobre/ → /sobre com 308, e com ele as
+  // duas URLs respondem 200. Para um site cuja aposta é ser indexado, isso é
+  // conteúdo duplicado — a canônica é quem colapsa o par.
+  alternates: { canonical: './' },
   openGraph: {
     type: 'website',
     locale: 'pt_BR',
