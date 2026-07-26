@@ -4,8 +4,14 @@
 > vai a partir da PoC validada.
 > **Fonte da verdade:** este documento. O `docs/PRD_POC.md` vira registro histórico
 > da prova de conceito e não deve mais ser usado para planejar.
-> **Última atualização:** 2026-07-10 — a Fase 0 ganhou a subetapa **0b (consulta na
-> nuvem)**: o dogfooding mostrou que a consulta não pode depender do PC do autor
+> **Última atualização:** 2026-07-26 — sincronização com o que foi entregue desde
+> 10/07, sem mudança de rumo: a **Fase 0b fechou** (11/07, critério validado com o
+> PC desligado), **cinema** entrou (11/07) e a **raspagem do Instagram** entrou
+> (23/07), abrindo a primeira exceção de custo do projeto (§7). O planejamento em
+> si não mudou — as fases, o escopo e as decisões travadas seguem como estavam.
+>
+> **Atualização anterior:** 2026-07-10 — a Fase 0 ganhou a subetapa **0b (consulta
+> na nuvem)**: o dogfooding mostrou que a consulta não pode depender do PC do autor
 > estar ligado. Read-path hospedado antecipa-se da Fase 1; raspagem segue manual.
 
 ---
@@ -227,7 +233,12 @@ celular. Sem consulta na nuvem, o critério da fase não fecha.
 - Validou a raspagem das 3 fontes, o schema unificado, o enriquecimento v1 e a
   conexão com o agente — e revelou a restrição de disponibilidade (seção 5).
 
-**Fase 0b — consulta na nuvem (próximo passo):**
+**Fase 0b — consulta na nuvem (CONCLUÍDA em 2026-07-11):**
+- **Critério da fase FECHADO e validado pelo autor** no mesmo dia: consulta pelo
+  celular, fora de casa, com o computador desligado. Implementação em NI-09 +
+  NI-20 (spec `docs/specs/20260711_consulta-na-nuvem/`) — base migrada para o
+  Neon e MCP remoto no ar na Vercel sob prefixo de rota secreto. O que segue
+  abaixo é o escopo como foi planejado, mantido como registro.
 - **Escopo:** migrar a base para **Postgres gerenciado (Neon, free tier)** e expor a
   consulta como **MCP remoto (HTTP)** hospedado em serverless free tier, plugável
   como connector no agente que o autor usa **no celular**. O read-path inteiro passa
@@ -282,11 +293,23 @@ ordenada do mais barato ao mais trabalhoso:
    Go somados em 2026-07-12, NI-22). É o que já existe; base da Fase 0.
 2. **Cinema** (Cinemark, Kinoplex...): novas fontes, mesmo schema cidade-aware. Subetapa
    separada por adicionar complexidade, mas ainda no MVP.
+   **ENTREGUE em 2026-07-11** (NI-07, spec `20260711_raspagem-cinema/`): os 8
+   cinemas-alvo saíram por uma API só (Ingresso.com), em domínio próprio
+   `filmes`/`sessoes` — fora de `eventos`, porque sessão não tem id estável entre
+   semanas. Tools MCP `buscar_filmes` e `sessoes_filme`.
 3. **Instagram + classificação por LLM (última etapa do MVP):** raspar o Instagram da
    festa/casa para suprir a descrição pobre da plataforma de ingressos, e classificar
    gênero/vibe com **Sonnet via subagente** (é aqui que o enriquecimento v2 primeiro
    entra em produção — dogfoodado). A mais trabalhosa, mas **necessária** para o
    raspador ser de fato útil em vida noturna.
+   **Metade ENTREGUE em 2026-07-23** (NI-06 + NI-24 + NI-25 + NI-26, spec
+   `20260723_instagram-como-fonte/`): a **raspagem** está de pé — posts e stories
+   da watchlist via Monid, flyer lido por visão com `claude -p` na assinatura,
+   post com data virando evento `fonte='instagram'`, conciliação com as
+   plataformas pelo dedupe existente. O Instagram deixou de ser só contexto e
+   virou **origem de eventos** que não existem em plataforma nenhuma (casos Culto
+   e Ordinário). **Falta a outra metade:** a classificação de gênero/vibe por LLM
+   (NI-05), que o executor por subagente agora destravou.
 
 ### Depois (fora do MVP)
 
@@ -313,7 +336,12 @@ ordenada do mais barato ao mais trabalhoso:
   atualização manual e disponibilidade da consulta são eixos independentes); **1x/dia**
   a partir da Fase 1; aumentar conforme o projeto crescer. Prioridade é provar com
   dados reais, não frescor de minuto.
-- **Custo:** só **free tier + soluções locais**. Nada de cloud paga nas próximas semanas.
+- **Custo:** só **free tier + soluções locais**, com **uma exceção consciente**
+  aberta em 2026-07-23: a raspagem do Instagram sai por **API paga** (Monid →
+  TikHub, ~US$ 0,006 por perfil/rodada), porque não há caminho gratuito viável
+  para essa fonte e ela é necessária ao MVP (§6, trilha de dados). Foi o primeiro
+  custo recorrente aceito no projeto. A regra segue valendo para todo o resto:
+  exceção nova exige decisão explícita, não vira precedente automático.
 - **Enriquecimento:** faseado — regras na v1; LLM na v2 com **Sonnet** (não Haiku),
   rodado **por subagente no Claude Code CLI** (aproveitando a assinatura), **não por
   API paga**.
