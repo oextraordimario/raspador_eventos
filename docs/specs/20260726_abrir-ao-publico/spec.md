@@ -1,9 +1,32 @@
 # Spec — Abrir o sistema ao público: cron, site e onboarding (NI-10 + NI-11 + NI-21 + NI-28)
 
-> **Status: APROVADA em 2026-07-26** — as oito questões levantadas foram todas
-> decididas pelo autor no mesmo dia (§6 tem o mapa de onde cada uma foi parar) e
-> as mudanças de documentação da §8 já foram aplicadas. **Implementação NÃO
-> iniciada**, por decisão do autor: a spec é o contrato, e o código vem depois.
+> **Status: APROVADA e IMPLEMENTADA em 2026-07-26** — as oito questões foram
+> decididas pelo autor no mesmo dia (§6 tem o mapa) e os passos 1, 2, 3 e 5
+> estão no código. O passo 4 (OAuth) foi entregue **pela metade**, e de
+> propósito — ver abaixo.
+>
+> **O que está pronto e validado:**
+> - **Passo 1** — `LICENSE` (MIT, ZeroUm Soluções em Dados) e `README.md`.
+> - **Passo 2** — `.github/workflows/raspar.yml` (06:00 UTC = 3h BRT) + as
+>   flags `--sem-extracao-flyer` e `--so-instagram`, que o caminho 1 exigia e
+>   não existiam. Secrets `EVENTOS_DB_URL` e `MONID_KEY` gravados no GitHub.
+> - **Passo 3** — `api/dados.py` (API de leitura, 21 checagens em
+>   `tests/test_api_dados.py`) e o front em `app/`/`lib/`. Roteamento do
+>   `vercel.json` refeito sem derrubar o MCP.
+> - **Passo 5** — JSON-LD por evento, `sitemap.xml`, `robots.txt`, `llms.txt`.
+> - **Passo 4 (metade)** — tabelas `usuarios`/`acessos` e o decorator
+>   `@registrado` nas 5 tools: a **instrumentação já mede**, com `sub` NULL
+>   enquanto não há login.
+>
+> **O que FALTA, e por quê:** o TokenVerifier (JWKS) e a configuração do
+> servidor de autorização dependem de uma conta **WorkOS AuthKit** do autor.
+> Não foram implementados às cegas — código de auth que não pode ser testado
+> contra um issuer real é pior que ausência de código. O gancho está pronto em
+> `mcp_server._identidade()`: quando a credencial existir, é o único ponto a
+> mudar. **Enquanto isso, o MCP segue protegido pelo prefixo secreto** e a URL
+> NÃO deve ser divulgada.
+>
+> **Falta também o deploy:** por decisão do autor, o `vercel --prod` é dele.
 >
 > **O quê/por quê:** o gatilho não é técnico, é de demanda. O autor mostrou o
 > sistema a conhecidos e passou a ser cobrado — *"quero usar isso, põe pra jogo"*.

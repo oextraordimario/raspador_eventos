@@ -44,6 +44,8 @@ python src/atualizar.py
 python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
 python src/atualizar.py --sem-cinema            # pula a grade de cinema
 python src/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
+python src/atualizar.py --sem-extracao-flyer    # Instagram só até a Bronze, sem a visão
+python src/atualizar.py --so-instagram          # só a fila de extração (rodada curta)
 python src/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: janela de 30 dias)
 python src/atualizar.py --so-derivar            # não raspa; re-deriva do payload bruto + regras + FTS
 python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
@@ -60,6 +62,12 @@ python src/consulta.py
 python src/mcp_server.py                        # stdio (clientes locais)
 python src/mcp_server.py --http                 # MCP remoto local (exige MCP_SEGREDO; porta da env PORT)
 
+# Site público (NI-28) — front Next.js + API de leitura em Python
+npm install                                     # 1ª vez
+python api/dados.py 8000                        # API de leitura (lê consulta.py)
+API_INTERNA=http://localhost:8000/api/dados npx next dev   # front em :3000
+npx next build                                  # build de produção
+
 # Deploy do MCP remoto em produção (Vercel, projeto raspador-eventos; as envs
 # EVENTOS_DB_URL — URL pooled do Neon — e MCP_SEGREDO vivem nas settings de lá)
 vercel --prod
@@ -73,6 +81,7 @@ python tests/test_observabilidade.py            # execucoes + sumido + janela do
 python tests/test_cinema.py                     # domínio cinema: cinema_raw + snapshot, filmes/sessoes, buscar_filmes/sessoes_filme
 python tests/test_zig_ticketandgo.py            # fontes novas (NI-22): normalização, filtro DF textual, lotes c/ taxa fracionária
 python tests/test_instagram.py                  # fonte Instagram: guarda da derivação, data do flyer, conciliação via dedupe, sumido
+python tests/test_api_dados.py                  # API de leitura do site: filtros da camada canônica + postura (trecho, organizador oculto)
 python tests/test_mcp_server.py                 # age como cliente MCP real (stdio); exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
@@ -99,12 +108,22 @@ src/
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
     sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  instagram.py  discover_sympla.py
-api/           # entrypoint serverless do MCP remoto (Vercel): index.py (deps: pyproject.toml da raiz)
+api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
+  index.py     #   MCP remoto (ASGI do FastMCP)
+  dados.py     #   API de leitura do site — traduz querystring p/ consulta.py
+app/  lib/     # front Next.js (App Router) do site público — NA RAIZ, não em web/
+.github/workflows/raspar.yml   # cron diário da raspagem (NI-10)
 sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver/psql)
 dados/         # dado curado à mão, versionado (perfis_instagram.yaml — a watchlist NI-24)
 docs/          # PRD, backlogs/, specs/ (specs técnicas de implementação)
 tests/         # scripts executáveis + base_teste.py (redireciona p/ eventos_teste)
 ```
+
+**O front mora na RAIZ (`app/`, `lib/`, `package.json`), não numa subpasta.** É o
+arranjo que a Vercel suporta para framework + funções Python no mesmo projeto:
+`api/*.py` convivem com o build do Next. Com o front em subpasta seria preciso
+configurar Root Directory e "include files outside root" no dashboard —
+configuração invisível no repo, que quebra em silêncio.
 
 O DDL não fica embutido em string Python: mora em `sql/schema.sql` e é **carregado**
 por `store.conectar()`. Ao mudar o schema, edite o `.sql` (não o `store.py`). O SQL
@@ -238,6 +257,21 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   No cinema, `buscar_filmes(texto, data_inicio, data_fim, cinema, limite)` agrega
   por filme (sessões futuras por padrão) e `sessoes_filme(filme, ...)` detalha
   horários/salas/tipos/preço de UM filme (lookup por id ou título parcial).
+- `api/dados.py` — **API de leitura do site** (NI-28). Ponte entre o front (JS) e
+  a camada canônica (Python): traduz querystring em chamadas de `consulta.py` e
+  devolve o JSON delas. **Sem lógica própria** — as duas únicas transformações
+  são de POSTURA e vêm da spec: `descricao` sai em TRECHO (600 chars; a tool MCP
+  segue integral, porque serve agente em contexto privado, não página indexada) e
+  `organizador` NUNCA é exposto (às vezes é pessoa física → LGPD). Rotas sob
+  `/api/dados/*`. Roda local com `python api/dados.py`.
+- `app/` + `lib/` — **site público** (Next.js App Router). Os filtros vivem na
+  URL (`?periodo=&texto=&gratis=`), não em estado de cliente: funciona sem JS,
+  cada combinação é endereço compartilhável e o SSR entrega HTML pronto — que é
+  o que a Fase 2 precisa que o buscador leia. Visual pelo **ZeroUm Design
+  System**; nome do produto isolado em `lib/config.js` (é PROVISÓRIO, não
+  espalhar). Sem imagens de evento no v1 (decisão da spec). `app/sitemap.js`,
+  `app/robots.js` e `app/llms.txt/route.js` são a Porta B da Fase 2, e cada
+  página de evento carrega JSON-LD `schema.org/Event`.
 - `src/mcp_server.py` — FastMCP expondo tools finas que delegam para
   `consulta.py`: `buscar_eventos` (listar), `detalhar_evento` (aprofundar um
   evento: descrição completa + lotes), `buscar_filmes`/`sessoes_filme` (cinema)
@@ -334,14 +368,11 @@ Não faça commit sem pedido. Mensagens em português.
   antigo `docs/PROXIMOS_PASSOS.md` (hoje só um ponteiro).
 - `docs/specs/` — specs técnicas de implementação (o "como" de cada item, uma pasta
   datada por spec com `spec.md`). Ver `docs/specs/README.md`.
-- `docs/specs/20260726_abrir-ao-publico/` — **spec APROVADA, implementação NÃO
-  iniciada** (2026-07-26). É o plano de abrir o sistema a terceiros, em 5 passos:
-  LICENSE/README (NI-21), **cron da raspagem no GitHub Actions** (NI-10), **site
-  público de leitura** (NI-28 — front Next.js + API fina em Python sobre a
-  `consulta.py`; o repo ainda não tem runtime Node), OAuth no MCP (NI-11) e
-  JSON-LD/sitemap (Fase 2). **Nada disso existe no código ainda** — ao mexer em
-  `vercel.json`, `api/`, cadência de raspagem ou camada de consulta, ler a spec
-  antes, porque as decisões já estão travadas lá. Anexos: `tos.md` (postura sobre
-  Termos de Uso: agregador com atribuição) e `cron.md` (por que Actions, e o
-  plano B em Cloud Run Jobs).
+- `docs/specs/20260726_abrir-ao-publico/` — spec **APROVADA e IMPLEMENTADA** em
+  2026-07-26, exceto o OAuth do MCP (ver abaixo). É o plano de abrir o sistema a
+  terceiros: LICENSE/README (NI-21), cron no GitHub Actions (NI-10), site público
+  (NI-28), instrumentação (NI-11) e JSON-LD/sitemap (Fase 2). Anexos: `tos.md`
+  (postura sobre Termos de Uso: **agregador com atribuição** — vale ler antes de
+  mexer no que o site expõe) e `cron.md` (por que Actions, e o plano B em Cloud
+  Run Jobs, com os gatilhos que o acionam).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.

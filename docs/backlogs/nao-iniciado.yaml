@@ -349,58 +349,8 @@
 # A reavaliação do banco (Turso e arquivo SQLite publicado rejeitados; Neon
 # mantido) está registrada na spec — não reabrir sem fato novo.
 
-- codigo: NI-10
-  status: em-andamento
-  prioridade: media
-  rank: 2
-  esforco: M
-  eixo: infra
-  fase: 1
-  titulo: "Automação da raspagem via GitHub Actions (1x/dia)"
-  resumo: "cron gerenciado que roda o pipeline (com Playwright/Chromium) e faz UPSERT no Postgres — substitui o rodar-na-mão, não o precede"
-  data: 2026-07-09
-  depende_de: [NI-09]
-  relacionado: []
-  caso_real: []
-  detalhe: |
-    PRD §5/§6: write-path fora do serverless por causa do Chromium; Actions agendado é
-    o cron sem VPS. Cadência 1x/dia na Fase 1 (suficiente para vida noturna). Atenção:
-    instalar chromium do Playwright no runner, segredos da connection string,
-    tolerância a falha por fonte já existe no atualizar.py. Nota (2026-07-10): desde
-    a Fase 0b (NI-09/NI-20) o atualizar.py já grava na base remota rodando local —
-    este item só tira o humano da cadência, não muda o destino dos dados.
-
-- codigo: NI-21
-  status: em-andamento
-  prioridade: media
-  rank: 2
-  esforco: P
-  eixo: infra
-  fase: 0
-  titulo: "Escolher e adicionar LICENSE ao repo público"
-  resumo: "o repo ficou público sem licença = 'todos os direitos reservados' (ninguém pode legalmente usar o código); decidir a licença com calma e criar o arquivo LICENSE na raiz"
-  data: 2026-07-11
-  depende_de: []
-  relacionado: []
-  caso_real: ["revisão de segurança pré-publicação (2026-07-11): repo aprovado para abrir, mas sem LICENSE"]
-  detalhe: |
-    Sem arquivo LICENSE, repo público é só vitrine: juridicamente ninguém pode
-    usar/copiar/modificar. Mecânica trivial: arquivo `LICENSE` (sem extensão) na
-    raiz com o texto integral da licença; o GitHub detecta e exibe na sidebar.
-
-    **Opções mapeadas** (do mais ao menos permissivo): MIT (padrão de facto p/
-    projeto pessoal/PoC — uso livre mantendo o aviso de copyright), Apache 2.0
-    (idem + cláusula de patentes, mais corporativa), GPL-3.0 (copyleft: quem
-    distribui derivado é obrigado a abrir o código). Template preenchível em
-    https://choosealicense.com — trocar [year]/[fullname] e salvar; a interface
-    web do GitHub também oferece seletor de template ao criar o arquivo.
-
-    **Nota:** a licença cobre o CÓDIGO, não os dados raspados — os payloads das
-    plataformas (Sympla/Ingresse/etc.) não são nossos para licenciar, e não
-    precisam de cláusula especial numa PoC.
-
 - codigo: NI-11
-  status: em-andamento
+  status: em-andamento   # METADE feita em 2026-07-26 — falta só o OAuth
   prioridade: media
   rank: 2
   esforco: M
@@ -418,6 +368,18 @@
     auth adequada (o token único de uso próprio não distingue pessoas) e
     instrumentação. Instrumentação é requisito, não enfeite (PRD §10): o critério de
     fase só fecha com uso de terceiro comprovado por registro.
+
+    **METADE IMPLEMENTADA em 2026-07-26** (spec 20260726_abrir-ao-publico,
+    passo 4): tabelas `usuarios` + `acessos` no schema e decorator
+    `@registrado` nas 5 tools — a INSTRUMENTAÇÃO JÁ MEDE (tool, argumentos,
+    nº de resultados, ms, erro), hoje com `sub` NULL porque não há login. Teto
+    por hora (120) e bloqueio reativo também prontos, devolvendo erro de DADO
+    para o agente conseguir explicar. FALTA: TokenVerifier (JWKS) + servidor de
+    autorização, que dependem de uma conta WorkOS AuthKit do autor — não foi
+    implementado às cegas, porque código de auth não testável contra um issuer
+    real é pior que ausência de código. Gancho pronto em
+    `mcp_server._identidade()`. Enquanto isso o MCP segue no prefixo secreto e
+    a URL NÃO deve ser divulgada.
 
     **SPEC APROVADA (2026-07-14): docs/specs/20260714_abrir-mcp-a-conhecidos/**
     (com anexo `pesquisa-clientes-mcp.md`). Desenho: a URL do connector vira
@@ -438,41 +400,19 @@
     A Anthropic desaconselha credencial na URL do connector e a spec de
     authorization do MCP proíbe access token em query string — ver spec §0.
 
-- codigo: NI-28
-  status: em-andamento
-  prioridade: alta
-  rank: 1
-  esforco: G
-  eixo: distribuicao
-  fase: 1
-  titulo: "Site público de leitura (segunda porta, para humanos)"
-  resumo: "front Next.js + API de leitura em Python sobre a consulta.py — busca com filtros e botões, sem login, para quem não quer instalar connector; as mesmas páginas viram a Porta B da Fase 2"
-  data: 2026-07-26
-  depende_de: [NI-10]
-  relacionado: [NI-11, NI-21, NI-04]
-  caso_real: ["2026-07-26: o autor mostrou o sistema a conhecidos e passou a ser cobrado ('quero usar isso, põe pra jogo'); nenhuma porta existente serve essa pessoa — a consulta exige ser um agente de IA falando MCP"]
-  detalhe: |
-    **SPEC APROVADA (2026-07-26): docs/specs/20260726_abrir-ao-publico/**, com os
-    anexos `tos.md` (postura sobre Termos de Uso) e `cron.md` (comparativo de
-    plataformas de execução). Este item é o passo 3 daquela spec; os passos 1, 2 e
-    4 são NI-21, NI-10 e NI-11.
 
-    Fecha a condicional do PRD §4 ("cara própria só entra se provar vantagem") —
-    a demanda espontânea foi a evidência. **Não** promove o site a produto
-    principal (PRD §9 segue valendo): é uma segunda porta sobre a mesma base.
-
-    **Decisões travadas na spec** (não rediscutir sem fato novo): busca com
-    filtros e botões, não chat (chat teria custo de LLM por pergunta, por
-    usuário); stack Next.js consumindo uma API de leitura fina em Python
-    (`api/site.py`) — o front NÃO lê o Neon direto, senão dedupe/ruído/sumido/FTS
-    seriam duplicados em JS; visual pelo ZeroUm Design System; nome `role.bsb`
-    PROVISÓRIO e isolado em config; sem imagens no v1 (adiadas, ver §9 da spec);
-    instrumentação por PostHog cobrindo site e MCP; postura de ToS "agregador com
-    atribuição" — descrição em TRECHO + link na página pública (a tool MCP segue
-    integral), fonte sempre visível, página "sobre" com canal de remoção, e
-    `organizador` omitido quando for pessoa física (LGPD).
-
-    **Atenção no roteamento:** o vercel.json hoje reescreve TODAS as rotas para
-    api/index (o MCP). Com o Next assumindo o domínio esse catch-all sai — é onde
-    dá pra derrubar o MCP sem querer, e o NI-11 mexe no mesmo arquivo. Desenhar o
-    roteamento das duas portas de uma vez.
+# NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
+# IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).
+# NI-10: .github/workflows/raspar.yml roda o atualizar.py COMPLETO às 06:00 UTC
+# (3h de Brasília), com Python+Node+Chromium no runner ubuntu — grátis e sem
+# teto porque o repo é público. A extração de flyer do Instagram fica FORA do
+# CI (caminho 1: `claude -p` roda na assinatura e não há login de assinatura em
+# CI); daí as flags novas --sem-extracao-flyer (modo do cron, reporta
+# pendentes_extracao) e --so-instagram (rodada local curta que processa a fila).
+# Plano B registrado: Cloud Run Jobs, com 4 gatilhos objetivos no anexo cron.md.
+# NI-21: MIT, copyright ZeroUm Soluções em Dados, + README para humanos.
+# NI-28: front Next.js na RAIZ (app/, lib/) + api/dados.py como ponte para a
+# consulta.py; filtros na URL (funciona sem JS, SSR indexável); sem imagens no
+# v1; JSON-LD/sitemap/llms.txt junto (Porta B da Fase 2); postura de ToS
+# "agregador com atribuição" virou código (descrição em trecho, organizador
+# nunca exposto, página "sobre" com canal de remoção).
