@@ -7,6 +7,10 @@ name = "raspador-eventos-mcp"
 version = "0.0.1"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.10",
+    # >=1.28: é a partir dela que o AccessToken carrega claims/subject e que a
+    # rota de metadados segue a RFC 9728 (/.well-known/...-resource/mcp). Com
+    # piso menor o OAuth do NI-11 sobe torto, sem erro visível.
+    "mcp>=1.28",
     "psycopg[binary]>=3.2",
+    "pyjwt[crypto]>=2.10",  # verifica o JWT do AuthKit contra o JWKS (src/auth.py)
 ]

@@ -60,7 +60,11 @@ python src/consulta.py
 
 # MCP server (normalmente quem executa é o cliente de IA; assim é só p/ depurar)
 python src/mcp_server.py                        # stdio (clientes locais)
-python src/mcp_server.py --http                 # MCP remoto local (exige MCP_SEGREDO; porta da env PORT)
+# MCP remoto local. Com OAuth (o modo de produção): serve /mcp + a rota de
+# metadados, e recusa chamada sem token do AuthKit.
+AUTHKIT_ISSUER=https://prompt-color-48-staging.authkit.app \
+  MCP_RECURSO=http://localhost:8765/mcp PORT=8765 python src/mcp_server.py --http
+python src/mcp_server.py --http                 # sem as duas envs: modo antigo, exige MCP_SEGREDO
 
 # Site público (NI-28) — front Next.js + API de leitura em Python
 npm install                                     # 1ª vez
@@ -68,8 +72,9 @@ python api/dados.py 8000                        # API de leitura (lê consulta.p
 API_INTERNA=http://localhost:8000/api/dados npx next dev   # front em :3000
 npx next build                                  # build de produção
 
-# Deploy do MCP remoto em produção (Vercel, projeto raspador-eventos; as envs
-# EVENTOS_DB_URL — URL pooled do Neon — e MCP_SEGREDO vivem nas settings de lá)
+# Deploy em produção (Vercel, projeto raspador-eventos). As envs vivem nas
+# settings de lá: EVENTOS_DB_URL (URL pooled do Neon), AUTHKIT_ISSUER +
+# MCP_RECURSO (OAuth do MCP) e MCP_SEGREDO (resquício do modo anterior).
 vercel --prod
 
 # Testes de fumaça (scripts executáveis, sem framework). Os 3 primeiros usam o
@@ -105,6 +110,7 @@ Todo o código Python vive em `src/`:
 ```
 src/
   store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
+  auth.py                                         # verifica o token OAuth do MCP remoto
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
     sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  instagram.py  discover_sympla.py
@@ -278,8 +284,18 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   e `data_atual` (data/hora UTC + janela do
   fim de semana, para o agente montar filtros "hoje"/"neste fim de semana").
   Transporte stdio por default; `--http` sobe o **MCP remoto** (streamable HTTP
-  stateless, rota sob prefixo secreto `MCP_SEGREDO`, porta da env `PORT`) — é o
-  connector do celular na Fase 0b (NI-20).
+  stateless, porta da env `PORT`) — é o connector do celular (NI-20).
+- `src/auth.py` — **OAuth do MCP remoto** (NI-11). Este servidor é *resource
+  server*: quem emite token é o **AuthKit (WorkOS)**, e aqui só se verifica o
+  JWT contra o JWKS do issuer. O cliente descobre tudo sozinho — leva 401 com
+  `WWW-Authenticate`, lê `/.well-known/oauth-protected-resource/mcp`,
+  registra-se via DCR/CIMD e volta com Bearer. Ligado por **env, não por
+  flag**: `AUTHKIT_ISSUER` + `MCP_RECURSO` presentes = com auth em `/mcp`;
+  ausentes = modo antigo sob o prefixo secreto `MCP_SEGREDO` (que é o rollback,
+  sem tocar em código). O caminho da rota SAI de `MCP_RECURSO`, para o metadado
+  anunciado nunca divergir da rota servida. `mcp>=1.28` é piso duro: é dela que
+  vêm `AccessToken.claims`/`.subject` e a rota RFC 9728 correta. Com token
+  válido, `_identidade()` passa a preencher `usuarios`/`acessos` sozinha.
 
 Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
 marcar sumidos (evento futuro que não reapareceu no catálogo de fonte raspada SEM
@@ -353,14 +369,18 @@ titulo/generos).
   (Claude Code, Claude Desktop, Codex) em `docs/TESTE_MCP.md`.
 - **Roteamento do `vercel.json` — as duas portas no mesmo domínio.** Até a Fase
   0b havia um catch-all mandando TODAS as rotas para `/api/index` (o MCP era a
-  única porta). Com o site, ele saiu e sobraram duas rewrites explícitas; o Next
-  fica com o resto (páginas, sitemap, robots, llms.txt). A do MCP é
-  `/:segredo/mcp` e **não** o segredo literal: o prefixo vem da env `MCP_SEGREDO`
-  e não pode ser versionado — o padrão casa qualquer primeiro segmento terminando
+  única porta). Com o site, ele saiu e sobraram rewrites explícitas; o Next fica
+  com o resto (páginas, sitemap, robots, llms.txt). As do MCP são três:
+  `/mcp` (o endpoint), `/.well-known/oauth-protected-resource/:recurso*` (a
+  descoberta da RFC 9728 — **sem ela o cliente nunca sabe onde autenticar**, e o
+  Next devolveria 404 no lugar) e `/:segredo/mcp`, que sobrou do modo anterior.
+  Essa última **não** é o segredo literal: o prefixo vem da env `MCP_SEGREDO` e
+  não pode ser versionado — o padrão casa qualquer primeiro segmento terminando
   em `/mcp`, e quem valida é o próprio app ASGI, que só monta a rota no path
-  certo e devolve 404 no resto. Quando o NI-11 trocar o segredo por OAuth, essa
-  linha vira `/mcp` puro. **Mexer aqui é o jeito mais fácil de derrubar o MCP sem
-  perceber** — depois de alterar, confira que o connector ainda responde.
+  certo e devolve 404 no resto. Ela existe hoje só para o rollback do OAuth ser
+  uma troca de env; quando o OAuth estiver rodado, pode sair.
+  **Mexer aqui é o jeito mais fácil de derrubar o MCP sem perceber** — depois de
+  alterar, confira que o connector ainda responde.
   O `vercel.json` **não aceita comentário** (nem `$comment`: o schema rejeita
   propriedade extra e o deploy falha), por isso esta explicação mora aqui.
 

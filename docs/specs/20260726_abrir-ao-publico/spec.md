@@ -1,9 +1,8 @@
 # Spec — Abrir o sistema ao público: cron, site e onboarding (NI-10 + NI-11 + NI-21 + NI-28)
 
 > **Status: APROVADA e IMPLEMENTADA em 2026-07-26** — as oito questões foram
-> decididas pelo autor no mesmo dia (§6 tem o mapa) e os passos 1, 2, 3 e 5
-> estão no código. O passo 4 (OAuth) foi entregue **pela metade**, e de
-> propósito — ver abaixo.
+> decididas pelo autor no mesmo dia (§6 tem o mapa) e os cinco passos estão no
+> código e no ar.
 >
 > **O que está pronto e validado:**
 > - **Passo 1** — `LICENSE` (MIT, ZeroUm Soluções em Dados) e `README.md`.
@@ -14,19 +13,26 @@
 >   `tests/test_api_dados.py`) e o front em `app/`/`lib/`. Roteamento do
 >   `vercel.json` refeito sem derrubar o MCP.
 > - **Passo 5** — JSON-LD por evento, `sitemap.xml`, `robots.txt`, `llms.txt`.
-> - **Passo 4 (metade)** — tabelas `usuarios`/`acessos` e o decorator
->   `@registrado` nas 5 tools: a **instrumentação já mede**, com `sub` NULL
->   enquanto não há login.
+> - **Passo 4** — tabelas `usuarios`/`acessos` + decorator `@registrado` nas 5
+>   tools (a instrumentação já media antes do login, com `sub` NULL) e, desde a
+>   conta WorkOS ficar de pé no mesmo dia, o OAuth completo: `src/auth.py`
+>   verifica o JWT contra o JWKS do AuthKit, o FastMCP publica
+>   `/.well-known/oauth-protected-resource/mcp` e o connector passou a viver em
+>   **`https://raspador-eventos.vercel.app/mcp`** — URL pública, protegida por
+>   login e não mais por sigilo de endereço.
 >
-> **O que FALTA, e por quê:** o TokenVerifier (JWKS) e a configuração do
-> servidor de autorização dependem de uma conta **WorkOS AuthKit** do autor.
-> Não foram implementados às cegas — código de auth que não pode ser testado
-> contra um issuer real é pior que ausência de código. O gancho está pronto em
-> `mcp_server._identidade()`: quando a credencial existir, é o único ponto a
-> mudar. **Enquanto isso, o MCP segue protegido pelo prefixo secreto** e a URL
-> NÃO deve ser divulgada.
+> **Ressalvas do passo 4:**
+> - O issuer aponta para o **Staging** do WorkOS; o Production está configurado
+>   igual e a troca é uma env (`AUTHKIT_ISSUER`), mas exige ativar Production no
+>   painel. Ao trocar, todo mundo re-autentica — `sub` é por ambiente.
+> - `MCP_SEGREDO` **não morreu ainda**: a rewrite `/:segredo/mcp` segue no
+>   `vercel.json` para o rollback ser troca de env. Sai quando o fluxo tiver
+>   rodado com gente de verdade.
+> - A "landing com o passo a passo" prevista na spec do NI-11 virou a página
+>   `/sobre` do site, como a nota de integração deste passo antecipava.
 >
-> **Falta também o deploy:** por decisão do autor, o `vercel --prod` é dele.
+> **O que falta para divulgar:** a decisão travada em §4 exige o **cron rodando
+> antes** — o workflow está no ar mas ainda não disparou nenhuma vez.
 >
 > **O quê/por quê:** o gatilho não é técnico, é de demanda. O autor mostrou o
 > sistema a conhecidos e passou a ser cobrado — *"quero usar isso, põe pra jogo"*.
@@ -374,6 +380,25 @@ allowlist; controle reativo por teto + bloqueio.
 a passo". Se o passo 3 for feito antes, a landing deixa de ser página solta e vira
 uma seção do site. Vale um alinhamento entre as duas specs no momento da
 implementação — não é conflito, é economia.
+
+**Como ficou (2026-07-26).** O AuthKit é só *authorization server*; nada de
+credencial nossa em lugar nenhum. Três achados que valem registro, porque não
+estavam previstos:
+
+1. **`mcp>=1.28` é piso duro.** O `pyproject.toml` pedia `>=1.10`, então a
+   Vercel já instalava a mais nova enquanto o dev local tinha 1.10.1 — dois
+   ambientes com APIs de auth diferentes e nenhum erro visível. Só a partir da
+   1.28 o `AccessToken` carrega `claims`/`subject` e a rota de metadados segue
+   a RFC 9728 (`/.well-known/oauth-protected-resource/mcp`); na 1.10 o SDK
+   registrava a rota na raiz e anunciava outra, e o cliente nunca fecharia o
+   fluxo. Piso frouxo em dependência que define contrato de rede é armadilha.
+2. **A rewrite da descoberta é tão crítica quanto a do endpoint.** Sem
+   `/.well-known/oauth-protected-resource/:recurso*` no `vercel.json`, o Next
+   responde 404 no lugar do metadado e o cliente leva o 401 sem saber onde
+   autenticar — falha muda, que parece "login não funciona".
+3. **Ligar por env, não por flag.** `AUTHKIT_ISSUER` + `MCP_RECURSO` presentes
+   = auth; ausentes = modo antigo. O mesmo módulo serve stdio local e remoto, e
+   o rollback não passa por código.
 
 ### Passo 5 — Superfície achável (Fase 2)
 

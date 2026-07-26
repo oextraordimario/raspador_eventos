@@ -90,31 +90,61 @@ Salve e reinicie o Codex.
 
 ---
 
-## 5. MCP remoto (Fase 0b) — connector no celular
+## 5. MCP remoto — connector no celular
 
-O mesmo server sobe em HTTP, protegido por um prefixo de rota secreto
-(`MCP_SEGREDO`); a URL completa é o segredo — qualquer rota fora dela dá 404.
-
-Testar local:
-
-```bash
-# PowerShell:  $env:MCP_SEGREDO="um-segredo-longo"; $env:PORT="8765"
-python src/mcp_server.py --http
-# URL do connector: http://localhost:8765/<segredo>/mcp
-```
-
-Em produção o server roda na **Vercel** (projeto `raspador-eventos`, plano
-hobby): o entrypoint é `api/index.py` (app ASGI do FastMCP; o `vercel.json`
-manda todas as rotas pra ele) e as envs `EVENTOS_DB_URL` (URL **pooled** do
-Neon) e `MCP_SEGREDO` ficam nas settings do projeto na Vercel. Deploy:
-`vercel --prod` na raiz do repo (CLI logado). A URL base é
-`https://raspador-eventos.vercel.app` — o segredo NÃO fica em arquivo nenhum
-do repo (só na env da Vercel).
+**URL do connector: `https://raspador-eventos.vercel.app/mcp`** — pública, e
+pode ser divulgada: quem protege é o OAuth, não o sigilo do endereço.
 
 No app do Claude (celular ou web): **Configurações → Conectores → Adicionar
-conector personalizado**, colando `https://<host>/<segredo>/mcp`. Não divulgar
-a URL — auth de verdade é a Fase 1 (NI-11). Spec:
-`docs/specs/20260711_consulta-na-nuvem/`.
+conector personalizado**, colando a URL acima. O app abre a tela de login do
+AuthKit sozinho; depois de entrar, as tools aparecem. Nada de chave, token ou
+segredo para colar — nenhum dos dois lados guarda credencial nossa.
+
+Em Claude Code: `claude mcp add -t http raspador https://raspador-eventos.vercel.app/mcp`
+e depois `/mcp` para autenticar.
+
+### Como funciona
+
+O server é **resource server**, nunca authorization server (`src/auth.py`).
+O cliente faz o caminho inteiro sem configuração:
+
+1. chama `/mcp` sem token → **401** com `WWW-Authenticate` apontando para
+   `/.well-known/oauth-protected-resource/mcp`;
+2. lê ali o issuer do **AuthKit (WorkOS)** e descobre os endpoints dele;
+3. registra-se sozinho (DCR/CIMD, habilitados no AuthKit) e faz o code flow;
+4. volta com `Authorization: Bearer <jwt>`, que verificamos contra o JWKS.
+
+Conferir sem cliente nenhum:
+
+```bash
+curl https://raspador-eventos.vercel.app/.well-known/oauth-protected-resource/mcp
+curl -i -X POST https://raspador-eventos.vercel.app/mcp   # deve dar 401
+```
+
+Testar local (o mesmo modo de produção, com o issuer de verdade):
+
+```bash
+AUTHKIT_ISSUER=https://prompt-color-48-staging.authkit.app \
+  MCP_RECURSO=http://localhost:8765/mcp PORT=8765 python src/mcp_server.py --http
+```
+
+### Produção
+
+Roda na **Vercel** (projeto `raspador-eventos`, plano hobby), entrypoint
+`api/index.py`. Envs nas settings de lá: `EVENTOS_DB_URL` (URL **pooled** do
+Neon), `AUTHKIT_ISSUER` e `MCP_RECURSO`. Deploy: `vercel --prod` na raiz.
+
+> **Ambiente do AuthKit:** hoje aponta para o **Staging** do WorkOS
+> (`prompt-color-48-staging.authkit.app`). O Production já está configurado
+> igual (`pleasant-globe-47.authkit.app`) e a troca é só a env
+> `AUTHKIT_ISSUER` — falta ativar Production no painel do WorkOS. Ao trocar,
+> todo mundo re-autentica: as identidades (`sub`) são por ambiente.
+
+**Rollback:** apagar `AUTHKIT_ISSUER` + `MCP_RECURSO` e redeployar volta ao modo
+anterior, sob o prefixo secreto `MCP_SEGREDO` (a rewrite `/:segredo/mcp` segue
+no `vercel.json` justamente para isso).
+
+Specs: `docs/specs/20260711_consulta-na-nuvem/`, `20260726_abrir-ao-publico/`.
 
 ---
 
@@ -144,3 +174,8 @@ O agente deve chamar `data_atual` (quando o período for relativo) e
   o wake custa alguns segundos e só afeta a primeira consulta.
 - **Datas erradas ("fim de semana"):** o agente deve chamar `data_atual` primeiro;
   se não chamar, peça explicitamente "considerando a data de hoje".
+- **Connector remoto dá 401 mesmo depois de logar:** o motivo real fica no log
+  da função na Vercel (`[auth] token recusado: ...`) — o cliente só mostra
+  "unauthorized". Quase sempre é o `aud`: o token vale para o resource indicator
+  que o cliente pediu, e ele precisa bater com `MCP_RECURSO` **e** estar
+  registrado no AuthKit (Connect → Configuration → Resource Indicators).

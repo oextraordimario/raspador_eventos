@@ -4,10 +4,10 @@ Dois transportes (a base é a mesma — o Neon):
 - stdio (default) — clientes locais (Claude Code, Claude Desktop, Codex) e o
   test_mcp_server.py. Rodar manualmente para depurar: python src/mcp_server.py
 - streamable HTTP (--http) — o MCP REMOTO da Fase 0b (NI-20): stateless (casa
-  com serverless que escala a zero), servido sob um prefixo de rota secreto
-  (env MCP_SEGREDO; auth de verdade é Fase 1/NI-11) na porta da env PORT.
-  URL do connector: https://<host>/<segredo>/mcp
-  Spec: docs/specs/20260711_consulta-na-nuvem/.
+  com serverless que escala a zero), na porta da env PORT. Com OAuth (NI-11)
+  ele fica em https://<host>/mcp; sem, cai no modo antigo, sob o prefixo de
+  rota secreto da env MCP_SEGREDO.
+  Specs: docs/specs/20260711_consulta-na-nuvem/, 20260726_abrir-ao-publico/.
 
 As tools são finas: delegam para a camada de consulta (consulta.py).
 """
@@ -18,13 +18,44 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
 import consulta
 import store
 
-mcp = FastMCP("eventos-brasilia")
+# ── OAuth (NI-11) ─────────────────────────────────────────────────────────
+# Ligado por ENV, não por flag de linha de comando: o MESMO módulo serve o
+# stdio local (sem auth — a identidade é o dono da máquina) e o remoto na
+# Vercel (com auth). Faltando qualquer uma das duas envs, o servidor sobe sem
+# auth e o transporte HTTP volta ao prefixo secreto — que é também o caminho
+# de rollback, sem tocar em código.
+AUTHKIT_ISSUER = store.env_var("AUTHKIT_ISSUER")   # https://<sub>.authkit.app
+MCP_RECURSO = store.env_var("MCP_RECURSO")         # https://<host>/mcp
+
+
+def _servidor():
+    if not (AUTHKIT_ISSUER and MCP_RECURSO):
+        return FastMCP("eventos-brasilia")
+
+    from mcp.server.auth.settings import AuthSettings
+
+    from auth import VerificadorAuthKit
+
+    # `resource_server_url` é a URL PÚBLICA do endpoint MCP, não a raiz do
+    # site: é dela que o SDK deriva a rota de metadados exigida pela RFC 9728
+    # (/.well-known/oauth-protected-resource/mcp) e o aud esperado no token.
+    return FastMCP(
+        "eventos-brasilia",
+        token_verifier=VerificadorAuthKit(AUTHKIT_ISSUER, MCP_RECURSO),
+        auth=AuthSettings(issuer_url=AUTHKIT_ISSUER,
+                          resource_server_url=MCP_RECURSO,
+                          required_scopes=[]),
+    )
+
+
+mcp = _servidor()
 
 _DIAS_PT = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
             "sexta-feira", "sábado", "domingo"]
@@ -47,20 +78,20 @@ LIMITE_HORA = 120
 def _identidade():
     """(sub, email) de quem chamou, ou (None, None) em chamada local.
 
-    Enquanto o NI-11 não entra, sempre devolve (None, None): o transporte HTTP
-    é protegido por prefixo secreto, que não identifica pessoa. Quando o OAuth
-    subir, é aqui que o token vira identidade — e só aqui.
+    É o ÚNICO ponto onde o token vira identidade. Sem OAuth configurado (stdio
+    local, ou remoto ainda no prefixo secreto) devolve (None, None) e a chamada
+    entra em `acessos` anônima — a instrumentação segue funcionando.
     """
     try:
         from mcp.server.auth.middleware.auth_context import get_access_token
         token = get_access_token()
         if not token:
             return None, None
-        claims = getattr(token, "claims", None) or {}
-        return claims.get("sub"), claims.get("email")
+        claims = token.claims or {}
+        return token.subject or claims.get("sub"), claims.get("email")
     except Exception:
-        # stdio, versão de SDK sem auth, ou fora de contexto de request:
-        # chamada local. Nunca derruba a tool por causa da instrumentação.
+        # stdio ou fora de contexto de request: chamada local. Nunca derruba a
+        # tool por causa da instrumentação.
         return None, None
 
 
@@ -306,14 +337,20 @@ def data_atual() -> dict:
 
 if __name__ == "__main__":
     if "--http" in sys.argv:
-        segredo = store.env_var("MCP_SEGREDO")
-        if not segredo:
-            sys.exit("Defina MCP_SEGREDO (o prefixo secreto da URL) para subir "
-                     "o transporte HTTP.")
+        if MCP_RECURSO:
+            # O caminho SAI da URL do recurso: se os dois divergissem, o
+            # metadado anunciado apontaria para uma rota que não existe.
+            caminho = urlparse(MCP_RECURSO).path or "/mcp"
+        else:
+            segredo = store.env_var("MCP_SEGREDO")
+            if not segredo:
+                sys.exit("Defina AUTHKIT_ISSUER + MCP_RECURSO (OAuth) ou "
+                         "MCP_SEGREDO (prefixo secreto) para subir o HTTP.")
+            caminho = f"/{segredo}/mcp"
         mcp.settings.stateless_http = True
         mcp.settings.host = "0.0.0.0"
         mcp.settings.port = int(os.environ.get("PORT", "8000"))
-        mcp.settings.streamable_http_path = f"/{segredo}/mcp"
+        mcp.settings.streamable_http_path = caminho
         mcp.run(transport="streamable-http")
     else:
         mcp.run()

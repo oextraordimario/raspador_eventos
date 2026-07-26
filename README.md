@@ -33,8 +33,15 @@ O projeto expõe um servidor MCP, que faz o assistente responder coisas como
 *"quais festas de pagode tem neste fim de semana?"* ou *"tem alguma animação em
 cartaz pra levar criança?"* consultando a base direto, em vez de chutar.
 
-Funciona no Claude, no ChatGPT e em qualquer cliente que fale MCP. O passo a
-passo de instalação está em [`docs/TESTE_MCP.md`](docs/TESTE_MCP.md).
+Funciona no Claude, no ChatGPT e em qualquer cliente que fale MCP. Adicione o
+connector apontando para:
+
+```
+https://raspador-eventos.vercel.app/mcp
+```
+
+O cliente abre a tela de login sozinho — não há chave nem token para colar. O
+passo a passo por cliente está em [`docs/TESTE_MCP.md`](docs/TESTE_MCP.md).
 
 ---
 
