@@ -228,6 +228,38 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None):
     return f
 
 
+def procedencia():
+    """Quando cada fonte foi coletada pela última vez, e quanto ela responde
+    hoje na base.
+
+    Existe porque o site precisa mostrar a idade do dado (spec
+    20260726_abrir-ao-publico §3 passo 3): enquanto a raspagem não for
+    comprovadamente diária, esconder que o dado é de três dias atrás é o pior
+    modo de falha do produto — resposta errada com cara de certa.
+
+    `raspado_em` é a âncora certa: só o upsert do catálogo o atualiza (os
+    passos descrever/precificar mexem em outras colunas), então ele responde
+    "quando esta fonte foi vista viva pela última vez".
+
+    Returns:
+        Lista de dicts {fonte, ultima_coleta (ISO UTC), eventos, futuros},
+        da fonte mais recente para a mais velha.
+    """
+    con = store.conectar()
+    agora = datetime.now(timezone.utc).isoformat()
+    rows = con.execute(
+        "SELECT fonte, MAX(raspado_em) AS ultima_coleta, "
+        "       COUNT(*) AS eventos, "
+        "       COUNT(*) FILTER (WHERE start_date >= %s AND ruido = 0 "
+        "                        AND sumido = 0 "
+        "                        AND (cancelado IS NULL OR cancelado = 0)) "
+        "         AS futuros "
+        "FROM eventos GROUP BY fonte ORDER BY MAX(raspado_em) DESC",
+        (agora,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
 def _mostrar(titulo, eventos):
     print(f"\n### {titulo}  ({len(eventos)} resultados)")
     if not eventos:
