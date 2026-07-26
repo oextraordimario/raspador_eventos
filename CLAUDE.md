@@ -351,6 +351,18 @@ titulo/generos).
   lida com os dois formatos.
 - Config de MCP em `.mcp.json` (Claude Code detecta sozinho). Setup dos 3 clientes
   (Claude Code, Claude Desktop, Codex) em `docs/TESTE_MCP.md`.
+- **Roteamento do `vercel.json` — as duas portas no mesmo domínio.** Até a Fase
+  0b havia um catch-all mandando TODAS as rotas para `/api/index` (o MCP era a
+  única porta). Com o site, ele saiu e sobraram duas rewrites explícitas; o Next
+  fica com o resto (páginas, sitemap, robots, llms.txt). A do MCP é
+  `/:segredo/mcp` e **não** o segredo literal: o prefixo vem da env `MCP_SEGREDO`
+  e não pode ser versionado — o padrão casa qualquer primeiro segmento terminando
+  em `/mcp`, e quem valida é o próprio app ASGI, que só monta a rota no path
+  certo e devolve 404 no resto. Quando o NI-11 trocar o segredo por OAuth, essa
+  linha vira `/mcp` puro. **Mexer aqui é o jeito mais fácil de derrubar o MCP sem
+  perceber** — depois de alterar, confira que o connector ainda responde.
+  O `vercel.json` **não aceita comentário** (nem `$comment`: o schema rejeita
+  propriedade extra e o deploy falha), por isso esta explicação mora aqui.
 
 ## Estratégia de commit
 
