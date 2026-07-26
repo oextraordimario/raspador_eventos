@@ -3,6 +3,7 @@ import { listarEventos, procedencia, idParaSlug } from '../lib/api'
 import { agruparPorDia, rotuloDia, diaMes, hora, reais } from '../lib/formato'
 import { MARCA, PERIODOS } from '../lib/config'
 import Procedencia from './Procedencia'
+import SearchForm from './SearchForm'
 
 // Os filtros vivem na URL (?periodo=&texto=&gratis=), não em estado de
 // cliente. Três ganhos que importam aqui: a página funciona sem JS, cada
@@ -76,13 +77,7 @@ export default async function Home({ searchParams }) {
   return (
     <>
       <div className="filtros">
-        <form className="search" action="/">
-          <input name="texto" type="search" defaultValue={texto}
-                 placeholder="pagode, funk, Ordinário, forró..."
-                 aria-label="Buscar eventos" />
-          {periodo !== 'hoje' && <input type="hidden" name="periodo" value={periodo} />}
-          {gratis && <input type="hidden" name="gratis" value="1" />}
-        </form>
+        <SearchForm texto={texto} periodo={periodo} gratis={gratis} />
 
         <div className="chips" role="group" aria-label="Filtros">
           {PERIODOS.map((p) => (
