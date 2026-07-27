@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { detalharEvento, slugParaId } from '../../../lib/api'
-import { diaSemana, diaMes, hora, reais } from '../../../lib/formato'
+import { diaSemana, diaMes, horaOuNada, reais, tituloLimpo } from '../../../lib/formato'
 import { MARCA, ORIGEM } from '../../../lib/config'
 import { TicketCta, OtherPlatformCta } from './CtaButton'
+import { Hero } from '../../Flyer'
 
 export const revalidate = 300
 
@@ -11,9 +12,10 @@ export async function generateMetadata({ params }) {
   const { id } = await params
   const ev = await detalharEvento(slugParaId(id))
   if (!ev) return { title: 'evento não encontrado' }
-  const quando = `${diaSemana(ev.start_date)} ${diaMes(ev.start_date)}, ${hora(ev.start_date)}`
+  const h = horaOuNada(ev.start_date, ev.fonte)
+  const quando = `${diaSemana(ev.start_date)} ${diaMes(ev.start_date)}${h ? `, ${h}` : ''}`
   return {
-    title: ev.nome,
+    title: tituloLimpo(ev.nome),
     description: `${quando} · ${ev.local_nome || MARCA.cidade}. ${ev.descricao?.slice(0, 120) ?? ''}`,
     alternates: { canonical: `${ORIGEM}/evento/${id}` },
   }
@@ -25,6 +27,8 @@ export default async function Evento({ params }) {
   if (!ev) notFound()
 
   const outras = ev.outras_urls ? ev.outras_urls.split(',').filter(Boolean) : []
+  const titulo = tituloLimpo(ev.nome)
+  const horario = horaOuNada(ev.start_date, ev.fonte)
 
   // JSON-LD schema.org/Event — é o que faz a Porta B da Fase 2 existir: o
   // agente e o buscador leem a página como dado estruturado, não como texto.
@@ -33,7 +37,10 @@ export default async function Evento({ params }) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
-    name: ev.nome,
+    // nome limpo também aqui: o JSON-LD é o que o agente e o buscador leem, e
+    // "Forró na Varanda" descreve o evento melhor que o título com a data
+    // repetida que o organizador publicou
+    name: titulo,
     startDate: ev.start_date,
     ...(ev.end_date && { endDate: ev.end_date }),
     eventStatus: 'https://schema.org/EventScheduled',
@@ -74,12 +81,14 @@ export default async function Evento({ params }) {
       <script type="application/ld+json"
               dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <Link className="voltar" href="/">&lt; voltar</Link>
+      <Link className="voltar" href="/">← voltar</Link>
 
       <article className="doc">
-        <h1>{ev.nome}</h1>
+        <Hero src={ev.imagem} alto={titulo} />
+        <h1>{titulo}</h1>
         <div className="when">
-          {diaSemana(ev.start_date)} {diaMes(ev.start_date)} // {hora(ev.start_date)}
+          {diaSemana(ev.start_date)} {diaMes(ev.start_date)}
+          {horario && ` · ${horario}`}
         </div>
         <div className="where">
           {ev.local_nome || 'local a confirmar'}
@@ -115,7 +124,7 @@ export default async function Evento({ params }) {
             <div className="desc">{ev.descricao}</div>
             {ev.descricao_truncada && (
               <div className="desc-corte">
-                // texto do organizador, em trecho — o resto está na página da fonte
+                Texto do organizador, em trecho — o resto está na página da fonte.
               </div>
             )}
           </>

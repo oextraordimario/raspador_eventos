@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { listarEventos, procedencia, idParaSlug } from '../lib/api'
-import { agruparPorDia, rotuloDia, diaMes, hora, reais } from '../lib/formato'
+import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../lib/formato'
 import { MARCA, PERIODOS } from '../lib/config'
 import Procedencia from './Procedencia'
 import SearchForm from './SearchForm'
+import Flyer from './Flyer'
 
 // Os filtros vivem na URL (?periodo=&texto=&gratis=), não em estado de
 // cliente. Três ganhos que importam aqui: a página funciona sem JS, cada
@@ -15,21 +16,30 @@ export const metadata = {
   description: MARCA.descricao,
 }
 
-function Card({ ev }) {
+// As quatro primeiras imagens carregam com prioridade: são as que ocupam a
+// tela na abertura, e é nelas que a página é julgada como rápida ou lenta.
+const PRIORITARIAS = 4
+
+function Card({ ev, indice }) {
   const gratis = ev.tem_gratis === 1
+  const titulo = tituloLimpo(ev.nome)
+  const quando = horaOuNada(ev.start_date, ev.fonte)
   return (
     <Link className="card" href={`/evento/${idParaSlug(ev.id)}`}>
-      <div className="time">{hora(ev.start_date)}</div>
+      <Flyer src={ev.imagem} alto={titulo}
+             tamanhos="(min-width: 900px) 92px, 78px"
+             prioridade={indice < PRIORITARIAS} />
       <div className="body">
-        <h3 className="title">{ev.nome}</h3>
+        <h3 className="title">{titulo}</h3>
         <div className="venue">
           {ev.local_nome || 'local a confirmar'}
-          {ev.bairro && <><span className="sep">//</span>{ev.bairro}</>}
+          {ev.bairro && <><span className="sep">·</span>{ev.bairro}</>}
         </div>
         {ev.atracoes && (
           <div className="lineup">{ev.atracoes.split(';').join(' · ')}</div>
         )}
         <div className="meta">
+          {quando && <span className="time">{quando}</span>}
           {ev.preco_min != null ? (
             <span className="price">
               <span className="from">a partir de</span>{reais(ev.preco_min)}
@@ -37,7 +47,7 @@ function Card({ ev }) {
           ) : gratis ? (
             <span className="tag tag-free">grátis</span>
           ) : (
-            <span className="price none">preço n/d</span>
+            <span className="price none">preço não informado</span>
           )}
           {ev.preco_min != null && gratis && (
             <span className="tag tag-free">tem cortesia</span>
@@ -46,7 +56,7 @@ function Card({ ev }) {
           {ev.fonte && <span className="tag tag-src">{ev.fonte}</span>}
         </div>
         {ev.outras_urls && (
-          <div className="also">// também em outra plataforma</div>
+          <div className="also">também em outra plataforma</div>
         )}
       </div>
     </Link>
@@ -102,30 +112,35 @@ export default async function Home({ searchParams }) {
 
       {grupos.length === 0 ? (
         <div className="empty">
-          <strong>&gt; nada por aqui</strong>
+          <strong>Nada por aqui</strong>
           <span>
             {texto
-              ? `nenhum resultado para “${texto}”. tente outro termo ou amplie o período.`
-              : 'amplie o período ou tire o filtro de grátis.'}
+              ? `Nenhum resultado para “${texto}”. Tente outro termo ou amplie o período.`
+              : 'Amplie o período ou tire o filtro de grátis.'}
           </span>
         </div>
       ) : (
         <div className="list">
-          {grupos.map((g) => {
-            const r = rotuloDia(g.chave)
-            return (
-              <div key={g.chave} style={{ display: 'contents' }}>
-                <div className={`day${r.hoje ? ' hoje' : ''}`}>
-                  <div className="day-label">
-                    {r.texto}
-                    <span className="num">{diaMes(`${g.chave}T12:00:00-03:00`)}</span>
+          {(() => {
+            // Índice contínuo através dos grupos: quem decide o carregamento
+            // prioritário é a posição na TELA, não a posição dentro do dia.
+            let n = 0
+            return grupos.map((g) => {
+              const r = rotuloDia(g.chave)
+              return (
+                <div key={g.chave} style={{ display: 'contents' }}>
+                  <div className={`day${r.hoje ? ' hoje' : ''}`}>
+                    <div className="day-label">
+                      {r.texto}
+                      <span className="num">{diaMes(`${g.chave}T12:00:00-03:00`)}</span>
+                    </div>
+                    <div className="day-rule" />
                   </div>
-                  <div className="day-rule" />
+                  {g.eventos.map((ev) => <Card key={ev.id} ev={ev} indice={n++} />)}
                 </div>
-                {g.eventos.map((ev) => <Card key={ev.id} ev={ev} />)}
-              </div>
-            )
-          })}
+              )
+            })
+          })()}
         </div>
       )}
 

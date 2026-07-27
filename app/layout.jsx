@@ -1,7 +1,21 @@
 import './globals.css'
 import Link from 'next/link'
+import { Space_Grotesk, Fira_Code } from 'next/font/google'
 import { MARCA, ORIGEM } from '../lib/config'
 import Tema from './Tema'
+
+// Auto-hospedadas pelo next/font em vez do @import do Google Fonts que havia
+// no globals.css: aquele bloqueava a renderização e exigia uma conexão a um
+// terceiro antes do primeiro pixel — caro no 4G, que é onde este site é usado
+// de verdade. `display: swap` garante texto visível enquanto a fonte chega.
+const sans = Space_Grotesk({
+  subsets: ['latin'], weight: ['400', '500', '600', '700'],
+  display: 'swap', variable: '--fonte-sans',
+})
+const mono = Fira_Code({
+  subsets: ['latin'], weight: ['400', '500', '600', '700'],
+  display: 'swap', variable: '--fonte-mono',
+})
 
 export const metadata = {
   metadataBase: new URL(ORIGEM),
@@ -35,7 +49,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={`${sans.variable} ${mono.variable}`}>
       <body>
         <header className="top">
           <div className="top-inner">

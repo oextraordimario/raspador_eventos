@@ -12,7 +12,7 @@ export const metadata = {
 export default function Sobre() {
   return (
     <>
-      <Link className="voltar" href="/">&lt; voltar</Link>
+      <Link className="voltar" href="/">← voltar</Link>
 
       <article className="doc">
         <h1>sobre</h1>

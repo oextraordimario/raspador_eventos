@@ -13,7 +13,9 @@ export function TicketCta({ href, fonte, haPrice }) {
   return (
     <a className="cta" href={href} target="_blank" rel="noopener nofollow"
        onClick={handleClick}>
-      &gt; abrir no {fonte}
+      {/* Sem preço não há o que comprar — no Instagram, por exemplo, a fonte é
+          um post, não uma bilheteria. Prometer "comprar" ali seria mentira. */}
+      {haPrice ? `Comprar no ${fonte}` : `Ver no ${fonte}`}
     </a>
   )
 }
@@ -26,7 +28,7 @@ export function OtherPlatformCta({ href }) {
   return (
     <a className="cta ghost" href={href} target="_blank" rel="noopener nofollow"
        onClick={handleClick}>
-      ver este evento em outra plataforma
+      Ver este evento em outra plataforma
     </a>
   )
 }

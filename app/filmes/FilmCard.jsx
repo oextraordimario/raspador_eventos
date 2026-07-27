@@ -26,7 +26,7 @@ export default function FilmCard({ filme }) {
           {filme.em_pre_venda === 1 && <span className="tag tag-hot">pré-venda</span>}
         </div>
         <div className="cinemas">
-          {cinemas.length} {cinemas.length === 1 ? 'cinema' : 'cinemas'} // {filme.cinemas}
+          {cinemas.length} {cinemas.length === 1 ? 'cinema' : 'cinemas'} · {filme.cinemas}
         </div>
       </div>
     </a>

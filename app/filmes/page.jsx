@@ -35,9 +35,9 @@ export default async function Filmes({ searchParams }) {
 
       {filmes.length === 0 ? (
         <div className="empty">
-          <strong>&gt; nada em cartaz</strong>
+          <strong>Nada em cartaz</strong>
           <span>
-            {texto ? `nenhum filme casa com “${texto}”.` : 'a grade ainda não foi coletada.'}
+            {texto ? `Nenhum filme casa com “${texto}”.` : 'A grade ainda não foi coletada.'}
           </span>
         </div>
       ) : (
