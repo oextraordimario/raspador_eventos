@@ -4,7 +4,13 @@
 > vai a partir da PoC validada.
 > **Fonte da verdade:** este documento. O `docs/PRD_POC.md` vira registro histórico
 > da prova de conceito e não deve mais ser usado para planejar.
-> **Última atualização:** 2026-07-26 — sincronização com o que foi entregue desde
+> **Última atualização:** 2026-07-27 — **mudança de PRIORIDADE (não de rumo):**
+> depois de apresentar o sistema a amigos, o retorno dominante foi que a
+> interface precisa ser bonita e navegável para gente comum. O foco das
+> próximas semanas passa a ser a **superfície humana** do produto. A aposta de
+> longo prazo segue sendo o invisível-first — ver §4, "A ordem de adoção".
+>
+> **Atualização anterior:** 2026-07-26 — sincronização com o que foi entregue desde
 > 10/07, sem mudança de rumo: a **Fase 0b fechou** (11/07, critério validado com o
 > PC desligado), **cinema** entrou (11/07) e a **raspagem do Instagram** entrou
 > (23/07), abrindo a primeira exceção de custo do projeto (§7). O planejamento em
@@ -143,6 +149,37 @@ Porta B.
 > §9 segue valendo. Ele reaproveita a Porta B exatamente como previsto aqui: as
 > páginas do site são as mesmas que a Fase 2 marca em JSON-LD. Plano completo em
 > `docs/specs/20260726_abrir-ao-publico/`.
+
+### A ordem de adoção (decidido em 2026-07-27)
+
+O autor apresentou o sistema a amigos. O retorno dominante não foi sobre
+cobertura, frescor ou precisão — foi **sobre a interface**: precisa ser mais
+bonita, mais elegante, mais navegável. A leitura que ficou: *as pessoas ainda
+operam no paradigma de interface visual*, e um produto que só responde bem
+dentro de um agente não é adotado por quem não vive dentro de um agente.
+
+**O que muda:** pelas próximas semanas o trabalho se concentra na superfície
+humana — visual, usabilidade, navegação. O site deixa de receber só o esforço
+que sobra.
+
+**O que NÃO muda:** a tese. O destino continua sendo o invisível-first do §4 —
+dado limpo e estruturado que qualquer agente consome. A mudança é de
+**sequência**, não de direção: a interface humana é o que gera adoção agora,
+e adoção é o que dá matéria-prima (uso real, catálogo exercitado, feedback)
+para o resto valer a pena.
+
+**A convergência que sustenta isso:** as duas maiores alavancas de qualidade
+visual são alavancas de *dado*, não de CSS — e as mesmas que servem ao agente:
+
+| Trabalho | Ganho para o humano | Ganho para a IA |
+|---|---|---|
+| Gênero/vibe por LLM (NI-05) | filtro "pagode", "eletrônica" no site | `"festa de pagode"` finalmente funciona no MCP |
+| Título limpo (sem `\| 28.07 \|`) | card legível | nome correto na resposta e no JSON-LD |
+| Imagem do evento | o que faz parar o scroll | `image` no JSON-LD |
+
+Ou seja: enquanto o foco for esse, otimizar para humano **é** otimizar para
+agente. Onde os dois divergirem — e vão divergir — o critério de desempate
+nesta janela é o humano.
 
 ### Risco estrutural: cold-start de descoberta
 
@@ -425,11 +462,14 @@ ordenada do mais barato ao mais trabalhoso:
 
 - Outras cidades além de Brasília no lançamento.
 - Outros tipos de evento além de festas/baladas/shows e cinema.
-- App ou site como produto principal (produto é invisível). **Segue valendo mesmo
-  depois de 2026-07-26:** o site aprovado na spec `20260726_abrir-ao-publico` é
-  uma **segunda porta de leitura** sobre a mesma base, servida pela mesma
-  `consulta.py` que alimenta o MCP — não o centro do produto. O não-objetivo aqui
-  é promover o site a produto principal, e isso não mudou.
+- App ou site como produto principal (produto é invisível). **Revisado em
+  2026-07-27:** o site passou a ser o **foco de trabalho** das próximas semanas
+  (§4, "A ordem de adoção") porque é o que gera adoção agora. Isso é prioridade
+  de execução, não promoção a produto principal: ele segue sendo uma porta de
+  leitura sobre a mesma base, servida pela mesma `consulta.py` que alimenta o
+  MCP. O não-objetivo que continua de pé é construir o site como um sistema
+  próprio — com sua própria base, sua própria lógica de negócio ou funções que
+  não existam também pela porta do agente.
 - Compra de ingressos, contas de usuário, pagamentos.
 - LLM na ingestão **no núcleo inicial** — ele só estreia na última etapa do MVP
   (Instagram/gênero), não no lançamento de festas.

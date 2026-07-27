@@ -536,6 +536,68 @@
     Vale um teste em tests/test_observabilidade.py travando o caso: fonte que
     devolve [] sem erro NÃO pode marcar sumido.
 
+- codigo: NI-33
+  status: pendente
+  prioridade: alta
+  rank: 2
+  esforco: M
+  eixo: produto
+  fase: 1
+  titulo: "Promover a limpeza de título para a derivação — hoje ela conserta só o site"
+  resumo: "o organizador enfia a data no nome do evento ('Forró na Varanda | 28.07 | Varanda do Contexto'); a regra que remove isso vive em lib/formato.js e beneficia só o front — o agente que consulta pelo MCP continua recebendo o título sujo"
+  data: 2026-07-27
+  depende_de: []
+  relacionado: [NI-05]
+  caso_real: ["a lista de 27/07 tinha 3 dos 4 primeiros eventos com data repetida no título, consumindo as duas linhas do card"]
+  detalhe: |
+    Implementado em 2026-07-27 como `tituloLimpo()` em `lib/formato.js`, usado
+    pelo card, pelo <h1>, pelo <title> e pelo JSON-LD. A regra é conservadora
+    de propósito: só remove um trecho de data quando ele está ISOLADO por
+    separador (|, –, -, ·), o que preserva "Rock dos 80/90", "Baile 24/7" e
+    "Aniversário 10/10 anos". Casos verificados à mão antes de subir.
+
+    **A dívida:** o lugar certo é `derivar.py`, junto das outras colunas da
+    camada Prata. O nome limpo é enriquecimento de DADO, não de apresentação —
+    quem consulta pelo MCP merece o mesmo título que quem abre o site, e hoje
+    não recebe. Ficou no front para não misturar mudança de base com mudança
+    visual na mesma leva.
+
+    Ao migrar: o original continua preservado em `eventos_raw` (Bronze), então
+    sobrescrever `eventos.nome` na derivação é reversível por `--so-derivar` —
+    é exatamente o padrão das outras colunas derivadas. Portar os casos de
+    teste junto; a regra em JS e a em Python precisam concordar, ou o site e o
+    agente passam a divergir no nome do mesmo evento.
+
+- codigo: NI-34
+  status: pendente
+  prioridade: media
+  rank: 3
+  esforco: M
+  eixo: produto
+  fase: 1
+  titulo: "Evento do Instagram não tem imagem no site — a URL do CDN expira em horas"
+  resumo: "85% dos eventos futuros mostram flyer; os do Instagram não, porque a URL do CDN morre em horas e por isso não é gravada — justamente a fonte cujo evento SÓ existe como imagem"
+  data: 2026-07-27
+  depende_de: []
+  relacionado: [NI-24, NI-25]
+  caso_real: ["em 27/07 os 8 eventos de fonte=instagram apareciam com o placeholder de inicial enquanto os 47 restantes tinham flyer"]
+  detalhe: |
+    A raspagem já BAIXA as imagens para `midias/instagram/` (gitignorado) para
+    a extração por visão — o arquivo existe, só não é publicado em lugar
+    nenhum. O site cai no fallback de inicial (`<Flyer>` em `app/Flyer.jsx`).
+
+    É a fonte onde a imagem mais importa: são casas que divulgam só pelo
+    Instagram, o flyer É o anúncio, e o evento costuma ter descrição pobre.
+
+    Caminho provável: subir a mídia para armazenamento próprio (Vercel Blob ou
+    equivalente no free tier) durante a ingestão e gravar essa URL estável em
+    `eventos.imagem`. Verificar a cota antes — o projeto é free-tier-only por
+    decisão travada no PRD §7, e isso seria armazenamento recorrente.
+
+    Ponto de ToS a considerar junto: republicar a imagem de um post é diferente
+    de exibir o fato do evento (a postura decidida no anexo tos.md). Vale
+    reler antes de implementar.
+
 # NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
 # IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).
 # NI-10: .github/workflows/raspar.yml roda o atualizar.py COMPLETO às 06:00 UTC
