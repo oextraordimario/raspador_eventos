@@ -69,7 +69,9 @@ python src/mcp_server.py --http                 # sem as duas envs: modo antigo,
 # Site público (NI-28) — front Next.js + API de leitura em Python
 npm install                                     # 1ª vez
 python api/dados.py 8000                        # API de leitura (lê consulta.py)
-API_INTERNA=http://localhost:8000/api/dados npx next dev   # front em :3000
+API_INTERNA=http://localhost:8000/api/dados npm run dev    # front em :1007
+# (a porta 1007 está fixada nos scripts do package.json; `npx next dev` sem o
+#  script cairia na 3000. A Vercel não usa esses scripts — lá é build+serverless.)
 npx next build                                  # build de produção
 
 # Deploy em produção (Vercel, projeto raspador-eventos). As envs vivem nas
