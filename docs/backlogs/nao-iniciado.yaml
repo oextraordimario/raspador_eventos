@@ -978,6 +978,72 @@
     por (1) e decidir (2) com número na mão. Speed Insights junto alimenta o
     NI-50.
 
+# ────────────── Pipeline de dados (auditoria de 2026-07-27) ──────────────
+# Origem: o autor questionou por que "mudar schema" implicava re-raspar, se a
+# Bronze existe exatamente pra evitar isso. A auditoria confirmou: a convenção
+# "base descartável" (spec 20260709_mvp-fase-0) é ANTERIOR à Bronze e nunca
+# foi revista; o drop de 27/07 (NI-36/37) apagou o catálogo inteiro do Shotgun
+# (fonte quebrada — irrecuperável por re-raspagem) e zerou `execucoes`. A
+# convenção foi REESCRITA em 2026-07-27 (CLAUDE.md + sql/schema.sql +
+# atualizar._checar_schema): aditivo = ALTER IF NOT EXISTS; não-aditivo =
+# dropar só derivadas. Os dois itens abaixo fecham as lacunas restantes.
+
+- codigo: NI-55
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: M
+  eixo: infra
+  fase: 0
+  titulo: "Prata 100% reconstruível — recriar `eventos` a partir do payload da Bronze"
+  resumo: "derivar.py só recalcula colunas derivadas de linhas que JÁ existem; as colunas de catálogo (nome, data, url...) e a descrição nascem na raspagem e nunca são relidas da Bronze — enquanto isso for assim, mudança não-aditiva em eventos ainda força re-raspar"
+  data: 2026-07-27
+  depende_de: []
+  relacionado: [NI-56, NI-15]
+  caso_real: ["drop de 2026-07-27 (NI-36/37): sem caminho de re-normalização, a base foi reconstruída por re-raspagem — e o Shotgun, quebrado desde 17/07, foi apagado por inteiro (eventos + Bronze; ~49 futuros perdidos)"]
+  detalhe: |
+    O modelo já existe DENTRO do projeto: `aplicar_instagram` reconstrói os
+    eventos fonte='instagram' 100% a partir de `instagram_raw`. Falta o
+    equivalente para as 5 plataformas: reexecutar o `_normalizar` de cada
+    scraper sobre o payload `catalogo` de `eventos_raw` (e reler a `descricao`
+    do payload `detalhe`) — hoje essas funções só rodam na hora da raspagem.
+
+    Pontos de atenção levantados na auditoria:
+    - rótulos EXTERNOS ao payload (cidade_label do Shotgun/Ticket and Go) têm
+      que ser deriváveis ou passar a ser gravados junto do raw;
+    - `raspado_em` deve vir preservado do raw (é a âncora do `sumido`);
+    - o upsert protege descrição via COALESCE — a re-normalização precisa da
+      mesma semântica pra não regredir dado;
+    - `_normalizar` importável sem efeito colateral (hoje mora nos scrapers,
+      junto de código de rede — separar parse de fetch, ou importar com
+      cuidado).
+
+    Quando fechar: mudança não-aditiva vira "dropar derivadas + re-derivar",
+    re-raspagem deixa de ser caminho de manutenção (fica só pra dado NOVO), e
+    a regra (b) da convenção nova perde a ressalva sobre `eventos`.
+
+- codigo: NI-56
+  status: pendente
+  prioridade: media
+  rank: 2
+  esforco: P
+  eixo: infra
+  fase: 0
+  titulo: "Exportar os não-deriváveis antes de operação destrutiva (execucoes, usuarios, acessos)"
+  resumo: "o schema.sql já AVISA (comentário sobre usuarios) mas aviso não é procedimento: o drop de 27/07 zerou execucoes e o detector de scraper quebrado perdeu a régua de comparação — falta o passo executável"
+  data: 2026-07-27
+  depende_de: []
+  relacionado: [NI-55]
+  caso_real: ["base atual tem 1 linha em execucoes (mais antiga: 2026-07-27T15:22) — todo o histórico de rodadas anterior ao drop se perdeu, incluindo a linha de base do alerta 'coleta caiu >50%'"]
+  detalhe: |
+    Um script pequeno (ex.: `python src/exportar_nao_derivaveis.py` → CSVs
+    datados em pasta local gitignorada, via `COPY TO`) + a instrução no
+    CLAUDE.md de rodá-lo antes de QUALQUER operação destrutiva na base.
+    Cobre `execucoes`, `usuarios`, `acessos` — e nada de Bronze (Bronze não
+    se dropa, regra (c) da convenção). Reimportação documentada no próprio
+    script. Barato de propósito: o valor está em existir o passo executável,
+    não na sofisticação.
+
 # NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
 # IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).
 # NI-10: .github/workflows/raspar.yml roda o atualizar.py COMPLETO às 06:00 UTC

@@ -70,9 +70,11 @@ Conclusão que molda a spec: **quase tudo é exposição de dado que já existe*
 coluna `tipo` (§5.3) — e por ser ADITIVA ela **não aciona a convenção de
 dropar a base**: um `ALTER TABLE eventos ADD COLUMN IF NOT EXISTS tipo TEXT`
 no próprio `sql/schema.sql` é idempotente, o `conectar()` aplica sozinho e
-nada se perde (nem os dados congelados do Shotgun quebrado, NI-31). A
-convenção do drop segue valendo para mudança não-aditiva — só não é o caso
-aqui. `tipo` e `bairro` são preenchidos a seco (`--so-enriquecer` /
+nada se perde (nem os dados congelados do Shotgun quebrado, NI-31). Esta
+discussão levou à REVISÃO da convenção de schema em 2026-07-27 (ver
+CLAUDE.md e a auditoria registrada no bloco "Pipeline de dados" do backlog:
+nunca `DROP SCHEMA`; não-aditivo = dropar só derivadas — NI-55/NI-56).
+`tipo` e `bairro` são preenchidos a seco (`--so-enriquecer` /
 `--so-derivar`), sem re-raspar.
 
 ## 3. NI-41 — a busca por casa que "deu erro"
@@ -310,8 +312,9 @@ Se mantido o gate:
   resposta cacheada da CDN (`/api/dados/eventos`), então o custo real é ~0
   em HIT; conferir que não degrada o TTFB em MISS (liga com o NI-50).
 - **Schema aditivo, sem drop** (etapa 4): `tipo` entra por `ADD COLUMN IF
-  NOT EXISTS` no `schema.sql` — precedente novo no projeto; se a coluna um
-  dia mudar de forma (não-aditivo), aí sim vale a convenção do drop.
+  NOT EXISTS` no `schema.sql` — o precedente que virou a regra (a) da
+  convenção revista em 2026-07-27; mudança não-aditiva segue a regra (b)
+  (dropar só derivadas), nunca `DROP SCHEMA`.
 - **Privacidade do `?perto=`** — decisão registrada: coordenada não é
   persistida em lugar nenhum; se um dia houver log de acesso do site, o
   parâmetro entra na lista de campos a expurgar.

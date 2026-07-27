@@ -9,9 +9,15 @@
 -- antes de gravar, entao comparacao e ordenacao LEXICAIS sao seguras. Nao gravar
 -- data nessas colunas fora do upsert sem normalizar.
 --
--- Base descartavel (convencao da Fase 0, sem migracoes): mudou o schema?
---   DROP SCHEMA public CASCADE; CREATE SCHEMA public;
--- no banco `eventos` e re-raspe (python src/atualizar.py --precificar-tudo).
+-- Mudanca de schema (convencao REVISTA em 2026-07-27 — NUNCA `DROP SCHEMA`,
+-- a Bronze mora neste banco e nao se reconstroi):
+--   ADITIVA: `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` neste
+--     arquivo — idempotente, conectar() aplica sozinho.
+--   NAO-ADITIVA: dropar SO as tabelas derivadas afetadas (lotes, filmes,
+--     sessoes; eventos ainda nao e reconstruivel — NI-55) e re-derivar
+--     (--so-derivar). eventos_raw/instagram_raw/cinema_raw/cinema_extra_raw,
+--     execucoes e usuarios/acessos nao se dropam; se inevitavel, exportar
+--     antes (NI-56).
 --
 -- Spec da migracao SQLite -> Postgres: docs/specs/20260711_consulta-na-nuvem/.
 

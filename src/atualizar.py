@@ -73,14 +73,17 @@ EXTRAIR_POSTS_DIAS = 60
 
 
 def _checar_schema(con):
-    """Base criada antes de uma mudança de schema não é migrada: é descartável."""
+    """Base de schema antigo não é migrada automaticamente — mas TAMBÉM não é
+    descartável: a Bronze mora nela (convenção revista em 2026-07-27; ver o
+    cabeçalho de sql/schema.sql)."""
     cols = {r["column_name"] for r in con.execute(
         "SELECT column_name FROM information_schema.columns "
         "WHERE table_schema = 'public' AND table_name = 'eventos'")}
     if "ruido" not in cols or "sumido" not in cols:
-        sys.exit("A base é de um schema antigo.\nNa Fase 0 a base é descartável: "
-                 "rode `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` no "
-                 "banco (DBeaver/psql) e execute de novo para re-raspar.")
+        sys.exit("A base é de um schema antigo.\nNÃO rode DROP SCHEMA (a "
+                 "camada Bronze mora nesse banco e não se reconstrói). Aplique "
+                 "a diferença com ALTER TABLE no DBeaver/psql usando "
+                 "sql/schema.sql como referência e execute de novo.")
 
 
 def _raspar(incluir_shotgun=True):

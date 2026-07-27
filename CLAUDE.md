@@ -366,7 +366,7 @@ titulo/generos).
   URL na base; (b) a fonte fica **FORA** do `_marcar_sumidos` (guarda explícita:
   post que sai da 1ª página do perfil não significa cancelamento); (c) a
   watchlist é dado **curado à mão e versionado** (`dados/perfis_instagram.yaml`)
-  — não mover para a base, que é descartável; (d) a extração do flyer roda na
+  — não mover para a base (dado curado não pode depender dela); (d) a extração do flyer roda na
   ASSINATURA (`claude -p`; o subprocess remove `ANTHROPIC_API_KEY` do env) e é
   incremental — nunca re-extrai shortcode que já tem origem `extracao` na Bronze.
 - **URLs do Bileto (`bileto.sympla.com.br`) não passam pelo "descrever":** o id no
@@ -379,10 +379,20 @@ titulo/generos).
   NÃO marca: falso positivo esconde festa real; termos já testados e descartados em
   `docs/backlogs/rejeitado.yaml`). `end_date` às vezes vem inconsistente na origem
   (filtre por `start_date`).
-- **Schema mudou? A base é descartável.** `conectar()` só roda `IF NOT EXISTS`;
-  não há migração. Ao alterar `sql/schema.sql`, rode `DROP SCHEMA public CASCADE;
-  CREATE SCHEMA public;` no banco `eventos` (DBeaver/psql) e re-raspe
-  (`atualizar.py` detecta base antiga e instrui isso).
+- **Schema mudou? NUNCA `DROP SCHEMA` — a Bronze mora aqui.** A convenção
+  antiga ("base descartável", drop + re-raspar) nasceu na era SQLite ANTES da
+  Bronze existir e foi revista em 2026-07-27, depois que um drop apagou o
+  catálogo inteiro do Shotgun (fonte quebrada, sem como re-raspar) e zerou o
+  histórico de `execucoes`. A regra atual:
+  (a) mudança ADITIVA (coluna/tabela nova) = `ADD COLUMN IF NOT EXISTS` /
+  `CREATE TABLE IF NOT EXISTS` no próprio `sql/schema.sql` — idempotente, o
+  `conectar()` aplica sozinho, sem passo manual;
+  (b) mudança NÃO-ADITIVA = dropar SÓ as tabelas derivadas afetadas (`lotes`,
+  `filmes`, `sessoes` são 100% reconstruíveis; `eventos` ainda NÃO é — NI-55)
+  e re-derivar (`--so-derivar`);
+  (c) `eventos_raw`, `instagram_raw`, `cinema_raw`, `cinema_extra_raw`,
+  `execucoes`, `usuarios` e `acessos` **não se reconstroem** — não dropar; se
+  uma operação destrutiva for inevitável, exportar antes (NI-56).
 - **MCP / FastMCP:** retorno `list` vira `structuredContent["result"]` + um content
   block por item; retorno `dict` vira content block único. `tests/test_mcp_server.py`
   lida com os dois formatos.
