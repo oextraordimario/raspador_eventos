@@ -742,8 +742,9 @@
     — ver NI-04), palavras fortes no nome ("show", "festival", "tributo",
     "turnê" × "baile", "festa", "after"), presença de `atracoes`. Regra
     CONSERVADORA com terceiro estado: sem sinal claro = sem rótulo (aparece
-    nas duas visões; nunca some). Coluna derivada em `derivar.py`/
-    `enriquecer.py` ⇒ schema muda ⇒ base descartável. Quando o NI-05 entrar,
+    nas duas visões; nunca some). Coluna preenchida pelo `enriquecer.py`;
+    por ser ADITIVA entra via ADD COLUMN IF NOT EXISTS no schema.sql — sem
+    drop da base, sem re-raspar (ver spec §2). Quando o NI-05 entrar,
     o LLM assume o rótulo e a heurística vira fallback.
     Spec: docs/specs/20260727_rework-eventos/.
 

@@ -66,10 +66,14 @@ textual do §5.2 é o que destrava o filtro (o Ticket and Go tem
 | Calendário (UI) | SIM | `app/filmes/Calendario.jsx` (NI-35), a generalizar |
 
 Conclusão que molda a spec: **quase tudo é exposição de dado que já existe**
-(front + parâmetro de consulta + faceta). As únicas mudanças de base são a
-coluna `tipo` (§5.3) e o reforço da derivação de `bairro` (§5.2) — uma
-alteração de schema só, coordenada para dropar a base UMA vez (convenção do
-CLAUDE.md).
+(front + parâmetro de consulta + faceta). A única mudança de schema é a
+coluna `tipo` (§5.3) — e por ser ADITIVA ela **não aciona a convenção de
+dropar a base**: um `ALTER TABLE eventos ADD COLUMN IF NOT EXISTS tipo TEXT`
+no próprio `sql/schema.sql` é idempotente, o `conectar()` aplica sozinho e
+nada se perde (nem os dados congelados do Shotgun quebrado, NI-31). A
+convenção do drop segue valendo para mudança não-aditiva — só não é o caso
+aqui. `tipo` e `bairro` são preenchidos a seco (`--so-enriquecer` /
+`--so-derivar`), sem re-raspar.
 
 ## 3. NI-41 — a busca por casa que "deu erro"
 
@@ -253,7 +257,7 @@ Se mantido o gate:
 
 | Camada | Mudança |
 |---|---|
-| `sql/schema.sql` | `eventos` += `tipo` (⇒ base descartável, 1 drop coordenado) |
+| `sql/schema.sql` | `eventos` += `tipo` via `ADD COLUMN IF NOT EXISTS` (aditivo e idempotente — **sem drop, sem re-raspar**) |
 | scrapers | **intocados** — nada aqui re-raspa |
 | `src/derivar.py` | fallback textual de `bairro` a partir de `endereco` (dicionário de RAs) |
 | `src/enriquecer.py` | classificação `tipo` (festa/show/NULL), idempotente |
@@ -271,8 +275,9 @@ Se mantido o gate:
 2. **NI-38 + NI-39 — card com resumo + link Maps** (§4): só front.
 3. **NI-43 — calendário** (§5.1): `facetas_eventos()` (só `dias`) + API +
    front. Zero schema.
-4. **NI-45 + NI-44 — bairro e tipo** (§5.2, §5.3): as duas mudanças de
-   base juntas — **um drop só** —, depois faceta/filtros/chips.
+4. **NI-45 + NI-44 — bairro e tipo** (§5.2, §5.3): coluna aditiva +
+   derivação/enriquecimento a seco (`--so-derivar` / `--so-enriquecer`),
+   depois faceta/filtros/chips. Sem drop, sem re-raspar.
 5. **NI-47 — sazonais** (§5.4): a qualquer momento, é `lib/` puro.
 6. **NI-46 — perto de mim** (§6): por último, atrás do gate de cobertura.
 
@@ -304,8 +309,9 @@ Se mantido o gate:
 - **`facetas_eventos()` é mais uma query por render** — sai na MESMA
   resposta cacheada da CDN (`/api/dados/eventos`), então o custo real é ~0
   em HIT; conferir que não degrada o TTFB em MISS (liga com o NI-50).
-- **Um drop de base só** (etapa 4): `tipo` é a única mudança de schema;
-  coordenar com qualquer outra spec em voo antes de dropar.
+- **Schema aditivo, sem drop** (etapa 4): `tipo` entra por `ADD COLUMN IF
+  NOT EXISTS` no `schema.sql` — precedente novo no projeto; se a coluna um
+  dia mudar de forma (não-aditivo), aí sim vale a convenção do drop.
 - **Privacidade do `?perto=`** — decisão registrada: coordenada não é
   persistida em lugar nenhum; se um dia houver log de acesso do site, o
   parâmetro entra na lista de campos a expurgar.
