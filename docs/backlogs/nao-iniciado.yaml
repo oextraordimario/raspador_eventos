@@ -568,107 +568,27 @@
     teste junto; a regra em JS e a em Python precisam concordar, ou o site e o
     agente passam a divergir no nome do mesmo evento.
 
-- codigo: NI-34
-  status: pendente
-  prioridade: media
-  rank: 3
-  esforco: M
-  eixo: produto
-  fase: 1
-  titulo: "Evento do Instagram não tem imagem no site — a URL do CDN expira em horas"
-  resumo: "85% dos eventos futuros mostram flyer; os do Instagram não, porque a URL do CDN morre em horas e por isso não é gravada — justamente a fonte cujo evento SÓ existe como imagem"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-24, NI-25]
-  caso_real: ["em 27/07 os 8 eventos de fonte=instagram apareciam com o placeholder de inicial enquanto os 47 restantes tinham flyer"]
-  detalhe: |
-    A raspagem já BAIXA as imagens para `midias/instagram/` (gitignorado) para
-    a extração por visão — o arquivo existe, só não é publicado em lugar
-    nenhum. O site cai no fallback de inicial (`<Flyer>` em `app/Flyer.jsx`).
+# NI-34 (imagem do Instagram no site) foi IMPLEMENTADO em 2026-07-27, de
+# carona no NI-37 (mesma infra de mídia): o flyer local sobe pro Vercel Blob
+# com pathname estável (instagram/<code>) e a derivação grava a URL própria
+# em eventos.imagem via instagram_raw origem='midia'. Postura de ToS mantida
+# (cópia com atribuição; o post continua linkado). 60 flyers no backfill.
 
-    É a fonte onde a imagem mais importa: são casas que divulgam só pelo
-    Instagram, o flyer É o anúncio, e o evento costuma ter descrição pobre.
-
-    Caminho provável: subir a mídia para armazenamento próprio (Vercel Blob ou
-    equivalente no free tier) durante a ingestão e gravar essa URL estável em
-    `eventos.imagem`. Verificar a cota antes — o projeto é free-tier-only por
-    decisão travada no PRD §7, e isso seria armazenamento recorrente.
-
-    Ponto de ToS a considerar junto: republicar a imagem de um post é diferente
-    de exibir o fato do evento (a postura decidida no anexo tos.md). Vale
-    reler antes de implementar.
-
-- codigo: NI-35
-  status: nao-iniciado
-  prioridade: alta
-  rank: 1
-  esforco: G
-  eixo: produto
-  fase: 1
-  titulo: "Rework da página de cinema — faixas estilo streaming, filtros, detalhe no site"
-  resumo: "de lista de texto pra vitrine: pôster, faixas por heurística (populares/família/terror...), filtros (calendário de data, gênero multi, rede, cinema, horário, classificação), card com sinopse no lugar da contagem de cinemas, e clique abrindo /filmes/[id] com a grade de sessões por cinema em vez de mandar direto pra Ingresso.com"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-36, NI-37]
-  caso_real: ["feedback de amigos pós-abertura (27/07): a página de cinema é só texto e expulsa no primeiro clique"]
-  detalhe: |
-    Spec completa em docs/specs/20260727_rework-pagina-cinema/ (§3 é este item).
-    O grosso é front + params novos em consulta.buscar_filmes/api_dados: pôster
-    e backend do detalhe JÁ EXISTEM na base (filmes.poster, /api/dados/sessoes)
-    — a etapa 1 da spec entrega faixas, filtros e detalhe sem tocar em schema.
-    Sinopse no card depende do NI-36; pôster definitivo (sem hotlink) do NI-37;
-    até lá o card usa hotlink do CDN da Ingresso.com como fallback declarado.
-    Faixas com filtro ativo viram grade plana (faixa é vitrine, não busca).
-
-- codigo: NI-36
-  status: nao-iniciado
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: raspagem
-  fase: dados
-  titulo: "Enriquecer filmes com sinopse, nota e ano (TMDB primário)"
-  resumo: "o payload de sessões da Ingresso.com NÃO traz sinopse/nota/ano (medido 27/07); TMDB resolve os três em pt-BR de graça (com atribuição) — Bronze acumulativa cinema_extra_raw + derivação, sobrevivendo ao snapshot de filmes; IMDb via external_ids como secundária opcional; Letterboxd (API fechada) e AdoroCinema (só scraping) descartados no v1"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-35]
-  caso_real: ["card de filme hoje não tem sinopse nem nota pra pessoa decidir; pedido do autor no rework de 27/07"]
-  detalhe: |
-    Spec: docs/specs/20260727_rework-pagina-cinema/ §4. Pontos que travam o
-    design: (a) `filmes` é SNAPSHOT (truncada a cada rodada) — enriquecimento
-    externo mora em Bronze própria (cinema_extra_raw, PK filme_id+origem,
-    incremental: 1 chamada por filme NOVO) e é re-derivado a seco; (b) matching
-    título→TMDB usa originalTitle (existe no payload, passa a ser derivado) e
-    é CONSERVADOR — ambíguo não grava nota; (c) schema muda (colunas sinopse/
-    ano/nota/votos/tmdb_id/titulo_original) ⇒ base descartável, coordenar com
-    NI-37 pra dropar UMA vez. Spike de 30 min antes: o endpoint de conteúdo da
-    própria Ingresso.com pode suprir a sinopse (aí TMDB fica só com nota/ano).
-    TMDB_API_KEY em env; atribuição ao TMDB no rodapé/sobre.
-
-- codigo: NI-37
-  status: nao-iniciado
-  prioridade: media
-  rank: 2
-  esforco: M
-  eixo: infra
-  fase: 1
-  titulo: "Storage próprio de mídia — pôster de filme e flyer do Instagram"
-  resumo: "re-hospedar imagem em object storage nosso em vez de hotlink: pôster do CDN da Ingresso.com (frágil em ToS e sujeito a quebrar) e flyer do Instagram (NI-34, URL comprovadamente expira em horas) usam a MESMA infra — ~poucos MB, qualquer free tier cobre; spike decide Vercel Blob vs Neon Object Storage"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-34, NI-35, NI-36]
-  caso_real: ["NI-34: 8 eventos fonte=instagram sem imagem no site porque a URL do CDN morre; pôster de filme repetiria o problema em câmera lenta"]
-  detalhe: |
-    Spec: docs/specs/20260727_rework-pagina-cinema/ §5. Avaliação pedida pelo
-    autor (hotlink vs re-hospedar) concluiu re-hospedar: CDN alheio pode passar
-    a exigir referer sem aviso, e servir cópia com atribuição é postura de ToS
-    mais defensável que embutir o CDN deles (anexo tos.md). Dimensionamento
-    irrisório (~40 pôsteres × ~100KB + flyers). Fluxo: na ingestão, imagem nova
-    → download → upload ao storage → URL própria em filmes.poster_proprio /
-    eventos.imagem (fecha o NI-34 na mesma entrega). Fallback declarado: sem
-    cópia própria, o front usa filmes.poster (hotlink) — a página não espera a
-    infra. Critério do spike: upload simples a partir do atualizar.py
-    (local E Actions) + URL pública estável.
+# NI-35 (rework da página de cinema), NI-36 (TMDB) e NI-37 (storage de mídia)
+# foram IMPLEMENTADOS em 2026-07-27, no MESMO DIA do pedido — as 4 etapas da
+# spec docs/specs/20260727_rework-pagina-cinema/. NI-35: vitrine em faixas
+# estilo streaming (heurísticas em lib/cinema.js), filtros sempre visíveis em
+# dropdown (gênero/classificação/rede/cinema multi + horário em hora LOCAL +
+# calendário do mês honesto com a janela de ~8 dias), card com pôster 2:3 e
+# sinopse, detalhe /filmes/[id] com grade por cinema×dia e JSON-LD Movie
+# (embed de trailer testado e rejeitado pelo autor — ficou link). NI-36:
+# scrapers/tmdb.py com matching conservador → Bronze cinema_extra_raw
+# (acumulativa, sobrevive ao snapshot); 39/39 filmes com match na 1ª carga.
+# NI-37: src/midia.py → Vercel Blob (store rolebsb-midia), pôster copiado
+# (38/39) + flyer do Instagram (fechou o NI-34 junto). Schema mudou ⇒ base
+# dropada e re-raspada. A re-carga expôs e corrigiu de brinde: conexões
+# CURTAS por bloco no atualizar.py e FORCAR_IPV4 opt-in (rede local com IPv6
+# quebrado fazia urllib/psycopg pagarem ~50s por request).
 
 # NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
 # IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).

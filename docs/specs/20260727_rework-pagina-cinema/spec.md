@@ -1,7 +1,14 @@
 # Spec — Rework da página de cinema (NI-35 / NI-36 / NI-37)
 
-> **Status:** especificada em 2026-07-27, aguardando implementação (por
-> etapas — ver §7). **O quê/por quê:** feedback de amigos após a abertura do
+> **Status:** especificada e **IMPLEMENTADA em 2026-07-27** (as 4 etapas do
+> §7, no mesmo dia). Divergências da execução: embed de trailer testado e
+> rejeitado pelo autor (ficou link externo); filtros viraram dropdowns
+> sempre visíveis (pedido do autor, no lugar do painel único); rede/cinema
+> viraram multi; 1ª carga real: 39/39 filmes com match TMDB, 38/39 pôsteres
+> no Blob (store `rolebsb-midia`), 60 flyers do Instagram (NI-34 fechou
+> junto). A re-carga expôs a rede local derrubando conexões — o atualizar.py
+> ganhou conexões curtas por bloco e o opt-in FORCAR_IPV4.
+> **O quê/por quê:** feedback de amigos após a abertura do
 > site (27/07): a página `/filmes` é uma lista de texto que manda a pessoa
 > embora no primeiro clique. O rework a transforma numa vitrine navegável —
 > pôster, faixas por categoria (estilo streaming), filtros de verdade e
