@@ -85,6 +85,11 @@ jobs:
       - name: Raspar
         env:
           EVENTOS_DB_URL: ${{ secrets.EVENTOS_DB_URL }}
+          # NI-36: sinopse/nota/ano dos filmes (incremental, ~0 chamadas na
+          # rodada normal). NI-37: pôster e flyer para o storage próprio.
+          # Ausentes, os passos são pulados com aviso — não derrubam a rodada.
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         run: |
           python src/atualizar.py --sem-extracao-flyer \
             ${{ inputs.sem_shotgun && '--sem-shotgun' || '' }}

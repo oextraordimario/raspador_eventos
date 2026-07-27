@@ -196,3 +196,17 @@ def gravar_cinema_raw(con, itens, raspado_em):
                     (min(dia for _, dia, _ in itens),))
     con.commit()
     return len(itens)
+
+
+def gravar_cinema_extra(con, filme_id, origem, payload, raspado_em):
+    """Grava um enriquecimento de filme na Bronze acumulativa
+    (cinema_extra_raw): match TMDB, cópia de pôster etc. Fora do snapshot de
+    propósito — sobrevive à reconstrução de filmes/sessoes. Último vence
+    (re-tentativa de match sobrescreve o anterior)."""
+    con.execute(
+        "INSERT INTO cinema_extra_raw (filme_id, origem, payload, raspado_em) "
+        "VALUES (%s, %s, %s, %s) "
+        "ON CONFLICT(filme_id, origem) DO UPDATE SET "
+        "payload = excluded.payload, raspado_em = excluded.raspado_em",
+        (filme_id, origem, json.dumps(payload, ensure_ascii=False), raspado_em))
+    con.commit()

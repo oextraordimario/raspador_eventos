@@ -443,6 +443,18 @@ a { color: inherit; text-decoration: none; }
 /* Card da grade filtrada: pôster à esquerda, como o card de evento. */
 .fcard { grid-template-columns: 78px 1fr; }
 
+/* Sinopse (TMDB, NI-36): 2 linhas no card, texto inteiro no detalhe. */
+.sinopse {
+  font-size: 12.5px; color: var(--zu-fg-3); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nota {
+  font-family: var(--zu-mono); font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 600; color: var(--zu-warn);
+}
+.nota-fonte { font-size: 10px; font-weight: 400; color: var(--zu-fg-4); }
+
 /* A vitrine: faixas com trilho horizontal de pôsteres (estilo streaming).
    Scroll nativo + snap; o trilho vaza o padding lateral de propósito, para o
    corte do último pôster dizer "tem mais aqui do lado". */
@@ -555,6 +567,7 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 .filme-cartaz .cartaz { border: 1px solid var(--zu-divider); }
 .filme-info { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .filme-generos { color: var(--zu-fg-2); font-size: 14px; margin: 0; }
+.filme-sinopse { color: var(--zu-fg-2); font-size: 14px; line-height: 1.65; margin: 4px 0 0; }
 .filme-trailer { color: var(--zu-green); font-size: 13.5px; font-weight: 500; }
 .filme-trailer:hover { text-decoration: underline; }
 @media (min-width: 900px) {

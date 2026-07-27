@@ -15,7 +15,9 @@ UPDATE eventos SET busca = to_tsvector('pt',
     coalesce(atracoes, '') || ' ' || coalesce(descricao, '') || ' ' ||
     coalesce(local_nome, '') || ' ' || coalesce(organizador, ''));
 
--- Filmes em cartaz (dominio cinema, NI-07): titulo + generos bastam para a
--- busca do agente ("animacao", "terror") — sinopse nao vem da fonte.
+-- Filmes em cartaz (dominio cinema, NI-07): titulo + generos + sinopse (a
+-- sinopse chegou com o NI-36/TMDB — "filme de robo" acha pelo texto) + o
+-- titulo original ("weapons" acha o filme que aqui chama "A Hora do Mal").
 UPDATE filmes SET busca = to_tsvector('pt',
-    coalesce(titulo, '') || ' ' || coalesce(generos, ''));
+    coalesce(titulo, '') || ' ' || coalesce(titulo_original, '') || ' ' ||
+    coalesce(generos, '') || ' ' || coalesce(sinopse, ''));

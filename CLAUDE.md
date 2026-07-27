@@ -43,6 +43,7 @@ python -m playwright install chromium          # necessário só p/ o Shotgun
 python src/atualizar.py
 python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
 python src/atualizar.py --sem-cinema            # pula a grade de cinema
+python src/atualizar.py --sem-tmdb              # pula o enriquecimento TMDB dos filmes
 python src/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
 python src/atualizar.py --sem-extracao-flyer    # Instagram só até a Bronze, sem a visão
 python src/atualizar.py --so-instagram          # só a fila de extração (rodada curta)
@@ -113,9 +114,10 @@ Todo o código Python vive em `src/`:
 src/
   store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
   auth.py                                         # verifica o token OAuth do MCP remoto
+  midia.py                                        # upload p/ storage próprio (Vercel Blob, NI-37)
   atualizar.py  mcp_server.py  demo.py            # entrypoints
   scrapers/
-    sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  instagram.py  discover_sympla.py
+    sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  instagram.py  tmdb.py  discover_sympla.py
 api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
   index.py     #   MCP remoto (ASGI do FastMCP)
   dados.py     #   API de leitura do site — traduz querystring p/ consulta.py
@@ -180,6 +182,23 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   (dict `CINEMAS`: theaterId → apelido canônico). 404 = dia sem sessão (não é
   erro). Raspa 8 dias corridos (a programação vira na quinta). Fallbacks por rede
   mapeados em `spikes/cinema/README.md`. Spec: `docs/specs/20260711_raspagem-cinema/`.
+- `src/scrapers/tmdb.py` — **enriquecimento**, não catálogo (NI-36): sinopse
+  pt-BR/nota/ano por filme via busca do TMDB (`TMDB_API_KEY` no env). Matching
+  CONSERVADOR (título normalizado EXATO, lançamento não-futuro-distante; na
+  dúvida `escolhido=None` e o filme fica sem nota — candidatos guardados p/
+  auditoria). Incremental por filme NOVO (passo do `atualizar.py` após a
+  derivação, que re-deriva se buscou algo). Bronze própria `cinema_extra_raw`
+  (PK filme_id+origem), ACUMULATIVA — sobrevive ao snapshot de filmes/sessoes,
+  que é quem re-aplica sinopse/nota/pôster próprio a cada reconstrução.
+  Atribuição ao TMDB no rodapé e na página "sobre" (exigência dos ToS deles).
+- `src/midia.py` — storage próprio de mídia (**Vercel Blob**, NI-37): pôster de
+  filme (passo "poster" → `cinema_extra_raw` origem='poster' → coluna
+  `poster_proprio`) e flyer do Instagram (arquivo já baixado em
+  `midias/instagram/` sobe e vira `instagram_raw` origem='midia' → a derivação
+  grava `eventos.imagem` — fechou o NI-34). Pathname ESTÁVEL (sem sufixo
+  aleatório): re-subir substitui. `BLOB_READ_WRITE_TOKEN` no env; sem ele os
+  passos são pulados e o front cai no hotlink da fonte (`poster`). Host do
+  store em `lib/imagens.mjs` (HOSTS_IMAGEM).
 - `src/scrapers/instagram.py` — **contrato próprio** (devolve payloads brutos por perfil,
   não lista de eventos): posts + stories ativos dos perfis da watchlist
   (`dados/perfis_instagram.yaml`) via CLI do **Monid** (`monid`, subprocess —

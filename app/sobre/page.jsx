@@ -34,6 +34,12 @@ export default function Sobre() {
           plataformas numa entrada só, tira anúncio e curso que se disfarçam de
           festa, e esconde o que foi cancelado ou saiu do ar.
         </p>
+        <p>
+          Sinopse, ano e nota dos filmes vêm do{' '}
+          <a href="https://www.themoviedb.org/" target="_blank"
+             rel="noopener">TMDB</a>. Este produto usa a API do TMDB, mas não é
+          endossado nem certificado por eles.
+        </p>
 
         <h2>não vendemos ingresso</h2>
         <p>

@@ -145,10 +145,13 @@ def detalhar_evento(url):
 # ── Domínio cinema (NI-07, spec 20260711_raspagem-cinema) ──────────────────
 
 # Campos de filmes expostos ao agente. `poster` entrou na lista com o rework
-# da página de cinema (NI-35 — o card do site precisa dele); `trailer` segue
-# só no sessoes_filme (peso morto em dezenas de resultados).
-CAMPOS_FILME = ["id", "titulo", "generos", "duracao_min", "classificacao",
-                "distribuidora", "url", "poster", "em_pre_venda"]
+# da página de cinema (NI-35 — o card do site precisa dele) e sinopse/ano/
+# nota/votos com o NI-36 (TMDB); poster_proprio é a cópia no storage (NI-37,
+# o front prefere quando existe). `trailer` segue só no sessoes_filme.
+CAMPOS_FILME = ["id", "titulo", "titulo_original", "generos", "duracao_min",
+                "classificacao", "distribuidora", "url", "poster",
+                "poster_proprio", "em_pre_venda", "sinopse", "ano", "nota",
+                "votos"]
 
 # A hora exibida/filtrada é SEMPRE a de Brasília; `sessoes.inicio` é UTC
 # (invariante do schema), então o filtro de horário converte na query.

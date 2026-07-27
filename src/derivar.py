@@ -258,6 +258,7 @@ def _filme(m, raspado_em):
     return {
         "id": str(m.get("id")),
         "titulo": m.get("title"),
+        "titulo_original": m.get("originalTitle") or None,
         "generos": ", ".join(m.get("genres") or []) or None,
         "duracao_min": duracao,
         "classificacao": m.get("contentRating") or None,
@@ -329,8 +330,35 @@ def aplicar_cinema(con):
             f"INSERT INTO sessoes ({','.join(cols)}) "
             f"VALUES ({','.join('%s' for _ in cols)})",
             [[s[c] for c in cols] for s in sessoes.values()])
+    # Enriquecimento externo (NI-36/NI-37): a Bronze cinema_extra_raw
+    # sobrevive ao snapshot, então re-aplicar aqui é o que faz nota/sinopse/
+    # pôster próprio voltarem depois de cada reconstrução. `escolhido` None =
+    # o matching não confiou — não grava nada (auditoria fica no payload).
+    tmdb_ok = 0
+    for r in con.execute("SELECT filme_id, origem, payload "
+                         "FROM cinema_extra_raw").fetchall():
+        if r["filme_id"] not in filmes:
+            continue  # filme fora de cartaz; a Bronze fica para reexibição
+        extra = json.loads(r["payload"])
+        if r["origem"] == "tmdb" and extra.get("escolhido"):
+            e = extra["escolhido"]
+            lanc = e.get("release_date") or ""
+            con.execute(
+                "UPDATE filmes SET sinopse = %s, ano = %s, nota = %s, "
+                "votos = %s, tmdb_id = %s WHERE id = %s",
+                (e.get("overview") or None,
+                 int(lanc[:4]) if len(lanc) >= 4 else None,
+                 # nota sem voto é ruído do TMDB, não avaliação
+                 e.get("vote_average") if e.get("vote_count") else None,
+                 e.get("vote_count") or None,
+                 str(e["id"]) if e.get("id") is not None else None,
+                 r["filme_id"]))
+            tmdb_ok += 1
+        elif r["origem"] == "poster" and extra.get("url"):
+            con.execute("UPDATE filmes SET poster_proprio = %s WHERE id = %s",
+                        (extra["url"], r["filme_id"]))
     con.commit()
-    return {"filmes": len(filmes), "sessoes": len(sessoes)}
+    return {"filmes": len(filmes), "sessoes": len(sessoes), "tmdb": tmdb_ok}
 
 
 def _itens_extracao(ext):
@@ -396,7 +424,9 @@ def _evento_instagram(perfil_info, code, post, item, n=None):
         "organizador": perfil_info["nome"],
         "url": f"https://www.instagram.com/p/{code}/"
                + (f"?img_index={n}" if n else ""),
-        "imagem": None,   # a URL do CDN expira — não gravar link morto
+        # a URL do CDN da fonte expira em horas — NUNCA gravá-la. O que entra
+        # aqui (via aplicar_instagram) é a cópia no storage próprio (NI-37).
+        "imagem": None,
         "descricao": descricao,
         "atracoes": "; ".join(item["lineup"]) if item.get("lineup") else None,
         "preco_min": None,   # agregado do lote sintético, como nas outras fontes
@@ -421,6 +451,11 @@ def aplicar_instagram(con):
     from scrapers import instagram
 
     perfis = {p["usuario"]: p for p in instagram.carregar_watchlist()}
+    # flyer re-hospedado no storage próprio (origem='midia', NI-34/NI-37):
+    # é a ÚNICA URL de imagem que pode ir para eventos.imagem
+    midias = {r["code"]: json.loads(r["payload"]).get("url")
+              for r in con.execute("SELECT code, payload FROM instagram_raw "
+                                   "WHERE origem = 'midia'")}
     rows = con.execute(
         "SELECT p.perfil, p.code, p.payload AS post, p.raspado_em, "
         "       x.payload AS extracao "
@@ -445,6 +480,7 @@ def aplicar_instagram(con):
             if not ev:
                 continue
             ev["raspado_em"] = r["raspado_em"]
+            ev["imagem"] = midias.get(r["code"])
             preco = ev.pop("_preco_flyer")
             eventos.append(ev)
             do_post += 1

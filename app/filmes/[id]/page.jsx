@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { sessoesFilme } from '../../../lib/api'
 import { ORIGEM } from '../../../lib/config'
 import { chaveDia, rotuloDia, diaMes } from '../../../lib/formato'
-import { REDES, HORARIOS, redesParaCinemas } from '../../../lib/cinema'
+import { REDES, HORARIOS, redesParaCinemas, notaFmt } from '../../../lib/cinema'
 import Cartaz from '../Cartaz'
 import Drop from '../Drop'
 import SessaoLink from './SessaoLink'
@@ -96,6 +96,11 @@ export default async function Filme({ params, searchParams }) {
     ...(filme.classificacao && { contentRating: filme.classificacao }),
     ...(filme.poster && { image: filme.poster }),
     ...(filme.trailer && { trailer: { '@type': 'VideoObject', url: filme.trailer } }),
+    ...(filme.sinopse && { description: filme.sinopse }),
+    ...(filme.nota != null && filme.votos && {
+      aggregateRating: { '@type': 'AggregateRating', ratingValue: filme.nota,
+                         bestRating: 10, ratingCount: filme.votos },
+    }),
     url: `${ORIGEM}/filmes/${filme.id}`,
   }
 
@@ -109,17 +114,25 @@ export default async function Filme({ params, searchParams }) {
       <article className="doc filme-doc">
         <div className="filme-topo">
           <div className="filme-cartaz">
-            <Cartaz src={filme.poster} titulo={filme.titulo}
+            <Cartaz src={filme.poster_proprio || filme.poster} titulo={filme.titulo}
                     tamanhos="(min-width: 900px) 220px, 40vw" prioridade />
           </div>
           <div className="filme-info">
             <h1>{filme.titulo}</h1>
-            {filme.generos && <p className="filme-generos">{filme.generos}</p>}
+            <p className="filme-generos">
+              {[filme.ano, filme.generos].filter(Boolean).join(' · ')}
+            </p>
             <div className="meta">
+              {filme.nota != null && (
+                <span className="nota">★ {notaFmt(filme.nota)}
+                  {filme.votos ? <span className="nota-fonte"> tmdb</span> : null}
+                </span>
+              )}
               {filme.duracao_min && <span className="tag tag-src">{filme.duracao_min} min</span>}
               {filme.classificacao && <span className="tag tag-src">{filme.classificacao}</span>}
               {filme.em_pre_venda === 1 && <span className="tag tag-hot">pré-venda</span>}
             </div>
+            {filme.sinopse && <p className="filme-sinopse">{filme.sinopse}</p>}
             {/* O embed do trailer foi testado e rejeitado (27/07, "ficou
                 palha") — voltou a link externo até um layout melhor. */}
             {filme.trailer && (

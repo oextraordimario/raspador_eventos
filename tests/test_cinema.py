@@ -39,7 +39,8 @@ def sessao(id_, horas_de_agora, tipos_display=("Dublado",), preco=30.0,
 
 
 def filme(id_, titulo, generos, sessoes, **extra):
-    m = {"id": id_, "title": titulo, "genres": generos, "duration": "100",
+    m = {"id": id_, "title": titulo, "originalTitle": titulo,
+         "genres": generos, "duration": "100",
          "contentRating": "12 anos", "distributor": "X",
          "siteURL": f"https://www.ingresso.com/filme/{id_}",
          "images": [{"url": "http://poster", "type": "PosterPortrait"}],
@@ -74,7 +75,7 @@ def main():
                              ("124", HOJE, grade(HOJE, [toy_no_park, passado]))],
                             "2026-01-01T00:00:00+00:00")
     r = derivar.aplicar_cinema(con)
-    assert r == {"filmes": 3, "sessoes": 5}, r
+    assert r == {"filmes": 3, "sessoes": 5, "tmdb": 0}, r
     linhas = {s["id"]: s for s in con.execute("SELECT * FROM sessoes")}
     assert linhas["s2"]["tipos"] == "3D/XD/Legendado" and \
         linhas["s2"]["preco"] == 61.55, linhas["s2"]
@@ -145,6 +146,53 @@ def main():
     assert len(na_hora_d["sessoes"]) == 1, na_hora_d["sessoes"]
     print("sessoes_filme: filtros de cinema/hora; opções não encolhem — ok")
 
+    # ── enriquecimento externo (NI-36/NI-37): Bronze fora do snapshot ──
+    store.gravar_cinema_extra(con, "100", "tmdb", {
+        "consultas": ["Toy Story 5"],
+        "candidatos": [],
+        "escolhido": {"id": 552524, "title": "Toy Story 5",
+                      "overview": "Buzz enfrenta a obsolescência.",
+                      "release_date": "2026-06-17",
+                      "vote_average": 7.4, "vote_count": 120},
+    }, "2026-01-01T00:00:00+00:00")
+    store.gravar_cinema_extra(con, "100", "poster", {"url": "http://blob/p.webp"},
+                              "2026-01-01T00:00:00+00:00")
+    store.gravar_cinema_extra(con, "200", "tmdb", {
+        "consultas": ["Um Drama Qualquer"], "candidatos": [],
+        "escolhido": None,   # matching não confiou: NÃO ganha nota
+    }, "2026-01-01T00:00:00+00:00")
+    r = derivar.aplicar_cinema(con)
+    assert r["tmdb"] == 1, r
+    toy_f = con.execute("SELECT * FROM filmes WHERE id = '100'").fetchone()
+    assert toy_f["sinopse"] == "Buzz enfrenta a obsolescência." and \
+        toy_f["nota"] == 7.4 and toy_f["ano"] == 2026 and \
+        toy_f["titulo_original"] == "Toy Story 5" and \
+        toy_f["poster_proprio"] == "http://blob/p.webp", dict(toy_f)
+    drama_f = con.execute("SELECT nota, sinopse FROM filmes "
+                          "WHERE id = '200'").fetchone()
+    assert drama_f["nota"] is None and drama_f["sinopse"] is None, \
+        "sem match confiável não pode ganhar nota"
+    print("extra: TMDB/pôster aplicados na derivação; sem match, sem nota — ok")
+
+    # ── matching do TMDB é conservador (unit, sem rede) ──
+    from scrapers import tmdb
+    certo = {"title": "Toy Story 5", "original_title": "Toy Story 5",
+             "release_date": "2026-06-19", "id": 1}
+    antigo = {"title": "Toy Story", "original_title": "Toy Story",
+              "release_date": "1995-11-22", "id": 2}
+    assert tmdb._escolher([antigo, certo], "Toy Story 5", None)["id"] == 1
+    assert tmdb._escolher([antigo], "Toy Story 5", None) is None, \
+        "parecido não é igual — na dúvida, não escolhe"
+    futuro = {"title": "X", "original_title": "X",
+              "release_date": "2099-01-01", "id": 3}
+    assert tmdb._escolher([futuro], "X", None) is None, \
+        "lançamento em futuro distante não é 'em cartaz'"
+    intl = {"title": "A Odisséia!", "original_title": "The Odyssey",
+            "release_date": "2026-07-01", "id": 4}
+    assert tmdb._escolher([intl], "A Odisseia", "The Odyssey")["id"] == 4, \
+        "acento/pontuação não podem atrapalhar o match"
+    print("tmdb: match exato normalizado, sem chute — ok")
+
     # ── snapshot: regravar cinema×dia substitui; dia passado é podado ──
     store.gravar_cinema_raw(con, [("999", ONTEM, grade(ONTEM, [drama]))],
                             "2026-01-01T00:00:00+00:00")
@@ -155,12 +203,16 @@ def main():
               ("124", HOJE, grade(HOJE, []))],
         "2026-01-02T00:00:00+00:00")
     r = derivar.aplicar_cinema(con)
-    assert r == {"filmes": 1, "sessoes": 1}, (r, "snapshot tinha que substituir")
+    assert r == {"filmes": 1, "sessoes": 1, "tmdb": 1}, \
+        (r, "snapshot tinha que substituir E re-aplicar o extra")
     ids = {s["id"] for s in con.execute("SELECT id FROM sessoes")}
     assert ids == {"s9"}, ids
     dias = {x["dia"] for x in con.execute("SELECT dia FROM cinema_raw")}
     assert ONTEM not in dias, "dia passado tinha que ser podado da Bronze"
-    print("snapshot: grade nova substitui a anterior; poda dia passado — ok")
+    nota_pos = con.execute("SELECT nota FROM filmes WHERE id = '100'").fetchone()
+    assert nota_pos["nota"] == 7.4, \
+        "a nota do TMDB tem que SOBREVIVER à reconstrução do snapshot"
+    print("snapshot: grade nova substitui; poda dia passado; extra sobrevive — ok")
 
     # ── scraper: 404 = dia sem sessão (vazio); outro erro é registrado ──
     def get_404(url):

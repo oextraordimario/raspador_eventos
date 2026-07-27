@@ -76,7 +76,7 @@ export default function RootLayout({ children }) {
           <a href="https://github.com/oextraordimario/raspador_eventos"
              target="_blank" rel="noopener">código</a>
           <br />
-          sympla · ingresse · shotgun · zig · ticket and go · instagram · ingresso.com
+          sympla · ingresse · shotgun · zig · ticket and go · instagram · ingresso.com · tmdb
           <br />
           não vendemos ingresso — cada evento leva para quem está vendendo
         </footer>

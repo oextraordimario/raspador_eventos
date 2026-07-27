@@ -185,16 +185,24 @@ CREATE TABLE IF NOT EXISTS cinema_raw (
 CREATE TABLE IF NOT EXISTS filmes (
     id            TEXT PRIMARY KEY,  -- id do filme na Ingresso.com
     titulo        TEXT NOT NULL,
+    titulo_original TEXT,            -- originalTitle da fonte; chave do matching TMDB (NI-36)
     generos       TEXT,              -- "Animacao, Aventura" (mesmo estilo de eventos.categoria)
     duracao_min   INTEGER,
     classificacao TEXT,              -- classificacao indicativa, texto da fonte
     distribuidora TEXT,
     url           TEXT,              -- pagina do filme na Ingresso.com
     poster        TEXT,
+    poster_proprio TEXT,             -- copia no storage proprio (NI-37); NULL = front usa poster
     trailer       TEXT,
     em_pre_venda  INTEGER NOT NULL DEFAULT 0,  -- 1 = so em pre-venda (inPreSale)
+    -- enriquecimento externo (NI-36): derivado de cinema_extra_raw, nao da grade
+    sinopse       TEXT,              -- pt-BR (TMDB)
+    ano           INTEGER,           -- ano de lancamento
+    nota          DOUBLE PRECISION,  -- 0-10 (TMDB vote_average; NULL = sem match ou sem votos)
+    votos         INTEGER,
+    tmdb_id       TEXT,
     raspado_em    TEXT,              -- ISO UTC "+00:00"
-    busca         TSVECTOR           -- titulo + generos; preenchida pelo reconstruir_fts.sql
+    busca         TSVECTOR           -- titulo + generos + sinopse; preenchida pelo reconstruir_fts.sql
 );
 CREATE INDEX IF NOT EXISTS idx_filmes_busca ON filmes USING GIN (busca);
 
@@ -213,6 +221,19 @@ CREATE TABLE IF NOT EXISTS sessoes (
 );
 CREATE INDEX IF NOT EXISTS idx_sessoes_inicio ON sessoes(inicio);
 CREATE INDEX IF NOT EXISTS idx_sessoes_filme ON sessoes(filme_id);
+
+-- Bronze do ENRIQUECIMENTO de cinema (NI-36/NI-37): dado que nao vem da
+-- grade (match TMDB, copia do poster no storage proprio). ACUMULATIVA e fora
+-- do snapshot de proposito — filmes/sessoes sao truncadas a cada rodada, e o
+-- enriquecimento nao pode ser re-buscado (nem se perder) por causa disso.
+-- Incremental: so se busca filme que ainda nao tem linha da origem.
+CREATE TABLE IF NOT EXISTS cinema_extra_raw (
+    filme_id   TEXT NOT NULL,     -- filmes.id (id da Ingresso.com, estavel)
+    origem     TEXT NOT NULL,     -- 'tmdb' | 'poster' | futuras
+    payload    TEXT NOT NULL,     -- JSON bruto (candidatos + escolhido, p/ auditoria)
+    raspado_em TEXT NOT NULL,     -- ISO UTC "+00:00"
+    PRIMARY KEY (filme_id, origem)
+);
 
 -- ── Instrumentacao do MCP remoto (NI-11) ──────────────────────────────────
 -- ATENCAO: `usuarios` e o PRIMEIRO dado do projeto NAO derivavel de raspagem.
