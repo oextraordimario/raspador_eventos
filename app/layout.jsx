@@ -72,8 +72,9 @@ export default function RootLayout({ children }) {
         <main className="wrap">{children}</main>
 
         <footer className="foot">
-          <Link href="/sobre">sobre</Link> ·{' '}
+          <Link href="/festas">festas &amp; shows</Link> ·{' '}
           <Link href="/filmes">cinema</Link> ·{' '}
+          <Link href="/sobre">sobre</Link> ·{' '}
           <a href="https://github.com/oextraordimario/raspador_eventos"
              target="_blank" rel="noopener">código</a>
           <br />

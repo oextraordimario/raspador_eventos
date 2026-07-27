@@ -17,16 +17,17 @@ export default async function Filmes({ searchParams }) {
 
   return (
     <>
+      <div className="secao">
+        <h2>cinema</h2>
+        <Link href="/">← início</Link>
+      </div>
+
       <div className="filtros">
         <form className="search" action="/filmes">
           <input name="texto" type="search" defaultValue={texto}
                  placeholder="animação, terror, comédia..."
                  aria-label="Buscar filmes" />
         </form>
-        <div className="chips" role="group" aria-label="Filtros">
-          <Link className="chip" href="/" data-on="0">festas &amp; shows</Link>
-          <Link className="chip" href="/filmes" data-on="1">cinema</Link>
-        </div>
       </div>
 
       <p className="count">

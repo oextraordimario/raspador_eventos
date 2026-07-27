@@ -251,6 +251,86 @@ a { color: inherit; text-decoration: none; }
 }
 .chip-sep { flex: none; width: 1px; background: var(--zu-divider); margin: 6px 3px; }
 
+/* ---------- home: o hall de entrada ----------
+   A home não lista nada — ela pergunta "o que você quer fazer hoje?" e abre
+   duas portas. Cada porta é uma seção INTEIRA do site (festas & shows,
+   cinema), não um filtro: por isso são cards grandes, não chips. O número
+   vivo em mono/verde é a assinatura: prova que a base existe e está fresca. */
+
+.hall { display: flex; flex-direction: column; gap: 36px; padding-top: 44px; }
+
+.hall-head { display: flex; flex-direction: column; gap: 10px; }
+.hall-head h2 {
+  margin: 0; font-family: var(--zu-sans);
+  font-size: clamp(27px, 7vw, 40px); font-weight: 700;
+  letter-spacing: -.035em; line-height: 1.12; color: var(--zu-fg-1);
+  text-wrap: balance;
+}
+.hall-head p {
+  margin: 0; color: var(--zu-fg-2); font-size: 15px; line-height: 1.6;
+  max-width: 52ch;
+}
+
+.portais { display: grid; gap: 12px; }
+
+.portal {
+  display: flex; flex-direction: column; gap: 8px; min-height: 200px;
+  background: var(--zu-card); border: 1px solid var(--zu-divider);
+  border-radius: var(--zu-r-lg); padding: 22px;
+  box-shadow: var(--zu-card-shadow);
+  transition: border-color 200ms cubic-bezier(.2, .6, .2, 1),
+              background 200ms, box-shadow 200ms, transform 200ms;
+}
+.portal:hover {
+  border-color: var(--zu-line-strong); background: var(--zu-card-hover);
+  box-shadow: var(--zu-card-shadow-hover); transform: translateY(-2px);
+}
+.portal:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
+
+.portal-title {
+  font-family: var(--zu-sans); font-size: clamp(23px, 5.5vw, 30px);
+  font-weight: 700; letter-spacing: -.03em; line-height: 1.15;
+  color: var(--zu-fg-1);
+}
+.portal-desc {
+  font-size: 14px; color: var(--zu-fg-2); line-height: 1.55; max-width: 40ch;
+}
+.portal-foot {
+  margin-top: auto; padding-top: 14px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.portal-stat {
+  font-family: var(--zu-mono); font-variant-numeric: tabular-nums;
+  font-size: 12.5px; font-weight: 600; color: var(--zu-green);
+}
+.portal-arrow {
+  margin-left: auto; color: var(--zu-fg-3); font-size: 18px; line-height: 1;
+  transition: transform 200ms cubic-bezier(.2, .6, .2, 1), color 200ms;
+}
+.portal:hover .portal-arrow { color: var(--zu-green); transform: translateX(4px); }
+
+@media (min-width: 900px) {
+  .hall { padding-top: 80px; gap: 44px; }
+  .portais { grid-template-columns: 1fr 1fr; }
+  .portal { min-height: 240px; padding: 26px; }
+}
+
+/* ---------- cabeçalho de seção ----------
+   Cada seção é uma página isolada; este é o título que diz onde a pessoa
+   está, com o caminho de volta ao hall. Fica ACIMA da barra sticky de
+   filtros, então rola junto com o conteúdo — a barra continua grudando. */
+
+.secao {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; padding: 18px 2px 12px;
+}
+.secao h2 {
+  margin: 0; font-family: var(--zu-sans); font-size: 20px; font-weight: 700;
+  letter-spacing: -.025em; color: var(--zu-fg-1);
+}
+.secao a { font-size: 13px; color: var(--zu-fg-3); white-space: nowrap; }
+.secao a:hover { color: var(--zu-green); }
+
 /* ---------- listagem ---------- */
 
 .count {
@@ -496,8 +576,9 @@ a { color: inherit; text-decoration: none; }
 .foot a:hover { color: var(--zu-green); }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .chip, .search, .cta { transition: none; }
-  .card:hover { transform: none; }
+  .card, .chip, .search, .cta, .portal, .portal-arrow { transition: none; }
+  .card:hover, .portal:hover { transform: none; }
+  .portal:hover .portal-arrow { transform: none; }
   .brand .cur { animation: none; }
 }
 

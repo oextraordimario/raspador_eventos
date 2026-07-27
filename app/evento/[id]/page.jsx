@@ -81,7 +81,7 @@ export default async function Evento({ params }) {
       <script type="application/ld+json"
               dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <Link className="voltar" href="/">← voltar</Link>
+      <Link className="voltar" href="/festas">← voltar</Link>
 
       <article className="doc">
         <Hero src={ev.imagem} alto={titulo} />

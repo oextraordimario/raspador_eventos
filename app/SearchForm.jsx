@@ -11,7 +11,7 @@ export default function SearchForm({ texto, periodo, gratis }) {
   }
 
   return (
-    <form className="search" action="/" onSubmit={handleSubmit}>
+    <form className="search" action="/festas" onSubmit={handleSubmit}>
       <input name="texto" type="search" defaultValue={texto}
              placeholder="pagode, funk, Ordinário, forró..."
              aria-label="Buscar eventos" />
