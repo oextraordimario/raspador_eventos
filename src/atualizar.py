@@ -6,7 +6,9 @@ Bronze) → marcar sumidos (evento futuro que não reapareceu no catálogo) →
 descrever (busca incremental da descrição p/ eventos sem ela) → precificar
 (tickets/lotes de Sympla, Ingresse, Zig e Ticket and Go, refeito a cada
 rodada porque preço é volátil — dentro de uma janela de 30 dias) →
-cinema (grade dos 8 cinemas via Ingresso.com, snapshot → cinema_raw) →
+cinema (grade dos 8 cinemas via Ingresso.com, snapshot → cinema_raw; depois
+da derivação, o enriquecimento TMDB incremental — sinopse/nota/ano por filme
+NOVO → cinema_extra_raw, NI-36) →
 instagram (posts/stories da watchlist via Monid → instagram_raw + extração
 do flyer por visão, incremental) → derivar (colunas calculadas do bruto, sem
 rede; inclui filmes/sessoes e eventos fonte='instagram') → enriquecimento v1
@@ -18,6 +20,7 @@ Uso (da raiz do repo):
     python src/atualizar.py                    # pipeline completo
     python src/atualizar.py --sem-shotgun      # pula o Shotgun (lento, usa navegador)
     python src/atualizar.py --sem-cinema       # pula a grade de cinema
+    python src/atualizar.py --sem-tmdb         # pula o enriquecimento TMDB dos filmes
     python src/atualizar.py --sem-instagram    # pula o Instagram (Monid/claude -p)
     python src/atualizar.py --precificar-tudo  # tickets de TODOS os futuros (ex.: 1ª carga)
     python src/atualizar.py --so-derivar       # não raspa; re-deriva do bruto + regras + FTS
@@ -26,6 +29,7 @@ Uso (da raiz do repo):
 
 import json
 import re
+import socket
 import sys
 import time
 import traceback
@@ -33,10 +37,25 @@ from datetime import datetime, timedelta, timezone
 
 import derivar
 import enriquecer
+import midia
 import store
 import tempo
 from scrapers import (cinema, ingresse, instagram, shotgun, sympla,
-                      ticketandgo, zig)
+                      ticketandgo, tmdb, zig)
+
+# Rede com IPv6 quebrado (opt-in, FORCAR_IPV4=1 no env): urllib e psycopg
+# tentam os endereços IPv6 em SEQUÊNCIA (sem happy eyeballs do navegador/curl)
+# e pagam ~20s de timeout por endereço antes de cair no IPv4 — uma rodada de
+# 200 descrições viraria horas. O filtro no getaddrinfo derruba cada request
+# de ~50s para ~0.2s na rede afetada; fora dela, nada muda (por isso opt-in).
+# Visto na máquina do autor em 2026-07-27 (Neon e BFF do Sympla).
+if store.env_var("FORCAR_IPV4"):
+    _getaddrinfo = socket.getaddrinfo
+
+    def _so_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+        return _getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+    socket.getaddrinfo = _so_ipv4
+    print("[rede] FORCAR_IPV4=1 — resolvendo só endereços IPv4")
 
 # Preço/lote é volátil, mas quem pergunta ao agente pergunta de "hoje"/"este
 # fim de semana": o precificar só refaz eventos nesta janela; os demais mantêm
@@ -64,8 +83,14 @@ def _checar_schema(con):
                  "banco (DBeaver/psql) e execute de novo para re-raspar.")
 
 
-def _raspar(con, incluir_shotgun=True):
-    """Raspa cada fonte isoladamente: uma fonte quebrada não esconde as outras."""
+def _raspar(incluir_shotgun=True):
+    """Raspa cada fonte isoladamente: uma fonte quebrada não esconde as outras.
+
+    A conexão com a base abre DEPOIS de cada raspagem e fecha logo após o
+    upsert (2026-07-27): raspar um catálogo leva minutos, e conexão parada
+    esse tempo todo é derrubada pela rede em silêncio — foi o Zig quebrando
+    a rodada inteira. Conexão curta é barata; mantê-la viva é cilada.
+    """
     fontes = [
         ("sympla", sympla, lambda: sympla.raspar(
             city="brasilia", state="DF", location="Brasília", max_paginas=10)),
@@ -82,7 +107,11 @@ def _raspar(con, incluir_shotgun=True):
         print(f"\n[{nome}] raspando...")
         try:
             eventos = chamada()
-            store.upsert_eventos(con, eventos)
+            con = store.conectar()
+            try:
+                store.upsert_eventos(con, eventos)
+            finally:
+                con.close()
             resultados[nome] = dict(modulo.ULTIMA_RASPAGEM)
         except Exception as e:
             traceback.print_exc()
@@ -290,13 +319,14 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
     return {"buscados": buscados, "falhas": falhas, "fora_janela": fora_janela}
 
 
-def _raspar_cinema(con, erros):
+def _raspar_cinema(erros):
     """Raspa a grade dos cinemas e grava o snapshot na Bronze (cinema_raw).
 
     Falha por cinema×dia entra em `erros` e NÃO substitui o payload anterior
     daquele par (buraco não apaga grade boa); falha total vira {"erro"} no
     resultado, como as outras fontes. Quem deriva filmes/sessoes é o
-    derivar.aplicar_cinema, no passo seguinte.
+    derivar.aplicar_cinema, no passo seguinte. A conexão abre só DEPOIS da
+    raspagem (minutos de rede) — conexão parada cai; curta, não.
     """
     print(f"\n[cinema] grade de {len(cinema.CINEMAS)} cinemas (Ingresso.com)...")
     try:
@@ -305,8 +335,12 @@ def _raspar_cinema(con, erros):
         traceback.print_exc()
         print("[cinema] FALHOU — grade anterior mantida.")
         return {"erro": f"{type(e).__name__}: {e}"}
-    store.gravar_cinema_raw(con, r["raw"],
-                            datetime.now(timezone.utc).isoformat())
+    con = store.conectar()
+    try:
+        store.gravar_cinema_raw(con, r["raw"],
+                                datetime.now(timezone.utc).isoformat())
+    finally:
+        con.close()
     for falha in r["erros"]:
         erros.append({"passo": "cinema",
                       "evento_id": f"{falha['cinema']} {falha['dia']}",
@@ -314,10 +348,16 @@ def _raspar_cinema(con, erros):
     return dict(cinema.ULTIMA_RASPAGEM)
 
 
-def _raspar_instagram(con, erros, extrair=True):
+def _raspar_instagram(erros, extrair=True):
     """Posts/stories da watchlist → Bronze (instagram_raw) + extração do
     flyer dos posts novos (visão via `claude -p`, incremental — a fila é o
     shortcode sem origem='extracao'; falha re-tenta na próxima rodada).
+
+    Conexões CURTAS (2026-07-27): uma para gravar a Bronze e montar a fila,
+    e uma POR GRAVAÇÃO na extração — cada flyer leva ~1 min de visão e uma
+    conexão parada esse tempo cai. De quebra, cada extração agora persiste
+    na hora: falhar no post 5 não perde os 4 anteriores (antes o commit era
+    um só no fim).
 
     A mídia é baixada AGORA porque a URL do CDN expira em horas; a Bronze
     recém-gravada garante URL fresca até para post pendente de rodada
@@ -343,33 +383,37 @@ def _raspar_instagram(con, erros, extrair=True):
         traceback.print_exc()
         print("[instagram] FALHOU — dados anteriores mantidos.")
         return {"erro": f"{type(e).__name__}: {e}"}
-    store.gravar_instagram_raw(con, r["raw"],
-                               datetime.now(timezone.utc).isoformat())
-    for f in r["erros"]:
-        erros.append({"passo": "instagram", "evento_id": f"@{f['perfil']}",
-                      "erro": f["erro"]})
-    resultado = dict(instagram.ULTIMA_RASPAGEM)
+    con = store.conectar()
+    try:
+        store.gravar_instagram_raw(con, r["raw"],
+                                   datetime.now(timezone.utc).isoformat())
+        for f in r["erros"]:
+            erros.append({"passo": "instagram", "evento_id": f"@{f['perfil']}",
+                          "erro": f["erro"]})
+        resultado = dict(instagram.ULTIMA_RASPAGEM)
 
-    corte = (datetime.now(timezone.utc)
-             - timedelta(days=EXTRAIR_POSTS_DIAS)).timestamp()
-    alvos, antigos = [], 0
-    # fila: post sem extração OU com extração do formato antigo marcada
-    # e_evento=false — candidato a carrossel-agenda que a regra pré-v1.1
-    # descartava (backfill dirigido, spec §8.5; instagram.extracao_pendente).
-    for row in con.execute(
-            "SELECT p.perfil, p.code, p.payload, x.payload AS ext "
-            "FROM instagram_raw p "
-            "LEFT JOIN instagram_raw x "
-            "  ON x.code = p.code AND x.origem = 'extracao' "
-            "WHERE p.origem = 'post' ORDER BY p.code").fetchall():
-        if not instagram.extracao_pendente(
-                json.loads(row["ext"]) if row["ext"] else None):
-            continue
-        post = json.loads(row["payload"])
-        if (post.get("taken_at") or 0) < corte:
-            antigos += 1
-            continue
-        alvos.append((row, post))
+        corte = (datetime.now(timezone.utc)
+                 - timedelta(days=EXTRAIR_POSTS_DIAS)).timestamp()
+        alvos, antigos = [], 0
+        # fila: post sem extração OU com extração do formato antigo marcada
+        # e_evento=false — candidato a carrossel-agenda que a regra pré-v1.1
+        # descartava (backfill dirigido, spec §8.5; instagram.extracao_pendente).
+        for row in con.execute(
+                "SELECT p.perfil, p.code, p.payload, x.payload AS ext "
+                "FROM instagram_raw p "
+                "LEFT JOIN instagram_raw x "
+                "  ON x.code = p.code AND x.origem = 'extracao' "
+                "WHERE p.origem = 'post' ORDER BY p.code").fetchall():
+            if not instagram.extracao_pendente(
+                    json.loads(row["ext"]) if row["ext"] else None):
+                continue
+            post = json.loads(row["payload"])
+            if (post.get("taken_at") or 0) < corte:
+                antigos += 1
+                continue
+            alvos.append((row, post))
+    finally:
+        con.close()
     if not extrair:
         # Caminho 1: a Bronze está atualizada, a visão fica para a rodada
         # local. Não é erro nem falha — é escopo do cron.
@@ -396,16 +440,19 @@ def _raspar_instagram(con, erros, extrair=True):
                                   f" + legenda): {type(e).__name__}: {e}"})
         try:
             ext = instagram.extrair(instagram.legenda_do_post(post), caminhos)
-            store.gravar_instagram_raw(
-                con, [(row["perfil"], row["code"], "extracao", ext)],
-                datetime.now(timezone.utc).isoformat(), commit=False)
+            con = store.conectar()
+            try:
+                store.gravar_instagram_raw(
+                    con, [(row["perfil"], row["code"], "extracao", ext)],
+                    datetime.now(timezone.utc).isoformat())
+            finally:
+                con.close()
             extraidos += 1
         except Exception as e:
             falhas += 1
             erros.append({"passo": "instagram",
                           "evento_id": f"instagram:{row['code']}",
                           "erro": f"extração: {type(e).__name__}: {e}"})
-    con.commit()
     if alvos:
         print(f"  {extraidos} flyers extraídos | {falhas} falhas "
               "(re-tentam na próxima rodada)")
@@ -552,6 +599,121 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
     print('Pronto — pergunte ao agente: "o que tem hoje em Brasília?"')
 
 
+def _enriquecer_cinema(con, erros):
+    """Passo TMDB (NI-36), incremental: busca sinopse/nota/ano para filme em
+    cartaz que ainda não tem linha origem='tmdb' na Bronze cinema_extra_raw
+    — 1 chamada por filme NOVO (o id da Ingresso.com é estável), então após
+    o backfill inicial são poucas por semana. Roda DEPOIS da derivação (a
+    lista de filmes em cartaz é a própria tabela) e o chamador re-deriva se
+    algo foi buscado. Falha por filme não grava nada e re-tenta na próxima
+    rodada. Sem TMDB_API_KEY o passo é pulado com aviso (não é erro).
+    """
+    chave = store.env_var("TMDB_API_KEY")
+    if not chave:
+        print("\n[tmdb] TMDB_API_KEY ausente — filmes seguem sem sinopse/nota.")
+        return None
+    pendentes = con.execute(
+        "SELECT f.id, f.titulo, f.titulo_original FROM filmes f "
+        "LEFT JOIN cinema_extra_raw x "
+        "  ON x.filme_id = f.id AND x.origem = 'tmdb' "
+        "WHERE x.filme_id IS NULL ORDER BY f.titulo").fetchall()
+    if not pendentes:
+        return 0
+    print(f"\n[tmdb] enriquecendo {len(pendentes)} filme(s) novo(s)...")
+    agora = datetime.now(timezone.utc).isoformat()
+    buscados = com_match = 0
+    for f in pendentes:
+        try:
+            payload = tmdb.raspar_filme(f["titulo"], f["titulo_original"],
+                                        chave)
+        except Exception as e:
+            erros.append({"passo": "tmdb", "evento_id": f["id"],
+                          "erro": f"{type(e).__name__}: {e}"})
+            continue
+        store.gravar_cinema_extra(con, f["id"], "tmdb", payload, agora)
+        buscados += 1
+        if payload.get("escolhido"):
+            com_match += 1
+        time.sleep(0.25)
+    print(f"  {buscados} buscados, {com_match} com match confiável "
+          f"(sem match não ganha nota — auditoria na Bronze)")
+    return buscados
+
+
+def _copiar_posters(con, erros):
+    """Passo pôster (NI-37), incremental: filme em cartaz cujo pôster ainda
+    não tem cópia própria (origem='poster' na cinema_extra_raw) é baixado do
+    CDN da fonte e re-hospedado no Blob com pathname estável. O front prefere
+    `poster_proprio` e cai no hotlink enquanto a cópia não existe.
+    """
+    if not midia.token():
+        print("\n[poster] BLOB_READ_WRITE_TOKEN ausente — hotlink mantido.")
+        return None
+    pendentes = con.execute(
+        "SELECT f.id, f.poster FROM filmes f "
+        "LEFT JOIN cinema_extra_raw x "
+        "  ON x.filme_id = f.id AND x.origem = 'poster' "
+        "WHERE f.poster IS NOT NULL AND x.filme_id IS NULL "
+        "ORDER BY f.id").fetchall()
+    if not pendentes:
+        return 0
+    print(f"\n[poster] copiando {len(pendentes)} pôster(es) para o storage...")
+    agora = datetime.now(timezone.utc).isoformat()
+    n = 0
+    for f in pendentes:
+        try:
+            dados, ctype = midia.baixar(f["poster"])
+            ext = midia.EXTENSOES.get(ctype, "jpg")
+            url = midia.subir(dados, f"posters/{f['id']}.{ext}", ctype)
+        except Exception as e:
+            erros.append({"passo": "poster", "evento_id": f["id"],
+                          "erro": f"{type(e).__name__}: {e}"})
+            continue
+        store.gravar_cinema_extra(con, f["id"], "poster", {"url": url}, agora)
+        n += 1
+        time.sleep(0.2)
+    print(f"  {n} copiados")
+    return n
+
+
+def _subir_midias_instagram(con, erros):
+    """Flyer do Instagram para o storage próprio (NI-34, via infra do NI-37):
+    a raspagem já baixa a mídia para midias/instagram/ (a URL do CDN expira em
+    horas); aqui o arquivo local de post que ainda não tem origem='midia' na
+    Bronze sobe para o Blob, e a derivação grava a URL em eventos.imagem.
+    """
+    if not midia.token():
+        return None
+    pendentes = con.execute(
+        "SELECT p.perfil, p.code FROM instagram_raw p "
+        "LEFT JOIN instagram_raw m ON m.code = p.code AND m.origem = 'midia' "
+        "WHERE p.origem = 'post' AND m.code IS NULL ORDER BY p.code").fetchall()
+    agora = datetime.now(timezone.utc).isoformat()
+    n = 0
+    for r in pendentes:
+        arquivos = sorted(instagram.MIDIAS.glob(f"{r['code']}*"))
+        imagens = [a for a in arquivos
+                   if a.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
+        if not imagens:
+            continue  # mídia não baixada (post antigo): fica para a próxima
+        arq = imagens[0]  # capa do post (1ª página do carrossel)
+        ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg",
+                 "png": "image/png", "webp": "image/webp"}[arq.suffix[1:].lower()]
+        try:
+            url = midia.subir(arq.read_bytes(),
+                              f"instagram/{r['code']}{arq.suffix.lower()}", ctype)
+        except Exception as e:
+            erros.append({"passo": "midia-instagram", "evento_id": r["code"],
+                          "erro": f"{type(e).__name__}: {e}"})
+            continue
+        store.gravar_instagram_raw(
+            con, [(r["perfil"], r["code"], "midia", {"url": url})], agora)
+        n += 1
+    if n:
+        print(f"\n[midia] {n} flyer(s) do Instagram no storage próprio")
+    return n
+
+
 def main():
     inicio = time.monotonic()
     iniciada_em = datetime.now(timezone.utc).isoformat()
@@ -567,8 +729,14 @@ def main():
             else "cron" if sem_extracao
             else "sem-shotgun" if sem_shotgun else "completo")
 
+    # Conexões CURTAS por bloco (2026-07-27, a pedido do autor): o pipeline
+    # intercala minutos de raspagem/visão com escrita na base, e conexão
+    # parada é derrubada pela rede em silêncio (SSL closed no meio da rodada,
+    # visto no Zig). Cada bloco abre a sua e fecha; os passos de raspagem
+    # abrem as próprias depois da rede. Alongar a vida da conexão é cilada.
     con = store.conectar()
     _checar_schema(con)
+    con.close()
 
     resultados, erros = {}, []
     sumidos = desc = prec = None
@@ -578,25 +746,32 @@ def main():
         # perfis de propósito — a URL de mídia do CDN expira em horas, então
         # a Bronze precisa estar fresca para a visão conseguir baixar o flyer.
         if not so_instagram:
-            resultados = _raspar(con, incluir_shotgun=not sem_shotgun)
+            resultados = _raspar(incluir_shotgun=not sem_shotgun)
             if resultados and all("erro" in r for r in resultados.values()):
-                con.close()
                 sys.exit("Todas as fontes falharam — base não atualizada.")
             # sumidos primeiro: cinema não entra em resultados ainda (grade não
             # tem sumido — sessão que sai simplesmente não volta no snapshot).
+            # descrever/precificar tocam a base a cada evento — os gaps são
+            # curtos, uma conexão para o bloco basta.
+            con = store.conectar()
             sumidos = _marcar_sumidos(con, resultados, iniciada_em)
             desc = _descrever(con, erros)
             prec = _precificar(con, erros,
                                tudo="--precificar-tudo" in sys.argv)
+            con.close()
             if not sem_cinema:
-                resultados["cinema"] = _raspar_cinema(con, erros)
+                resultados["cinema"] = _raspar_cinema(erros)
         # depois do _marcar_sumidos de propósito: a fonte instagram fica FORA
         # da lógica de sumido (post que sai da 1ª página do perfil não
         # significa cancelamento — evento do Instagram morre por data passada).
         if not sem_instagram:
-            r_insta = _raspar_instagram(con, erros, extrair=not sem_extracao)
+            r_insta = _raspar_instagram(erros, extrair=not sem_extracao)
             if r_insta is not None:
                 resultados["instagram"] = r_insta
+
+    # daqui em diante é derivação/enriquecimento/relatório: conexão nova —
+    # a raspagem acima pode ter levado muitos minutos.
+    con = store.conectar()
 
     # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
     # o fluxo normal e o --so-derivar recalculam as derivadas a partir da
@@ -604,6 +779,21 @@ def main():
     derivado = None if so_enriquecer else derivar.aplicar(con)
     insta = None if so_enriquecer else derivar.aplicar_instagram(con)
     cine = None if so_enriquecer else derivar.aplicar_cinema(con)
+
+    # TMDB e cópia de pôster depois da derivação (a lista do que está em
+    # cartaz É a tabela) e só em rodada que raspou; se algo novo chegou à
+    # Bronze, re-deriva para aplicar — aplicar_cinema é idempotente e custa
+    # segundos. O flyer do Instagram sobe antes do aplicar_instagram pelo
+    # mesmo motivo (a derivação é quem grava eventos.imagem).
+    if (not (so_enriquecer or so_derivar or so_instagram)
+            and not sem_cinema and "--sem-tmdb" not in sys.argv):
+        novos = _enriquecer_cinema(con, erros) or 0
+        novos += _copiar_posters(con, erros) or 0
+        if novos:
+            cine = derivar.aplicar_cinema(con)
+    if not (so_enriquecer or so_derivar):
+        if _subir_midias_instagram(con, erros):
+            insta = derivar.aplicar_instagram(con)
 
     enriq = enriquecer.aplicar(con, aliases_local=instagram.aliases_local())
     store.reconstruir_fts(con)
