@@ -425,6 +425,141 @@ a { color: inherit; text-decoration: none; }
   font-size: 12.5px; color: var(--zu-fg-2); font-weight: 600;
 }
 
+/* ---------- cinema: pôster, vitrine em faixas, filtros, detalhe ---------- */
+
+/* O pôster é retrato 2:3 (como a fonte publica) — difere do flyer 4:5. */
+.cartaz {
+  position: relative; overflow: hidden;
+  aspect-ratio: 2 / 3; border-radius: var(--zu-r-sm);
+  background: var(--zu-holder); flex: none;
+}
+.cartaz img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cartaz.vazio { display: grid; place-items: center; border: 1px solid var(--zu-divider); }
+.cartaz.vazio span {
+  font-family: var(--zu-mono); font-size: 26px; font-weight: 700;
+  color: var(--zu-fg-4); user-select: none;
+}
+
+/* Card da grade filtrada: pôster à esquerda, como o card de evento. */
+.fcard { grid-template-columns: 78px 1fr; }
+
+/* A vitrine: faixas com trilho horizontal de pôsteres (estilo streaming).
+   Scroll nativo + snap; o trilho vaza o padding lateral de propósito, para o
+   corte do último pôster dizer "tem mais aqui do lado". */
+.vitrine { display: flex; flex-direction: column; gap: 26px; padding-top: 20px; }
+.faixa-topo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 10px;
+}
+.faixa-titulo {
+  font-family: var(--zu-sans); font-size: 17px; font-weight: 700;
+  letter-spacing: -.015em; color: var(--zu-fg-1); margin: 0;
+}
+/* Setas do trilho: no touch o scroll é o dedo e elas só ocupariam espaço. */
+.faixa-setas { display: none; gap: 6px; }
+@media (hover: hover) and (pointer: fine) {
+  .faixa-setas { display: flex; }
+}
+.faixa-setas .icon-btn { font-size: 16px; line-height: 1; }
+.trilho {
+  display: flex; gap: 10px; overflow-x: auto;
+  margin: 0 -16px; padding: 2px 16px 8px;
+  scroll-snap-type: x proximity; scrollbar-width: none;
+}
+.trilho::-webkit-scrollbar { display: none; }
+.fposter {
+  flex: none; width: 118px; scroll-snap-align: start;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.fposter .cartaz { width: 100%; transition: transform 180ms cubic-bezier(.2, .6, .2, 1); }
+.fposter:hover .cartaz { transform: translateY(-2px); }
+.fposter:hover .fposter-titulo { color: var(--zu-green); }
+.fposter:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
+.fposter-titulo {
+  font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--zu-fg-1);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; transition: color 120ms;
+}
+.fposter-meta { font-size: 11px; color: var(--zu-fg-3); }
+
+@media (min-width: 900px) {
+  .fposter { width: 150px; }
+  .fcard { grid-template-columns: 92px 1fr; }
+}
+
+/* Filtros sempre visíveis, cada um abrindo em dropdown. <details> sem JS:
+   clicar num chip navega (a URL é o estado), e o Drop reabre via `open`
+   quando o grupo tem seleção — multi-escolha sem reabrir na mão. */
+.drops {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  padding: 2px 0;
+}
+.drop { position: relative; }
+.drop summary {
+  list-style: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--zu-sans); font-size: 13px; font-weight: 500;
+  color: var(--zu-fg-2); background: var(--zu-card);
+  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-pill);
+  padding: 6px 12px; white-space: nowrap;
+  transition: border-color 150ms, color 150ms;
+}
+.drop summary::-webkit-details-marker { display: none; }
+.drop summary:hover { border-color: var(--zu-green); color: var(--zu-green); }
+.drop summary:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
+.drop[open] summary { border-color: var(--zu-green); color: var(--zu-fg-1); }
+.drop-n {
+  font-family: var(--zu-mono); font-size: 10.5px; font-weight: 600;
+  background: var(--zu-green); color: var(--zu-on-green);
+  border-radius: var(--zu-r-pill); padding: 1px 6px; line-height: 1.4;
+}
+.drop-caret { font-size: 9px; color: var(--zu-fg-3); }
+.drop[open] .drop-caret { transform: rotate(180deg); }
+.drop-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+  min-width: 210px; max-width: min(320px, 88vw);
+  display: flex; flex-wrap: wrap; gap: 6px;
+  background: var(--zu-card); border: 1px solid var(--zu-divider);
+  border-radius: var(--zu-r-md); padding: 10px;
+  box-shadow: var(--zu-shadow-lg);
+}
+.drop-limpar { font-size: 12.5px; color: var(--zu-fg-3); white-space: nowrap; padding: 6px 4px; }
+.drop-limpar:hover { color: var(--zu-error); }
+
+/* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
+.filme-topo { display: grid; grid-template-columns: minmax(110px, 150px) 1fr; gap: 16px; align-items: start; }
+.filme-cartaz .cartaz { border: 1px solid var(--zu-divider); }
+.filme-info { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.filme-generos { color: var(--zu-fg-2); font-size: 14px; margin: 0; }
+.filme-trailer { color: var(--zu-green); font-size: 13.5px; font-weight: 500; }
+.filme-trailer:hover { text-decoration: underline; }
+@media (min-width: 900px) {
+  .filme-topo { grid-template-columns: 220px 1fr; gap: 24px; }
+}
+
+.sess-cinema-nome { font-weight: 600; font-size: 14.5px; background: var(--zu-ink-2); }
+/* Dia numa linha própria, horários embaixo: com dezenas de sessões por dia
+   (Homem-Aranha tem 30+), rótulo lateral flutuava no meio de um mar de pills. */
+.sess-dia { flex-direction: column; align-items: stretch; gap: 8px; }
+.sess-dia-rotulo { font-size: 12.5px; color: var(--zu-fg-2); font-weight: 600; }
+.sess-dia-rotulo .num {
+  font-family: var(--zu-mono); font-size: 10.5px; color: var(--zu-fg-3); font-weight: 400;
+}
+.horarios { display: flex; flex-wrap: wrap; gap: 6px; }
+.horario {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-sm);
+  padding: 4px 9px; background: var(--zu-card);
+  transition: border-color 120ms, color 120ms;
+}
+.horario:hover { border-color: var(--zu-green); }
+.horario:hover .horario-hora { color: var(--zu-green); }
+.horario-hora {
+  font-family: var(--zu-mono); font-variant-numeric: tabular-nums;
+  font-size: 12.5px; font-weight: 600; color: var(--zu-fg-1);
+}
+.horario-tipo { font-size: 10px; color: var(--zu-fg-3); }
+
 /* ---------- desktop: a lista vira grade ----------
    Antes eram 700px de conteúdo num viewport de 1440 — metade da tela vazia,
    que foi o que quem abriu no notebook viu. O cabeçalho de dia atravessa a
@@ -547,9 +682,10 @@ a { color: inherit; text-decoration: none; }
 .foot a:hover { color: var(--zu-green); }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .chip, .search, .cta, .portal, .portal-arrow { transition: none; }
+  .card, .chip, .search, .cta, .portal, .portal-arrow, .fposter .cartaz { transition: none; }
   .card:hover, .portal:hover { transform: none; }
   .portal:hover .portal-arrow { transform: none; }
+  .fposter:hover .cartaz { transform: none; }
   .brand .cur { animation: none; }
 }
 

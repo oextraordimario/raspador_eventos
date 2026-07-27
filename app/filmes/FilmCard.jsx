@@ -1,34 +1,25 @@
-'use client'
+import Link from 'next/link'
+import Cartaz from './Cartaz'
 
-import posthog from 'posthog-js'
-
+// Card da grade filtrada (com filtro ativo a página troca as faixas por
+// isto). O clique agora abre o detalhe NO site (/filmes/[id]) — quem manda
+// para a venda é a página de sessões, horário por horário. A contagem de
+// cinemas saiu do card (mora no detalhe); a sinopse entra aqui quando o
+// NI-36 aterrissar.
 export default function FilmCard({ filme }) {
-  const cinemas = (filme.cinemas || '').split(', ').filter(Boolean)
-
-  function handleClick() {
-    posthog.capture('film_link_clicked', {
-      film_title: filme.titulo,
-      film_genres: filme.generos,
-      session_count: filme.sessoes,
-    })
-  }
-
   return (
-    <a className="card solo" href={filme.url} target="_blank" rel="noopener nofollow"
-       onClick={handleClick}>
+    <Link className="card fcard" href={`/filmes/${filme.id}`}>
+      <Cartaz src={filme.poster} titulo={filme.titulo}
+              tamanhos="(min-width: 900px) 92px, 78px" />
       <div className="body">
         <h3 className="title">{filme.titulo}</h3>
         <div className="venue">{filme.generos}</div>
         <div className="meta">
-          <span className="sess">{filme.sessoes} sessões</span>
           {filme.duracao_min && <span className="tag tag-src">{filme.duracao_min} min</span>}
           {filme.classificacao && <span className="tag tag-src">{filme.classificacao}</span>}
           {filme.em_pre_venda === 1 && <span className="tag tag-hot">pré-venda</span>}
         </div>
-        <div className="cinemas">
-          {cinemas.length} {cinemas.length === 1 ? 'cinema' : 'cinemas'} · {filme.cinemas}
-        </div>
       </div>
-    </a>
+    </Link>
   )
 }
