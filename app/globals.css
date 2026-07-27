@@ -1,8 +1,11 @@
 /* ==========================================================================
    ZeroUm Design System — tokens.
    Fonte: colors_and_type.css do projeto de design (claude.ai/design).
-   Dark é o padrão da marca; light é tema completo, não inversão.
-   Ordem que importa: :root (dark) → @media light → [data-theme] (vence sempre).
+   LIGHT é o padrão (decisão de 27/07/2026: feedback dos amigos); dark é tema
+   completo, não inversão, e vive atrás do botão de alternância.
+   Ordem que importa: :root (light) → [data-theme] (vence sempre). O tema NÃO
+   segue mais o prefers-color-scheme do sistema — padrão é light para todo
+   mundo, e quem quiser dark escolhe no botão (fica no localStorage).
 
    REGRA TIPOGRÁFICA (27/07/2026): o monospace é ACENTO, não corpo. Ele fica no
    que é dado técnico — hora, preço, contagem, rótulo de fonte — e na marca. O
@@ -12,42 +15,42 @@
    ========================================================================== */
 
 :root {
-  --zu-ink: #0f1311;
-  --zu-ink-2: #151a17;
-  --zu-ink-3: #1d2420;
-  --zu-ink-4: #2a322d;
-  --zu-divider: #232a25;
-  --zu-line-soft: rgba(0, 255, 102, .08);
-  --zu-line-strong: rgba(0, 255, 102, .18);
+  --zu-ink: #eef0f2;
+  --zu-ink-2: #e4e7eb;
+  --zu-ink-3: #d8dde2;
+  --zu-ink-4: #c9cfd6;
+  --zu-divider: #dde1e6;
+  --zu-line-soft: rgba(8, 145, 74, .14);
+  --zu-line-strong: rgba(8, 145, 74, .30);
 
-  --zu-fg-1: #e6f3ea;
-  --zu-fg-2: #a8b8ad;
-  --zu-fg-3: #6b7a70;
-  --zu-fg-4: #3d4842;
+  --zu-fg-1: #0e1216;
+  --zu-fg-2: #34393f;
+  --zu-fg-3: #656c75;
+  --zu-fg-4: #a0a7af;
 
-  --zu-green: #00ff66;
-  --zu-green-soft: #14d166;
-  --zu-green-bg: rgba(0, 255, 102, .08);
-  --zu-on-green: #0a0d0b;
+  --zu-green: #08914a;
+  --zu-green-soft: #0ca155;
+  --zu-green-bg: rgba(8, 145, 74, .08);
+  --zu-on-green: #ffffff;
 
-  --zu-warn: #ffb000;
-  --zu-warn-bg: rgba(255, 176, 0, .10);
-  --zu-error: #ff4d4d;
-  --zu-info: #4dc7ff;
-  --zu-info-bg: rgba(77, 199, 255, .10);
+  --zu-warn: #9a6500;
+  --zu-warn-bg: rgba(154, 101, 0, .10);
+  --zu-error: #c63030;
+  --zu-info: #1f6cad;
+  --zu-info-bg: rgba(31, 108, 173, .10);
 
-  --zu-glow-sm: 0 0 8px rgba(0, 255, 102, .35);
-  --zu-shadow-lg: 0 16px 48px rgba(0, 0, 0, .7);
+  --zu-glow-sm: 0 0 0 transparent;
+  --zu-shadow-lg: 0 16px 48px rgba(14, 18, 22, .10);
 
   /* Superfície dos cards. Existe separada de --zu-ink-2 porque no tema claro
      o card precisa ser BRANCO sobre fundo cinza para ter profundidade — no
      escuro, quem cria a profundidade é a elevação de cinza, não a sombra. */
-  --zu-card: #151a17;
-  --zu-card-hover: #1d2420;
-  --zu-card-shadow: none;
-  --zu-card-shadow-hover: none;
+  --zu-card: #ffffff;
+  --zu-card-hover: #ffffff;
+  --zu-card-shadow: 0 1px 2px rgba(14, 18, 22, .05), 0 1px 3px rgba(14, 18, 22, .04);
+  --zu-card-shadow-hover: 0 4px 12px rgba(14, 18, 22, .10), 0 2px 4px rgba(14, 18, 22, .05);
   /* Fundo do espaço vazio de um flyer que não carregou */
-  --zu-holder: #1a201c;
+  --zu-holder: #e4e7eb;
 
   /* As famílias chegam por next/font (app/layout.jsx), que auto-hospeda os
      arquivos e define --fonte-sans/--fonte-mono no <html>. O fallback existe
@@ -63,38 +66,6 @@
   /* Altura do header — a barra de filtros gruda logo abaixo dela. Era um 53px
      mágico repetido; agora muda num lugar só. */
   --h-top: 54px;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --zu-ink: #eef0f2;
-    --zu-ink-2: #e4e7eb;
-    --zu-ink-3: #d8dde2;
-    --zu-ink-4: #c9cfd6;
-    --zu-divider: #dde1e6;
-    --zu-line-soft: rgba(8, 145, 74, .14);
-    --zu-line-strong: rgba(8, 145, 74, .30);
-    --zu-fg-1: #0e1216;
-    --zu-fg-2: #34393f;
-    --zu-fg-3: #656c75;
-    --zu-fg-4: #a0a7af;
-    --zu-green: #08914a;
-    --zu-green-soft: #0ca155;
-    --zu-green-bg: rgba(8, 145, 74, .08);
-    --zu-on-green: #ffffff;
-    --zu-warn: #9a6500;
-    --zu-warn-bg: rgba(154, 101, 0, .10);
-    --zu-error: #c63030;
-    --zu-info: #1f6cad;
-    --zu-info-bg: rgba(31, 108, 173, .10);
-    --zu-glow-sm: 0 0 0 transparent;
-    --zu-shadow-lg: 0 16px 48px rgba(14, 18, 22, .10);
-    --zu-card: #ffffff;
-    --zu-card-hover: #ffffff;
-    --zu-card-shadow: 0 1px 2px rgba(14, 18, 22, .05), 0 1px 3px rgba(14, 18, 22, .04);
-    --zu-card-shadow-hover: 0 4px 12px rgba(14, 18, 22, .10), 0 2px 4px rgba(14, 18, 22, .05);
-    --zu-holder: #e4e7eb;
-  }
 }
 
 :root[data-theme='dark'] {

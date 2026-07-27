@@ -17,25 +17,34 @@ const LUA = (
   </svg>
 )
 
+// A barra do navegador no celular acompanha o fundo de cada tema. Vive aqui
+// (e não no viewport do layout) porque o tema muda no cliente, por clique.
+const COR_BARRA = { light: '#eef0f2', dark: '#0f1311' }
+
+function aplicar(tema) {
+  document.documentElement.setAttribute('data-theme', tema)
+  document.querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', COR_BARRA[tema])
+}
+
 export default function Tema() {
   const [tema, setTema] = useState(null)
 
-  // Só depois de montar: no servidor não existe preferência de sistema nem
-  // localStorage, e assumir uma delas causaria troca visível de tema no
-  // primeiro paint.
+  // Light é o padrão para todo mundo — o site NÃO segue a preferência do
+  // sistema. Quem quiser dark escolhe no botão, e a escolha fica no
+  // localStorage. Só depois de montar: no servidor não existe localStorage,
+  // e assumir um valor causaria troca visível de tema no primeiro paint.
   useEffect(() => {
-    const salvo = localStorage.getItem('tema')
-    const atual = salvo ||
-      (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+    const atual = localStorage.getItem('tema') || 'light'
     setTema(atual)
-    document.documentElement.setAttribute('data-theme', atual)
+    aplicar(atual)
   }, [])
 
   function alternar() {
     const novo = tema === 'dark' ? 'light' : 'dark'
     setTema(novo)
     localStorage.setItem('tema', novo)
-    document.documentElement.setAttribute('data-theme', novo)
+    aplicar(novo)
   }
 
   return (

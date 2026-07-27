@@ -40,11 +40,9 @@ export const metadata = {
 }
 
 export const viewport = {
-  // acompanha o tema para a barra do navegador no celular não destoar
-  themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0f1311' },
-    { media: '(prefers-color-scheme: light)', color: '#eef0f2' },
-  ],
+  // Light é o padrão do site (não segue o sistema); quando a pessoa alterna
+  // no botão, o Tema.jsx atualiza esta meta tag junto com o data-theme.
+  themeColor: '#eef0f2',
 }
 
 export default function RootLayout({ children }) {
