@@ -526,6 +526,30 @@ a { color: inherit; text-decoration: none; }
 .drop-limpar { font-size: 12.5px; color: var(--zu-fg-3); white-space: nowrap; padding: 6px 4px; }
 .drop-limpar:hover { color: var(--zu-error); }
 
+/* Calendário do filtro de data: mês em grid de 7 colunas; só dia com sessão
+   é clicável (a grade real cobre ~8 dias — o resto fica apagado). */
+.cal { display: flex; flex-direction: column; gap: 12px; min-width: 224px; }
+.cal-titulo {
+  font-family: var(--zu-mono); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--zu-fg-2); margin-bottom: 6px;
+}
+.cal-grade { display: grid; grid-template-columns: repeat(7, 30px); gap: 2px; }
+.cal-semana {
+  font-family: var(--zu-mono); font-size: 9.5px; text-transform: uppercase;
+  color: var(--zu-fg-4); display: grid; place-items: center; height: 20px;
+}
+.cal-dia {
+  display: grid; place-items: center; height: 30px;
+  font-family: var(--zu-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; border-radius: var(--zu-r-sm);
+  color: var(--zu-fg-1); border: 1px solid transparent;
+}
+a.cal-dia { font-weight: 600; border-color: var(--zu-line-soft); background: var(--zu-green-bg); }
+a.cal-dia:hover { border-color: var(--zu-green); color: var(--zu-green); }
+a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1px; }
+.cal-dia[data-on='1'] { background: var(--zu-green); color: var(--zu-on-green); border-color: var(--zu-green); }
+.cal-dia.off { color: var(--zu-fg-4); }
+
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
 .filme-topo { display: grid; grid-template-columns: minmax(110px, 150px) 1fr; gap: 16px; align-items: start; }
 .filme-cartaz .cartaz { border: 1px solid var(--zu-divider); }

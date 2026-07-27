@@ -5,6 +5,7 @@ import { REDES, HORARIOS, montarFaixas, redesParaCinemas } from '../../lib/cinem
 import FilmCard from './FilmCard'
 import Faixa from './Faixa'
 import Drop from './Drop'
+import Calendario from './Calendario'
 
 export const revalidate = 300
 
@@ -25,9 +26,11 @@ export default async function Filmes({ searchParams }) {
   const redes = (sp?.rede ?? '').split(',').filter(Boolean)
   const cinemas = (sp?.cinema ?? '').split(',').filter(Boolean)
   const hora = sp?.hora ?? ''
+  // dia local escolhido no calendário (querystring é entrada de estranho)
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(sp?.data ?? '') ? sp.data : ''
 
   const temFiltro = Boolean(texto || generos.length || classes.length ||
-                            redes.length || cinemas.length || hora)
+                            redes.length || cinemas.length || hora || data)
 
   // rede e preset de horário são açúcar da UI: viram os params genéricos da
   // API aqui (cinema CSV / hora_de+hora_ate), nunca chegam ao backend.
@@ -41,6 +44,13 @@ export default async function Filmes({ searchParams }) {
     if (h.hora_de != null) params.hora_de = h.hora_de
     if (h.hora_ate != null) params.hora_ate = h.hora_ate
   }
+  // dia do calendário vira a janela de/ate daquele dia LOCAL (Brasília é
+  // -03 fixo); o corte é o dia do calendário mesmo, sem a regra das 6h da
+  // vida noturna — sessão de cinema pertence ao dia em que começa.
+  if (data) {
+    params.de = `${data}T00:00:00-03:00`
+    params.ate = `${data}T23:59:59-03:00`
+  }
 
   const { filmes, facetas } = await catalogoFilmes(params)
 
@@ -48,7 +58,7 @@ export default async function Filmes({ searchParams }) {
   // classificação, rede e cinema são listas (CSV na URL); hora é única.
   // Rede e cinema se excluem (os dois viram o MESMO param da API).
   const atual = { texto, generos, classificacao: classes, rede: redes,
-                  cinema: cinemas, hora }
+                  cinema: cinemas, hora, data }
   const href = (mudanca) => {
     const novo = { ...atual, ...mudanca }
     const q = new URLSearchParams()
@@ -69,7 +79,7 @@ export default async function Filmes({ searchParams }) {
   }
 
   const nFiltros = generos.length + classes.length + redes.length +
-    cinemas.length + (hora ? 1 : 0)
+    cinemas.length + (hora ? 1 : 0) + (data ? 1 : 0)
   const faixas = temFiltro ? [] : montarFaixas(filmes)
 
   return (
@@ -87,6 +97,13 @@ export default async function Filmes({ searchParams }) {
         </form>
 
         <div className="drops" role="group" aria-label="Filtros">
+          {facetas?.dias?.length > 0 && (
+            <Drop rotulo="data" ativos={data ? 1 : 0} aberto={Boolean(data)}>
+              <Calendario dias={facetas.dias} selecionado={data}
+                          hrefDia={(dia) => href({ data: data === dia ? '' : dia })} />
+            </Drop>
+          )}
+
           {facetas?.generos?.length > 0 && (
             <Drop rotulo="gênero" ativos={generos.length} aberto={generos.length > 0}>
               {facetas.generos.map((g) => (

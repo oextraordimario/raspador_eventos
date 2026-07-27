@@ -280,6 +280,12 @@ def facetas_filmes():
     cinemas = [r["cinema"] for r in con.execute(
         "SELECT DISTINCT cinema FROM sessoes WHERE inicio >= %s "
         "ORDER BY cinema", (agora,))]
+    # dias LOCAIS com sessão futura — é o que o calendário do site habilita
+    # (a grade real cobre ~8 dias; o resto do mês fica desabilitado)
+    dias = [r["dia"] for r in con.execute(
+        "SELECT DISTINCT to_char(inicio::timestamptz AT TIME ZONE "
+        f"'{_TZ_BSB}', 'YYYY-MM-DD') AS dia "
+        "FROM sessoes WHERE inicio >= %s ORDER BY dia", (agora,))]
     con.close()
 
     def _ordem_classe(c):
@@ -288,7 +294,7 @@ def facetas_filmes():
         return (0, 0) if not digitos else (1, int(digitos))
     return {"generos": sorted(generos),
             "classificacoes": sorted(classes, key=_ordem_classe),
-            "cinemas": cinemas}
+            "cinemas": cinemas, "dias": dias}
 
 
 def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
