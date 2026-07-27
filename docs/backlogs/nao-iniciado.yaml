@@ -598,6 +598,78 @@
     de exibir o fato do evento (a postura decidida no anexo tos.md). Vale
     reler antes de implementar.
 
+- codigo: NI-35
+  status: nao-iniciado
+  prioridade: alta
+  rank: 1
+  esforco: G
+  eixo: produto
+  fase: 1
+  titulo: "Rework da página de cinema — faixas estilo streaming, filtros, detalhe no site"
+  resumo: "de lista de texto pra vitrine: pôster, faixas por heurística (populares/família/terror...), filtros (calendário de data, gênero multi, rede, cinema, horário, classificação), card com sinopse no lugar da contagem de cinemas, e clique abrindo /filmes/[id] com a grade de sessões por cinema em vez de mandar direto pra Ingresso.com"
+  data: 2026-07-27
+  depende_de: []
+  relacionado: [NI-36, NI-37]
+  caso_real: ["feedback de amigos pós-abertura (27/07): a página de cinema é só texto e expulsa no primeiro clique"]
+  detalhe: |
+    Spec completa em docs/specs/20260727_rework-pagina-cinema/ (§3 é este item).
+    O grosso é front + params novos em consulta.buscar_filmes/api_dados: pôster
+    e backend do detalhe JÁ EXISTEM na base (filmes.poster, /api/dados/sessoes)
+    — a etapa 1 da spec entrega faixas, filtros e detalhe sem tocar em schema.
+    Sinopse no card depende do NI-36; pôster definitivo (sem hotlink) do NI-37;
+    até lá o card usa hotlink do CDN da Ingresso.com como fallback declarado.
+    Faixas com filtro ativo viram grade plana (faixa é vitrine, não busca).
+
+- codigo: NI-36
+  status: nao-iniciado
+  prioridade: alta
+  rank: 1
+  esforco: M
+  eixo: raspagem
+  fase: dados
+  titulo: "Enriquecer filmes com sinopse, nota e ano (TMDB primário)"
+  resumo: "o payload de sessões da Ingresso.com NÃO traz sinopse/nota/ano (medido 27/07); TMDB resolve os três em pt-BR de graça (com atribuição) — Bronze acumulativa cinema_extra_raw + derivação, sobrevivendo ao snapshot de filmes; IMDb via external_ids como secundária opcional; Letterboxd (API fechada) e AdoroCinema (só scraping) descartados no v1"
+  data: 2026-07-27
+  depende_de: []
+  relacionado: [NI-35]
+  caso_real: ["card de filme hoje não tem sinopse nem nota pra pessoa decidir; pedido do autor no rework de 27/07"]
+  detalhe: |
+    Spec: docs/specs/20260727_rework-pagina-cinema/ §4. Pontos que travam o
+    design: (a) `filmes` é SNAPSHOT (truncada a cada rodada) — enriquecimento
+    externo mora em Bronze própria (cinema_extra_raw, PK filme_id+origem,
+    incremental: 1 chamada por filme NOVO) e é re-derivado a seco; (b) matching
+    título→TMDB usa originalTitle (existe no payload, passa a ser derivado) e
+    é CONSERVADOR — ambíguo não grava nota; (c) schema muda (colunas sinopse/
+    ano/nota/votos/tmdb_id/titulo_original) ⇒ base descartável, coordenar com
+    NI-37 pra dropar UMA vez. Spike de 30 min antes: o endpoint de conteúdo da
+    própria Ingresso.com pode suprir a sinopse (aí TMDB fica só com nota/ano).
+    TMDB_API_KEY em env; atribuição ao TMDB no rodapé/sobre.
+
+- codigo: NI-37
+  status: nao-iniciado
+  prioridade: media
+  rank: 2
+  esforco: M
+  eixo: infra
+  fase: 1
+  titulo: "Storage próprio de mídia — pôster de filme e flyer do Instagram"
+  resumo: "re-hospedar imagem em object storage nosso em vez de hotlink: pôster do CDN da Ingresso.com (frágil em ToS e sujeito a quebrar) e flyer do Instagram (NI-34, URL comprovadamente expira em horas) usam a MESMA infra — ~poucos MB, qualquer free tier cobre; spike decide Vercel Blob vs Neon Object Storage"
+  data: 2026-07-27
+  depende_de: []
+  relacionado: [NI-34, NI-35, NI-36]
+  caso_real: ["NI-34: 8 eventos fonte=instagram sem imagem no site porque a URL do CDN morre; pôster de filme repetiria o problema em câmera lenta"]
+  detalhe: |
+    Spec: docs/specs/20260727_rework-pagina-cinema/ §5. Avaliação pedida pelo
+    autor (hotlink vs re-hospedar) concluiu re-hospedar: CDN alheio pode passar
+    a exigir referer sem aviso, e servir cópia com atribuição é postura de ToS
+    mais defensável que embutir o CDN deles (anexo tos.md). Dimensionamento
+    irrisório (~40 pôsteres × ~100KB + flyers). Fluxo: na ingestão, imagem nova
+    → download → upload ao storage → URL própria em filmes.poster_proprio /
+    eventos.imagem (fecha o NI-34 na mesma entrega). Fallback declarado: sem
+    cópia própria, o front usa filmes.poster (hotlink) — a página não espera a
+    infra. Critério do spike: upload simples a partir do atualizar.py
+    (local E Actions) + URL pública estável.
+
 # NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
 # IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).
 # NI-10: .github/workflows/raspar.yml roda o atualizar.py COMPLETO às 06:00 UTC
