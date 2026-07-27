@@ -82,6 +82,27 @@ con.execute("UPDATE eventos SET tem_gratis = 1 WHERE id = 'ingresse:6'")
 con.execute("UPDATE eventos SET preco_min = 50 WHERE id = 'sympla:1'")
 con.commit()
 enriquecer.aplicar(con)
+
+# Cenário do cinema (seção 8): dois filmes com sessão futura, gêneros e
+# classificações distintos, para exercitar filtros multi + facetas da rota.
+_daqui = (AGORA + timedelta(hours=5)).astimezone(timezone(timedelta(hours=-3)))
+def _filme(id_, titulo, generos, classe):
+    return {"id": id_, "title": titulo, "genres": generos, "duration": "100",
+            "contentRating": classe, "distributor": "X",
+            "siteURL": f"https://www.ingresso.com/filme/{id_}",
+            "images": [{"url": "http://poster", "type": "PosterPortrait"}],
+            "trailers": [], "inPreSale": False,
+            "rooms": [{"name": "Sala 1", "sessions": [
+                {"id": f"s{id_}", "price": 30.0, "room": "Sala 1",
+                 "types": [{"name": "Dublado", "display": True}],
+                 "date": {"localDate": _daqui.isoformat()},
+                 "siteURL": "https://checkout.ingresso.com/?sessionId=1"}]}]}
+store.gravar_cinema_raw(con, [("128", _daqui.date().isoformat(),
+                               [{"movies": [
+                                   _filme("900", "Sustão", ["Terror"], "16 anos"),
+                                   _filme("901", "Bonequinhos", ["Animação"], "Livre"),
+                               ]}])], AGORA.isoformat())
+derivar.aplicar_cinema(con)
 store.reconstruir_fts(con)
 con.close()
 
@@ -152,7 +173,33 @@ checar(len(proc["fontes"]) >= 3, "procedência lista as fontes")
 checar(all("ultima_coleta" in f and "futuros" in f for f in proc["fontes"]),
        "cada fonte traz última coleta e nº de eventos futuros")
 
-print("\n7) Rota desconhecida")
+print("\n7) /filmes — filtros do rework do cinema (NI-35) e facetas")
+fil, _ = api_dados.rota("/api/dados/filmes", {})
+checar(len(fil["filmes"]) == 2, "lista os filmes em cartaz")
+checar("poster" in fil["filmes"][0], "filme da lista traz poster (o card usa)")
+checar(fil.get("facetas", {}).get("generos") == ["Animação", "Terror"],
+       f"facetas trazem os gêneros desmembrados ({fil.get('facetas')})")
+checar(fil["facetas"]["classificacoes"] == ["Livre", "16 anos"],
+       "classificações ordenadas Livre→18")
+
+terror, _ = api_dados.rota("/api/dados/filmes", {"generos": ["Terror,Suspense"]})
+checar({f["titulo"] for f in terror["filmes"]} == {"Sustão"},
+       "filtro multi de gênero (CSV) chega à consulta")
+livre, _ = api_dados.rota("/api/dados/filmes", {"classificacao": ["Livre"]})
+checar({f["titulo"] for f in livre["filmes"]} == {"Bonequinhos"},
+       "filtro de classificação chega à consulta")
+_h = _daqui.hour
+na_hora, _ = api_dados.rota("/api/dados/filmes",
+                            {"hora_de": [str(_h)], "hora_ate": [str((_h + 1) % 24)]})
+checar(len(na_hora["filmes"]) == 2, "janela de hora local casa a sessão")
+fora, _ = api_dados.rota("/api/dados/filmes",
+                         {"hora_de": [str((_h + 2) % 24)],
+                          "hora_ate": [str((_h + 3) % 24)]})
+checar(len(fora["filmes"]) == 0, "fora da janela de hora não devolve nada")
+lixo_h, _ = api_dados.rota("/api/dados/filmes", {"hora_de": ["abc"]})
+checar("filmes" in lixo_h, "hora não-numérica não quebra (vira sem filtro)")
+
+print("\n8) Rota desconhecida")
 try:
     api_dados.rota("/api/dados/inventada", {})
     checar(False, "rota desconhecida deveria levantar KeyError")

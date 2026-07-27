@@ -99,13 +99,51 @@ def main():
     assert {f["titulo"] for f in so_pier} == {"Toy Story 5", "Um Drama Qualquer"}
     print("consulta: esconde sessão passada; filtro por cinema parcial — ok")
 
+    # ── filtros do rework (NI-35): multi-valor, hora local, facetas ──
+    assert achados[0]["poster"] == "http://poster", \
+        "poster agora vem na lista (o card do site precisa dele)"
+    dois = consulta.buscar_filmes(generos="Animação,Drama")
+    assert {f["titulo"] for f in dois} == {"Toy Story 5", "Um Drama Qualquer"}
+    assert consulta.buscar_filmes(generos="Terror") == [], \
+        "gênero só de filme sem sessão futura tinha que voltar vazio"
+    doze = consulta.buscar_filmes(classificacao="12 anos")
+    assert {f["titulo"] for f in doze} == {"Toy Story 5", "Um Drama Qualquer"}
+    assert consulta.buscar_filmes(classificacao="Livre") == []
+    ambos = consulta.buscar_filmes(cinema="pier,park")
+    assert {f["titulo"] for f in ambos} == {"Toy Story 5", "Um Drama Qualquer"}
+    # janela de HORA LOCAL: s1 é agora+5h; a janela de 1h em volta dela pega
+    # só ela (s5/s2 caem em horas distintas), inclusive cruzando a meia-noite
+    h_s1 = (AGORA_LOCAL + timedelta(hours=5)).hour
+    na_hora = consulta.buscar_filmes(hora_de=h_s1, hora_ate=(h_s1 + 1) % 24)
+    toy_na_hora = [f for f in na_hora if f["id"] == "100"]
+    assert toy_na_hora and toy_na_hora[0]["sessoes"] == 1, na_hora
+    fac = consulta.facetas_filmes()
+    assert fac["generos"] == ["Animação", "Aventura", "Drama"], fac
+    assert fac["classificacoes"] == ["12 anos"], fac
+    assert fac["cinemas"] == ["Cinemark Pier 21", "Kinoplex ParkShopping"], fac
+    print("filtros novos: multi gênero/classificação, cinema CSV, hora local, "
+          "facetas — ok")
+
     # ── sessoes_filme: por título parcial sem acento; erro claro ──
     d = consulta.sessoes_filme("toy story")
     assert d["id"] == "100" and len(d["sessoes"]) == 3, d
     assert d["sessoes"][0]["inicio"] <= d["sessoes"][-1]["inicio"]
     assert d["poster"] == "http://poster"
+    assert d["cinemas"] == ["Cinemark Pier 21", "Kinoplex ParkShopping"], \
+        "cinemas do filme são as opções do filtro da página"
     assert "erro" in consulta.sessoes_filme("inexistente xyz")
     print("sessoes_filme: título parcial resolve; inexistente explica — ok")
+
+    # ── sessoes_filme com os filtros do rework: cinema/hora filtram as
+    # sessões, mas `cinemas` (as OPÇÕES) segue sem filtro ──
+    so_pier_d = consulta.sessoes_filme("100", cinema="pier")
+    assert len(so_pier_d["sessoes"]) == 2 and \
+        {s["cinema"] for s in so_pier_d["sessoes"]} == {"Cinemark Pier 21"}
+    assert so_pier_d["cinemas"] == ["Cinemark Pier 21", "Kinoplex ParkShopping"]
+    na_hora_d = consulta.sessoes_filme("100", hora_de=h_s1,
+                                       hora_ate=(h_s1 + 1) % 24)
+    assert len(na_hora_d["sessoes"]) == 1, na_hora_d["sessoes"]
+    print("sessoes_filme: filtros de cinema/hora; opções não encolhem — ok")
 
     # ── snapshot: regravar cinema×dia substitui; dia passado é podado ──
     store.gravar_cinema_raw(con, [("999", ONTEM, grade(ONTEM, [drama]))],

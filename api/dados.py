@@ -143,17 +143,33 @@ def rota(caminho, q):
 
     if caminho.endswith("/filmes"):
         de, ate = _janela(q)
+        # hora_de/hora_ate: None quando ausentes (0 é valor válido — meia-noite)
+        hora_de = _str(q, "hora_de")
+        hora_ate = _str(q, "hora_ate")
+        # As facetas vão na MESMA resposta (e não numa rota própria) para a
+        # página montar os filtros sem segundo round-trip; multi-valor chega
+        # como CSV e desce como veio — quem entende vírgula é a consulta.
         return {"filmes": consulta.buscar_filmes(
             texto=_str(q, "texto"), data_inicio=de, data_fim=ate,
-            cinema=_str(q, "cinema"), limite=_int(q, "limite", 40, 100))}, CACHE
+            cinema=_str(q, "cinema"), generos=_str(q, "generos"),
+            classificacao=_str(q, "classificacao"),
+            hora_de=int(hora_de) if hora_de and hora_de.isdigit() else None,
+            hora_ate=int(hora_ate) if hora_ate and hora_ate.isdigit() else None,
+            limite=_int(q, "limite", 40, 100)),
+            "facetas": consulta.facetas_filmes()}, CACHE
 
     if caminho.endswith("/sessoes"):
         filme = _str(q, "filme")
         if not filme:
             return {"erro": "informe ?filme="}, CACHE_CURTO
         de, ate = _janela(q)
+        hora_de = _str(q, "hora_de")
+        hora_ate = _str(q, "hora_ate")
         return consulta.sessoes_filme(
-            filme, data_inicio=de, data_fim=ate, cinema=_str(q, "cinema")), CACHE
+            filme, data_inicio=de, data_fim=ate, cinema=_str(q, "cinema"),
+            hora_de=int(hora_de) if hora_de and hora_de.isdigit() else None,
+            hora_ate=int(hora_ate) if hora_ate and hora_ate.isdigit() else None,
+        ), CACHE
 
     if caminho.endswith("/procedencia"):
         return {"fontes": consulta.procedencia()}, CACHE_CURTO

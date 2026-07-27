@@ -144,14 +144,58 @@ def detalhar_evento(url):
 
 # ── Domínio cinema (NI-07, spec 20260711_raspagem-cinema) ──────────────────
 
-# Campos de filmes expostos ao agente (poster/trailer ficam de fora da lista:
-# peso morto em dezenas de resultados; sessoes_filme os devolve).
+# Campos de filmes expostos ao agente. `poster` entrou na lista com o rework
+# da página de cinema (NI-35 — o card do site precisa dele); `trailer` segue
+# só no sessoes_filme (peso morto em dezenas de resultados).
 CAMPOS_FILME = ["id", "titulo", "generos", "duracao_min", "classificacao",
-                "distribuidora", "url", "em_pre_venda"]
+                "distribuidora", "url", "poster", "em_pre_venda"]
+
+# A hora exibida/filtrada é SEMPRE a de Brasília; `sessoes.inicio` é UTC
+# (invariante do schema), então o filtro de horário converte na query.
+_TZ_BSB = "America/Sao_Paulo"
+
+
+def _lista(v):
+    """Normaliza um filtro múltiplo: None/''→[], 'a,b'→['a','b'], lista→lista.
+
+    Aceitar CSV além de lista deixa a api/dados.py repassar a querystring
+    sem parse próprio (a regra de "sem lógica na API" vale até para vírgula).
+    """
+    if not v:
+        return []
+    if isinstance(v, str):
+        v = v.split(",")
+    return [s.strip() for s in v if s and s.strip()]
+
+
+def _filtro_hora(where, params, hora_de, hora_ate, col="s.inicio"):
+    """Janela de HORA LOCAL de Brasília sobre uma coluna UTC (`ate` exclusivo);
+    de > ate vira janela que cruza a meia-noite. Compartilhado por
+    buscar_filmes e sessoes_filme — a regra tem que ser uma só."""
+    hora_sql = f"EXTRACT(HOUR FROM ({col}::timestamptz AT TIME ZONE '{_TZ_BSB}'))"
+    if hora_de is not None and hora_ate is not None and hora_de > hora_ate:
+        where.append(f"({hora_sql} >= %s OR {hora_sql} < %s)")
+        params.extend([hora_de, hora_ate])
+    else:
+        if hora_de is not None:
+            where.append(f"{hora_sql} >= %s")
+            params.append(hora_de)
+        if hora_ate is not None:
+            where.append(f"{hora_sql} < %s")
+            params.append(hora_ate)
+
+
+def _filtro_cinemas(where, params, cinema, col="s.cinema"):
+    """Um ou mais cinemas (parcial, sem caixa), OR entre eles."""
+    cinemas = _lista(cinema)
+    if cinemas:
+        where.append("(" + " OR ".join([f"{col} ILIKE %s"] * len(cinemas)) + ")")
+        params.extend(f"%{c}%" for c in cinemas)
 
 
 def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
-                  limite=20):
+                  generos=None, classificacao=None, hora_de=None,
+                  hora_ate=None, limite=20):
     """Filmes em cartaz nos cinemas-alvo de Brasília, agregados por filme.
 
     Sessões passadas não contam: sem data_inicio, a janela começa AGORA.
@@ -163,7 +207,15 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
             "animação", "terror OR suspense"). Omitido = todos em cartaz.
         data_inicio: limite inferior (ISO) sobre o início da sessão; default agora.
         data_fim: limite superior (ISO), inclusivo.
-        cinema: filtro por nome do cinema (parcial, sem caixa: "pier", "kinoplex").
+        cinema: um ou mais cinemas (string parcial sem caixa, CSV ou lista:
+            "pier", "kinoplex", "Cine Brasília,Cine Cultura" — OR entre eles).
+        generos: um ou mais gêneros (CSV ou lista; casa por substring no CSV
+            da fonte, OR entre eles: "Terror,Suspense").
+        classificacao: uma ou mais classificações indicativas, texto EXATO da
+            fonte ("Livre", "6 anos" — os valores estão em facetas_filmes()).
+        hora_de/hora_ate: janela da HORA LOCAL de Brasília do início da sessão
+            (ints 0–23; `ate` exclusivo). hora_de > hora_ate vira janela que
+            cruza a meia-noite (ex.: 22→6 = sessão coruja).
         limite: máximo de filmes.
 
     Returns:
@@ -180,9 +232,16 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
     if texto:
         where.append("f.busca @@ websearch_to_tsquery('pt', %s)")
         params.append(texto)
-    if cinema:
-        where.append("s.cinema ILIKE %s")
-        params.append(f"%{cinema}%")
+    _filtro_cinemas(where, params, cinema)
+    gens = _lista(generos)
+    if gens:
+        where.append("(" + " OR ".join(["f.generos ILIKE %s"] * len(gens)) + ")")
+        params.extend(f"%{g}%" for g in gens)
+    classes = _lista(classificacao)
+    if classes:
+        where.append("f.classificacao = ANY(%s)")
+        params.append(classes)
+    _filtro_hora(where, params, hora_de, hora_ate)
     campos = ", ".join(f"f.{c}" for c in CAMPOS_FILME)
     rows = con.execute(
         f"SELECT {campos}, COUNT(s.id) AS sessoes, "
@@ -196,13 +255,55 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
     return [dict(r) for r in rows]
 
 
-def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None):
+def facetas_filmes():
+    """Valores distintos dos filtros da página de cinema (NI-35), calculados
+    só sobre o que tem sessão FUTURA — faceta de filme que saiu de cartaz é
+    opção que devolve vazio.
+
+    Returns:
+        {"generos": [...], "classificacoes": [...], "cinemas": [...]} —
+        gêneros desmembrados do CSV da fonte, classificações no texto exato
+        (ordenadas Livre→18), cinemas pelos apelidos canônicos.
+    """
+    con = store.conectar()
+    agora = datetime.now(timezone.utc).isoformat()
+    rows = con.execute(
+        "SELECT DISTINCT f.generos, f.classificacao "
+        "FROM filmes f JOIN sessoes s ON s.filme_id = f.id "
+        "WHERE s.inicio >= %s", (agora,)).fetchall()
+    generos, classes = set(), set()
+    for r in rows:
+        generos.update(g.strip() for g in (r["generos"] or "").split(",")
+                       if g.strip())
+        if r["classificacao"]:
+            classes.add(r["classificacao"])
+    cinemas = [r["cinema"] for r in con.execute(
+        "SELECT DISTINCT cinema FROM sessoes WHERE inicio >= %s "
+        "ORDER BY cinema", (agora,))]
+    con.close()
+
+    def _ordem_classe(c):
+        # "Livre" antes de tudo; o resto pelo número ("6 anos", "12 anos"...)
+        digitos = "".join(ch for ch in c if ch.isdigit())
+        return (0, 0) if not digitos else (1, int(digitos))
+    return {"generos": sorted(generos),
+            "classificacoes": sorted(classes, key=_ordem_classe),
+            "cinemas": cinemas}
+
+
+def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
+                  hora_de=None, hora_ate=None):
     """Sessões detalhadas de UM filme (horário, cinema, sala, tipos, preço,
     link de compra) — o análogo do detalhar_evento para o cinema.
 
     `filme` é o id ou o título (busca parcial, sem caixa/acento via ILIKE +
     unaccent); com mais de um candidato, responde o com mais sessões futuras.
     Mesma janela default da busca: sessões passadas ficam de fora.
+    `cinema` (parcial, CSV/lista) e `hora_de`/`hora_ate` (hora LOCAL, `ate`
+    exclusivo) filtram as sessões — mesmos filtros da busca, para achar o
+    lugar/horário certo de ver ESTE filme. `cinemas` no retorno lista onde o
+    filme passa SEM o filtro aplicado (são as opções do filtro, não o
+    resultado dele).
     """
     con = store.conectar()
     alvo = (filme or "").strip()
@@ -222,17 +323,21 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None):
         con.close()
         return {"erro": f"nenhum filme em cartaz casando com {filme!r} — use "
                         "o id ou título devolvido por buscar_filmes"}
-    campos = ", ".join(CAMPOS_FILME + ["poster", "trailer"])
+    campos = ", ".join(CAMPOS_FILME + ["trailer"])
     f = dict(con.execute(f"SELECT {campos} FROM filmes WHERE id = %s",
                          (row["id"],)).fetchone())
+    inicio_janela = tempo.norm_ts(data_inicio) or agora
+    f["cinemas"] = [r["cinema"] for r in con.execute(
+        "SELECT DISTINCT cinema FROM sessoes "
+        "WHERE filme_id = %s AND inicio >= %s ORDER BY cinema",
+        (row["id"], inicio_janela))]
     where = ["filme_id = %s", "inicio >= %s"]
-    params = [row["id"], tempo.norm_ts(data_inicio) or agora]
+    params = [row["id"], inicio_janela]
     if data_fim:
         where.append("inicio <= %s")
         params.append(tempo.norm_ts(data_fim))
-    if cinema:
-        where.append("cinema ILIKE %s")
-        params.append(f"%{cinema}%")
+    _filtro_cinemas(where, params, cinema, col="cinema")
+    _filtro_hora(where, params, hora_de, hora_ate, col="inicio")
     f["sessoes"] = [dict(r) for r in con.execute(
         "SELECT cinema, inicio, sala, tipos, preco, url_compra FROM sessoes "
         f"WHERE {' AND '.join(where)} ORDER BY inicio, cinema", params)]
