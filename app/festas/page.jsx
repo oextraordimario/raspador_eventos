@@ -4,6 +4,7 @@ import { catalogoEventos, procedencia, idParaSlug } from '../../lib/api'
 import Esqueleto from '../Esqueleto'
 import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../../lib/formato'
 import { MARCA, PERIODOS, TIPOS, periodoPadrao } from '../../lib/config'
+import { colecoesAgora } from '../../lib/colecoes'
 import Procedencia from '../Procedencia'
 import SearchForm from '../SearchForm'
 import Flyer from '../Flyer'
@@ -240,6 +241,7 @@ export default async function Festas({ searchParams }) {
   // URL do "aplicar" sozinho, sem useSearchParams (que exigiria Suspense).
   const estado = { periodo, texto, gratis: gratis ? '1' : '', dia, tipo,
                    bairro: bairros.join(',') }
+  const colecoes = colecoesAgora()
 
   return (
     <>
@@ -263,6 +265,20 @@ export default async function Festas({ searchParams }) {
                 data-on={gratis ? '1' : '0'}>
             só grátis
           </Link>
+
+          {/* Coleções da época (NI-47): o chip só existe dentro da janela do
+              ano e apenas preenche a busca — é atalho, não filtro novo. Por
+              isso ele também abre a janela de período: quem procura arraiá
+              quer os de agosto, não os de hoje. */}
+          {colecoes.map((c) => (
+            <Link key={c.chave} className="chip chip-colecao"
+                  href={texto === c.termos
+                    ? comFiltro({ texto: '', periodo: '' })
+                    : comFiltro({ texto: c.termos, periodo: 'proximos', dia: '' })}
+                  data-on={texto === c.termos ? '1' : '0'}>
+              {c.rotulo}
+            </Link>
+          ))}
         </div>
 
         <div className="drops" role="group" aria-label="Filtros de dia e bairro">

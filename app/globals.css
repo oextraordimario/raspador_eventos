@@ -802,6 +802,11 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 }
 .note.erro { background: var(--zu-warn-bg); border-left-color: var(--zu-warn); }
 
+/* Chip de coleção sazonal (NI-47): é atalho de busca, não filtro estrutural —
+   a borda tracejada o distingue dos chips de período sem gritar. */
+.chip-colecao { border-style: dashed; }
+.chip-colecao[data-on='1'] { border-style: solid; }
+
 /* ---------- esqueleto de carregamento (NI-50) ---------- */
 
 .sk {
