@@ -785,6 +785,23 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 }
 .note.erro { background: var(--zu-warn-bg); border-left-color: var(--zu-warn); }
 
+/* ---------- esqueleto de carregamento (NI-50) ---------- */
+
+.sk {
+  background: var(--zu-holder);
+  border-radius: var(--zu-r-sm);
+  animation: sk-pulso 1.4s ease-in-out infinite;
+}
+.sk-linha { border-radius: 4px; }
+.sk-card { pointer-events: none; }
+.sk-card .body { gap: 8px; }
+.sk-texto { color: var(--zu-fg-4); }
+
+@keyframes sk-pulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .55; }
+}
+
 /* ---------- formulário (/feedback, NI-52) ---------- */
 
 .form { display: flex; flex-direction: column; gap: 16px; }
@@ -824,6 +841,10 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 
 @media (prefers-reduced-motion: reduce) {
   .card, .chip, .search, .cta, .portal, .portal-arrow, .fposter .cartaz { transition: none; }
+  /* o esqueleto não perde a função sem o pulso: a forma cinza já diz
+     "está vindo". O que ela não pode é piscar para quem pediu menos
+     movimento — é exatamente o público que sofre com isso. */
+  .sk { animation: none; }
   .card:hover, .portal:hover { transform: none; }
   .portal:hover .portal-arrow { transform: none; }
   .fposter:hover .cartaz { transform: none; }

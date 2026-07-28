@@ -45,7 +45,8 @@ from urllib.parse import parse_qs, quote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from servico import consulta  # noqa: E402  (precisa do sys.path acima)
+from base import conexao  # noqa: E402  (precisa do sys.path acima)
+from servico import consulta  # noqa: E402
 from servico import feedback as svc_feedback  # noqa: E402
 
 # Trecho da descrição na página pública. Bem acima do corte da busca (300, que
@@ -132,13 +133,20 @@ def _janela(q):
     return None, None
 
 
-def rota(caminho, q):
-    """Despacha a rota. Devolve (payload, cache) ou levanta KeyError."""
+def rota(caminho, q, con=None):
+    """Despacha a rota. Devolve (payload, cache) ou levanta KeyError.
+
+    `con` é a conexão da REQUISIÇÃO, aberta uma vez pelo handler e repassada a
+    todas as consultas da rota (ver consulta._con). Sem ela cada consulta abria
+    a sua — e a rota de cinema faz duas, pagando dois handshakes com o Neon por
+    render. Omitida (testes, uso direto), cada consulta se vira sozinha.
+    """
     if caminho.endswith("/eventos"):
         de, ate = _janela(q)
         evs = consulta.buscar_eventos(
             texto=_str(q, "texto"), cidade="Brasília",
-            data_inicio=de, data_fim=ate, limite=_int(q, "limite", 60, 200))
+            data_inicio=de, data_fim=ate, limite=_int(q, "limite", 60, 200),
+            con=con)
         if _str(q, "gratis"):
             # tem_gratis = há lote grátis não esgotado; preco_min NULL junto
             # significa evento sem cobrança. Filtrar aqui e não no SQL mantém
@@ -150,7 +158,7 @@ def rota(caminho, q):
         url = _str(q, "url")
         if not url:
             return {"erro": "informe ?url="}, CACHE_CURTO
-        ev = consulta.detalhar_evento(url)
+        ev = consulta.detalhar_evento(url, con=con)
         return _limpar(ev), CACHE
 
     if caminho.endswith("/filmes"):
@@ -167,8 +175,8 @@ def rota(caminho, q):
             classificacao=_str(q, "classificacao"),
             hora_de=int(hora_de) if hora_de and hora_de.isdigit() else None,
             hora_ate=int(hora_ate) if hora_ate and hora_ate.isdigit() else None,
-            limite=_int(q, "limite", 40, 100)),
-            "facetas": consulta.facetas_filmes()}, CACHE
+            limite=_int(q, "limite", 40, 100), con=con),
+            "facetas": consulta.facetas_filmes(con=con)}, CACHE
 
     if caminho.endswith("/sessoes"):
         filme = _str(q, "filme")
@@ -181,10 +189,11 @@ def rota(caminho, q):
             filme, data_inicio=de, data_fim=ate, cinema=_str(q, "cinema"),
             hora_de=int(hora_de) if hora_de and hora_de.isdigit() else None,
             hora_ate=int(hora_ate) if hora_ate and hora_ate.isdigit() else None,
+            con=con,
         ), CACHE
 
     if caminho.endswith("/procedencia"):
-        return {"fontes": consulta.procedencia()}, CACHE_CURTO
+        return {"fontes": consulta.procedencia(con=con)}, CACHE_CURTO
 
     raise KeyError(caminho)
 
@@ -225,14 +234,22 @@ def rota_post(caminho, campos):
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         alvo = urlparse(self.path)
+        # UMA conexão por requisição, repassada a todas as consultas da rota
+        # (ver `rota`). Abrir tarde e fechar sempre: rota desconhecida não
+        # chega a usá-la, e conexão vazada seria pior que o handshake.
+        con = None
         try:
-            payload, cache = rota(alvo.path, parse_qs(alvo.query))
+            con = conexao.conectar()
+            payload, cache = rota(alvo.path, parse_qs(alvo.query), con=con)
             status = 400 if isinstance(payload, dict) and "erro" in payload else 200
         except KeyError:
             payload, cache, status = {"erro": "rota desconhecida"}, CACHE_CURTO, 404
         except Exception as e:  # noqa: BLE001 — a falha não pode derrubar a página
             payload = {"erro": f"{type(e).__name__}: {e}"}
             cache, status = "no-store", 500
+        finally:
+            if con is not None:
+                con.close()
 
         corpo = json.dumps(payload, ensure_ascii=False, default=str).encode()
         self.send_response(status)

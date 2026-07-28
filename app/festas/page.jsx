@@ -1,5 +1,7 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { listarEventos, procedencia, idParaSlug } from '../../lib/api'
+import Esqueleto from '../Esqueleto'
 import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../../lib/formato'
 import { MARCA, PERIODOS, periodoPadrao } from '../../lib/config'
 import Procedencia from '../Procedencia'
@@ -69,57 +71,19 @@ function Card({ ev, indice }) {
   )
 }
 
-export default async function Festas({ searchParams }) {
-  const sp = await searchParams
-  const texto = sp?.texto ?? ''
-  const gratis = sp?.gratis === '1'
-  // Período ESCOLHIDO (chip clicado) vence sempre; o default é que depende da
-  // busca (NI-41). Os dois valores andam separados de propósito: o resolvido
-  // manda na consulta e no chip aceso, o explícito é o que o formulário
-  // propaga — ver SearchForm.
-  const periodoUrl = sp?.periodo ?? ''
-  const periodo = periodoUrl || periodoPadrao(texto)
-
+// A parte da página que DEPENDE da base, separada do resto de propósito: é o
+// que o <Suspense> de baixo consegue trocar por um esqueleto sem levar junto o
+// cabeçalho e os filtros — que devem continuar na tela, e clicáveis, enquanto
+// o resultado novo não chega.
+async function Resultado({ periodo, texto, gratis }) {
   const [eventos, fontes] = await Promise.all([
     listarEventos({ periodo, texto, gratis: gratis ? '1' : '' }),
     procedencia(),
   ])
   const grupos = agruparPorDia(eventos)
 
-  // Preserva os outros filtros ao trocar um deles — sem isso, escolher
-  // "grátis" apagaria a busca que a pessoa acabou de digitar.
-  const comFiltro = (mudanca) => {
-    const q = new URLSearchParams()
-    const novo = { periodo, texto, gratis: gratis ? '1' : '', ...mudanca }
-    for (const [k, v] of Object.entries(novo)) if (v) q.set(k, v)
-    return `/festas?${q}`
-  }
-
   return (
     <>
-      <div className="secao">
-        <h2>festas &amp; shows</h2>
-        <Link href="/">← início</Link>
-      </div>
-
-      <div className="filtros">
-        <SearchForm texto={texto} periodo={periodoUrl} gratis={gratis} />
-
-        <div className="chips" role="group" aria-label="Filtros">
-          {PERIODOS.map((p) => (
-            <Link key={p.chave} className="chip" href={comFiltro({ periodo: p.chave })}
-                  data-on={periodo === p.chave ? '1' : '0'}>
-              {p.rotulo}
-            </Link>
-          ))}
-          <span className="chip-sep" aria-hidden="true" />
-          <Link className="chip" href={comFiltro({ gratis: gratis ? '' : '1' })}
-                data-on={gratis ? '1' : '0'}>
-            só grátis
-          </Link>
-        </div>
-      </div>
-
       <p className="count">
         {eventos.length} {eventos.length === 1 ? 'evento' : 'eventos'}
       </p>
@@ -163,6 +127,65 @@ export default async function Festas({ searchParams }) {
       )}
 
       <Procedencia fontes={fontes} />
+    </>
+  )
+}
+
+export default async function Festas({ searchParams }) {
+  const sp = await searchParams
+  const texto = sp?.texto ?? ''
+  const gratis = sp?.gratis === '1'
+  // Período ESCOLHIDO (chip clicado) vence sempre; o default é que depende da
+  // busca (NI-41). Os dois valores andam separados de propósito: o resolvido
+  // manda na consulta e no chip aceso, o explícito é o que o formulário
+  // propaga — ver SearchForm.
+  const periodoUrl = sp?.periodo ?? ''
+  const periodo = periodoUrl || periodoPadrao(texto)
+
+  // Preserva os outros filtros ao trocar um deles — sem isso, escolher
+  // "grátis" apagaria a busca que a pessoa acabou de digitar.
+  const comFiltro = (mudanca) => {
+    const q = new URLSearchParams()
+    const novo = { periodo, texto, gratis: gratis ? '1' : '', ...mudanca }
+    for (const [k, v] of Object.entries(novo)) if (v) q.set(k, v)
+    return `/festas?${q}`
+  }
+
+  return (
+    <>
+      <div className="secao">
+        <h2>festas &amp; shows</h2>
+        <Link href="/">← início</Link>
+      </div>
+
+      <div className="filtros">
+        <SearchForm texto={texto} periodo={periodoUrl} gratis={gratis} />
+
+        <div className="chips" role="group" aria-label="Filtros">
+          {PERIODOS.map((p) => (
+            <Link key={p.chave} className="chip" href={comFiltro({ periodo: p.chave })}
+                  data-on={periodo === p.chave ? '1' : '0'}>
+              {p.rotulo}
+            </Link>
+          ))}
+          <span className="chip-sep" aria-hidden="true" />
+          <Link className="chip" href={comFiltro({ gratis: gratis ? '' : '1' })}
+                data-on={gratis ? '1' : '0'}>
+            só grátis
+          </Link>
+        </div>
+      </div>
+
+      {/* A `key` é o que faz isto funcionar, e é o detalhe não óbvio do NI-50:
+          `loading.jsx` só entra quando o SEGMENTO de rota muda, e trocar um
+          filtro não muda segmento nenhum — /festas?periodo=hoje e
+          /festas?periodo=7d são a mesma rota. Sem a key, o React reusaria a
+          fronteira já resolvida e a tela ficaria parada exatamente no gesto
+          de que o beta reclamou. Com ela, cada combinação de filtro é uma
+          fronteira nova, que suspende e mostra o esqueleto. */}
+      <Suspense key={`${periodo}|${texto}|${gratis}`} fallback={<Esqueleto n={6} />}>
+        <Resultado periodo={periodo} texto={texto} gratis={gratis} />
+      </Suspense>
     </>
   )
 }

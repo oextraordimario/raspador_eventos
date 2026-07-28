@@ -45,8 +45,26 @@ CAMPOS = ["id", "nome", "fonte", "start_date", "end_date", "cidade", "estado",
 DESCRICAO_MAX = 300
 
 
+def _con(con):
+    """Conexão para UMA consulta: a recebida, ou uma nova que se fecha sozinha.
+
+    Toda funcao daqui abria a propria conexao e a fechava. Funciona, mas cobra
+    um handshake por CHAMADA — medido em 147 ms deste lado da rede, contra
+    ~80 ms da query em si (2026-07-28). Rota que faz duas consultas — a de
+    cinema ja faz: `buscar_filmes` + `facetas_filmes` — pagava o handshake
+    duas vezes por render.
+
+    Quem chama de fora (MCP, exemplos, testes) continua sem passar nada e nao
+    muda; quem serve uma requisicao HTTP abre UMA conexao e a repassa.
+
+    Returns:
+        (conexao, fechar) — `fechar` diz se esta funcao e a dona dela.
+    """
+    return (con, False) if con is not None else (conexao.conectar(), True)
+
+
 def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
-                   limite=20, incluir_ruido=False):
+                   limite=20, incluir_ruido=False, con=None):
     """Busca eventos na base unificada.
 
     Por padrao esconde o que o enriquecimento v1 marcou — eventos com ruido=1
@@ -71,7 +89,7 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     Returns:
         Lista de dicts (nunca sqlite3.Row), ordenada por start_date.
     """
-    con = conexao.conectar()
+    con, meu = _con(con)
 
     where, params = [], []
     if not incluir_ruido:
@@ -107,11 +125,12 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     params.append(limite)
 
     rows = con.execute(sql, params).fetchall()
-    con.close()
+    if meu:
+        con.close()
     return [dict(r) for r in rows]
 
 
-def detalhar_evento(url):
+def detalhar_evento(url, con=None):
     """Devolve UM evento completo: os mesmos campos da busca, a descricao
     INTEIRA (sem o corte de DESCRICAO_MAX) e a lista de lotes de ingresso com
     o nome cru da fonte (a condicao do lote — "CORTESIA FEMININA ATE 00H",
@@ -127,7 +146,7 @@ def detalhar_evento(url):
     identificador de rota. A tool MCP continua passando url; quem chama com
     id e a API do site.
     """
-    con = conexao.conectar()
+    con, meu = _con(con)
     alvo = (url or "").strip()
     coluna = "url" if alvo.startswith("http") else "id"
     row = con.execute(f"SELECT id, dedupe_grupo, dedupe_canonico FROM public.eventos "
@@ -137,7 +156,8 @@ def detalhar_evento(url):
             "SELECT id FROM public.eventos WHERE dedupe_grupo = %s "
             "AND dedupe_canonico = 1", (row["dedupe_grupo"],)).fetchone() or row
     if not row:
-        con.close()
+        if meu:
+            con.close()
         return {"erro": f"nenhum evento na base com a url {url!r} — use a url "
                         "exata devolvida por buscar_eventos"}
     outras = ("(SELECT string_agg(o.url, ',') FROM public.eventos o "
@@ -149,7 +169,8 @@ def detalhar_evento(url):
     ev["lotes"] = [dict(r) for r in con.execute(
         "SELECT nome, preco, taxa, gratis, esgotado FROM public.lotes "
         "WHERE evento_id = %s ORDER BY ordem", (row["id"],))]
-    con.close()
+    if meu:
+        con.close()
     return ev
 
 
@@ -211,7 +232,7 @@ def _filtro_cinemas(where, params, cinema, col="s.cinema"):
 
 def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
                   generos=None, classificacao=None, hora_de=None,
-                  hora_ate=None, limite=20):
+                  hora_ate=None, limite=20, con=None):
     """Filmes em cartaz nos cinemas-alvo de Brasília, agregados por filme.
 
     Sessões passadas não contam: sem data_inicio, a janela começa AGORA.
@@ -238,7 +259,7 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
         Lista de dicts: campos do filme + sessoes (contagem na janela),
         cinemas (nomes, ordenados), primeira_sessao/ultima_sessao (ISO UTC).
     """
-    con = conexao.conectar()
+    con, meu = _con(con)
     where = ["s.inicio >= %s"]
     params = [tempo.norm_ts(data_inicio)
               or datetime.now(timezone.utc).isoformat()]
@@ -267,11 +288,12 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
         f"WHERE {' AND '.join(where)} "
         f"GROUP BY {campos} ORDER BY COUNT(s.id) DESC, f.titulo LIMIT %s",
         [*params, limite]).fetchall()
-    con.close()
+    if meu:
+        con.close()
     return [dict(r) for r in rows]
 
 
-def facetas_filmes():
+def facetas_filmes(con=None):
     """Valores distintos dos filtros da página de cinema (NI-35), calculados
     só sobre o que tem sessão FUTURA — faceta de filme que saiu de cartaz é
     opção que devolve vazio.
@@ -281,7 +303,7 @@ def facetas_filmes():
         gêneros desmembrados do CSV da fonte, classificações no texto exato
         (ordenadas Livre→18), cinemas pelos apelidos canônicos.
     """
-    con = conexao.conectar()
+    con, meu = _con(con)
     agora = datetime.now(timezone.utc).isoformat()
     rows = con.execute(
         "SELECT DISTINCT f.generos, f.classificacao "
@@ -302,7 +324,8 @@ def facetas_filmes():
         "SELECT DISTINCT to_char(inicio::timestamptz AT TIME ZONE "
         f"'{_TZ_BSB}', 'YYYY-MM-DD') AS dia "
         "FROM public.sessoes WHERE inicio >= %s ORDER BY dia", (agora,))]
-    con.close()
+    if meu:
+        con.close()
 
     def _ordem_classe(c):
         # "Livre" antes de tudo; o resto pelo número ("6 anos", "12 anos"...)
@@ -314,7 +337,7 @@ def facetas_filmes():
 
 
 def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
-                  hora_de=None, hora_ate=None):
+                  hora_de=None, hora_ate=None, con=None):
     """Sessões detalhadas de UM filme (horário, cinema, sala, tipos, preço,
     link de compra) — o análogo do detalhar_evento para o cinema.
 
@@ -327,7 +350,7 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     filme passa SEM o filtro aplicado (são as opções do filtro, não o
     resultado dele).
     """
-    con = conexao.conectar()
+    con, meu = _con(con)
     alvo = (filme or "").strip()
     agora = datetime.now(timezone.utc).isoformat()
     row = con.execute("SELECT id FROM public.filmes WHERE id = %s",
@@ -342,7 +365,8 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
             "GROUP BY f.id ORDER BY COUNT(s.id) DESC LIMIT 1",
             (agora, f"%{alvo}%")).fetchone()
     if not row:
-        con.close()
+        if meu:
+            con.close()
         return {"erro": f"nenhum filme em cartaz casando com {filme!r} — use "
                         "o id ou título devolvido por buscar_filmes"}
     campos = ", ".join(CAMPOS_FILME + ["trailer"])
@@ -363,11 +387,12 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     f["sessoes"] = [dict(r) for r in con.execute(
         "SELECT cinema, inicio, sala, tipos, preco, url_compra FROM public.sessoes "
         f"WHERE {' AND '.join(where)} ORDER BY inicio, cinema", params)]
-    con.close()
+    if meu:
+        con.close()
     return f
 
 
-def procedencia():
+def procedencia(con=None):
     """Quando cada fonte foi coletada pela última vez, e quanto ela responde
     hoje na base.
 
@@ -384,7 +409,7 @@ def procedencia():
         Lista de dicts {fonte, ultima_coleta (ISO UTC), eventos, futuros},
         da fonte mais recente para a mais velha.
     """
-    con = conexao.conectar()
+    con, meu = _con(con)
     agora = datetime.now(timezone.utc).isoformat()
     rows = con.execute(
         "SELECT fonte, MAX(raspado_em) AS ultima_coleta, "
@@ -395,7 +420,8 @@ def procedencia():
         "         AS futuros "
         "FROM public.eventos GROUP BY fonte ORDER BY MAX(raspado_em) DESC",
         (agora,)).fetchall()
-    con.close()
+    if meu:
+        con.close()
     return [dict(r) for r in rows]
 
 
