@@ -427,6 +427,10 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- cinema: pôster, vitrine em faixas, filtros, detalhe ---------- */
 
+/* Cabeçalho da página: título maior que o padrão da .secao + subheader. */
+.secao h2.titulo-pagina { font-size: 30px; letter-spacing: -.025em; }
+.sub-pagina { margin: 4px 0 0; font-size: 14px; color: var(--zu-fg-3); }
+
 /* O pôster é retrato 2:3 (como a fonte publica) — difere do flyer 4:5. */
 .cartaz {
   position: relative; overflow: hidden;
@@ -454,6 +458,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 13px; font-weight: 600; color: var(--zu-warn);
 }
 .nota-fonte { font-size: 10px; font-weight: 400; color: var(--zu-fg-4); }
+a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 
 /* A vitrine: faixas com trilho horizontal de pôsteres (estilo streaming).
    Scroll nativo + snap; o trilho vaza o padding lateral de propósito, para o
@@ -476,6 +481,9 @@ a { color: inherit; text-decoration: none; }
 .trilho {
   display: flex; gap: 10px; overflow-x: auto;
   margin: 0 -16px; padding: 2px 16px 8px;
+  /* sem isso o snap alinha o 1º pôster à borda VAZADA (sem o padding) e a
+     linha já carrega rolada 16px, desalinhada das faixas sem scroll */
+  scroll-padding-inline: 16px;
   scroll-snap-type: x proximity; scrollbar-width: none;
 }
 .trilho::-webkit-scrollbar { display: none; }
@@ -499,9 +507,10 @@ a { color: inherit; text-decoration: none; }
   .fcard { grid-template-columns: 92px 1fr; }
 }
 
-/* Filtros sempre visíveis, cada um abrindo em dropdown. <details> sem JS:
-   clicar num chip navega (a URL é o estado), e o Drop reabre via `open`
-   quando o grupo tem seleção — multi-escolha sem reabrir na mão. */
+/* Filtros sempre visíveis, cada um abrindo em dropdown. <details>: clicar
+   num chip navega (a URL é o estado), e o Drop reabre via `open` quando o
+   grupo tem seleção — multi-escolha sem reabrir na mão. O JS do Drop só
+   coordena o fechamento (clique fora, ou abrir um irmão). */
 .drops {
   display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
   padding: 2px 0;
@@ -512,7 +521,7 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--zu-sans); font-size: 13px; font-weight: 500;
   color: var(--zu-fg-2); background: var(--zu-card);
-  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-pill);
+  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-sm);
   padding: 6px 12px; white-space: nowrap;
   transition: border-color 150ms, color 150ms;
 }
@@ -537,6 +546,34 @@ a { color: inherit; text-decoration: none; }
 }
 .drop-limpar { font-size: 12.5px; color: var(--zu-fg-3); white-space: nowrap; padding: 6px 4px; }
 .drop-limpar:hover { color: var(--zu-error); }
+
+/* Grupo de checkboxes (DropFiltro): opções em coluna + botão "aplicar".
+   Lista longa (gênero tem 20+) rola num contêiner próprio; o botão fica
+   fora do scroll, sempre visível. */
+.drop-menu-lista { flex-direction: column; flex-wrap: nowrap; gap: 0; }
+.drop-opcoes {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: min(56vh, 420px); overflow-y: auto;
+}
+.drop-opcao {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; color: var(--zu-fg-1); cursor: pointer;
+  padding: 6px; border-radius: var(--zu-r-sm);
+}
+.drop-opcao:hover { background: var(--zu-green-bg); }
+.drop-opcao input {
+  accent-color: var(--zu-green); width: 15px; height: 15px;
+  margin: 0; cursor: pointer; flex: none;
+}
+.drop-aplicar {
+  flex: none; margin-top: 8px; width: 100%; cursor: pointer;
+  font-family: var(--zu-sans); font-size: 13px; font-weight: 600;
+  background: var(--zu-green); color: var(--zu-on-green);
+  border: 0; border-radius: var(--zu-r-sm); padding: 8px 12px;
+  transition: filter 120ms;
+}
+.drop-aplicar:hover { filter: brightness(1.08); }
+.drop-aplicar:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
 
 /* Calendário do filtro de data: mês em grid de 7 colunas; só dia com sessão
    é clicável (a grade real cobre ~8 dias — o resto fica apagado). */
@@ -563,6 +600,8 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 .cal-dia.off { color: var(--zu-fg-4); }
 
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
+.filme-info h1 { font-size: 30px; }
+.filme-divisor { border: 0; border-top: 1px solid var(--zu-divider); margin: 4px 0 0; }
 .filme-topo { display: grid; grid-template-columns: minmax(110px, 150px) 1fr; gap: 16px; align-items: start; }
 .filme-cartaz .cartaz { border: 1px solid var(--zu-divider); }
 .filme-info { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -574,19 +613,35 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
   .filme-topo { grid-template-columns: 220px 1fr; gap: 24px; }
 }
 
+/* Strip de dias: a grade mostra UM dia por vez (tudo aberto era um paredão
+   de centenas de pills). Cada aba é um link com ?data= — estado na URL. */
+.dias { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.dia-tab {
+  flex: none; display: inline-flex; align-items: baseline; gap: 5px;
+  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-sm);
+  padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--zu-fg-2);
+  background: var(--zu-card); transition: border-color 120ms, color 120ms;
+}
+.dia-tab .num { font-family: var(--zu-mono); font-size: 11px; color: var(--zu-fg-3); font-weight: 400; }
+.dia-tab:hover { border-color: var(--zu-green); color: var(--zu-green); }
+.dia-tab[data-on='1'] { background: var(--zu-green); color: var(--zu-on-green); border-color: var(--zu-green); }
+.dia-tab[data-on='1'] .num { color: var(--zu-on-green); opacity: .75; }
+
 .sess-cinema-nome { font-weight: 600; font-size: 14.5px; background: var(--zu-ink-2); }
-/* Dia numa linha própria, horários embaixo: com dezenas de sessões por dia
-   (Homem-Aranha tem 30+), rótulo lateral flutuava no meio de um mar de pills. */
-.sess-dia { flex-direction: column; align-items: stretch; gap: 8px; }
-.sess-dia-rotulo { font-size: 12.5px; color: var(--zu-fg-2); font-weight: 600; }
-.sess-dia-rotulo .num {
-  font-family: var(--zu-mono); font-size: 10.5px; color: var(--zu-fg-3); font-weight: 400;
+/* Linha por FORMATO (Dublado, 3D/Legendado...): o rótulo sai da pill e
+   aparece uma vez à esquerda; a pill fica só com a hora. */
+/* .row.sess-tipo (e não só .sess-tipo): o .row é declarado depois no arquivo
+   e o flex + space-between dele venceria o grid, jogando as pills p/ a direita. */
+.row.sess-tipo { display: grid; grid-template-columns: minmax(88px, 132px) 1fr; align-items: start; gap: 10px; }
+.sess-tipo-rotulo {
+  font-size: 12px; color: var(--zu-fg-2); font-weight: 600;
+  line-height: 1.35; padding-top: 5px; overflow-wrap: break-word; min-width: 0;
 }
 .horarios { display: flex; flex-wrap: wrap; gap: 6px; }
 .horario {
-  display: inline-flex; align-items: baseline; gap: 5px;
+  display: inline-flex; align-items: baseline;
   border: 1px solid var(--zu-divider); border-radius: var(--zu-r-sm);
-  padding: 4px 9px; background: var(--zu-card);
+  padding: 4px 10px; background: var(--zu-card);
   transition: border-color 120ms, color 120ms;
 }
 .horario:hover { border-color: var(--zu-green); }
@@ -595,7 +650,6 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
   font-family: var(--zu-mono); font-variant-numeric: tabular-nums;
   font-size: 12.5px; font-weight: 600; color: var(--zu-fg-1);
 }
-.horario-tipo { font-size: 10px; color: var(--zu-fg-3); }
 
 /* ---------- desktop: a lista vira grade ----------
    Antes eram 700px de conteúdo num viewport de 1440 — metade da tela vazia,

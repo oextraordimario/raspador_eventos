@@ -1087,3 +1087,36 @@
 # v1; JSON-LD/sitemap/llms.txt junto (Porta B da Fase 2); postura de ToS
 # "agregador com atribuição" virou código (descrição em trecho, organizador
 # nunca exposto, página "sobre" com canal de remoção).
+
+# (NI-38..59 vivem no main; este worktree nasceu de um origin/main anterior.
+# O NI-60 abaixo pula a faixa pra não colidir na hora do merge.)
+
+- codigo: NI-60
+  status: pendente
+  prioridade: media
+  rank: 2
+  esforco: M
+  eixo: enriquecimento
+  fase: dados
+  titulo: "Créditos do filme via TMDB — direção, roteiro e elenco"
+  resumo: "hoje só a busca (/search/movie) é chamada: sinopse/nota/ano/pôster; quem faz o filme não está na base — puxar /movie/{id}/credits e mostrar na página do filme"
+  data: 2026-07-28
+  depende_de: []
+  relacionado: [NI-36]
+  detalhe: |
+    O enriquecimento do NI-36 para no payload da busca: o TMDB devolve créditos
+    só em `GET /movie/{tmdb_id}/credits` (ou `/movie/{id}?append_to_response=
+    credits&language=pt-BR`, que traz junto duração/coleção e pouparia um
+    request futuro). O plano segue o desenho existente:
+    - passo incremental no atualizar.py para filme COM match e SEM créditos
+      (o tmdb_id já está na Bronze; ~1 request por filme novo, catálogo tem
+      ~40 — nada de re-buscar tudo a cada rodada);
+    - payload cru em `cinema_extra_raw` origem='creditos' (a PK filme_id+origem
+      já comporta; Bronze acumulativa, sobrevive ao snapshot de filmes);
+    - `derivar.aplicar_cinema` re-aplica em colunas novas de `filmes`
+      (ADD COLUMN IF NOT EXISTS, mudança aditiva): direcao, roteiro, elenco
+      (top ~5 do cast por ordem de billing; crew filtra job Director/Writer/
+      Screenplay);
+    - expor em CAMPOS_FILME + card/página do filme no site.
+    Bônus natural: indexar direção/elenco no FTS de filmes ("filme do Nolan",
+    "filme com a Margot Robbie" passam a achar).
