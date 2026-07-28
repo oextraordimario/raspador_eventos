@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react'
 // A camada de JS só coordena o fechamento: clique fora fecha, e abrir um
 // Drop fecha os irmãos (sem JS o <details> segue funcionando, só não fecha
 // sozinho).
-export default function Drop({ rotulo, ativos = 0, aberto = false, children }) {
+export default function Drop({ rotulo, ativos = 0, aberto = false, classeMenu = '', children }) {
   const ref = useRef(null)
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function Drop({ rotulo, ativos = 0, aberto = false, children }) {
         {ativos > 0 && <span className="drop-n">{ativos}</span>}
         <span className="drop-caret" aria-hidden="true">▾</span>
       </summary>
-      <div className="drop-menu">{children}</div>
+      <div className={classeMenu ? `drop-menu ${classeMenu}` : 'drop-menu'}>{children}</div>
     </details>
   )
 }

@@ -454,6 +454,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 13px; font-weight: 600; color: var(--zu-warn);
 }
 .nota-fonte { font-size: 10px; font-weight: 400; color: var(--zu-fg-4); }
+a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 
 /* A vitrine: faixas com trilho horizontal de pôsteres (estilo streaming).
    Scroll nativo + snap; o trilho vaza o padding lateral de propósito, para o
@@ -541,6 +542,34 @@ a { color: inherit; text-decoration: none; }
 }
 .drop-limpar { font-size: 12.5px; color: var(--zu-fg-3); white-space: nowrap; padding: 6px 4px; }
 .drop-limpar:hover { color: var(--zu-error); }
+
+/* Grupo de checkboxes (DropFiltro): opções em coluna + botão "aplicar".
+   Lista longa (gênero tem 20+) rola num contêiner próprio; o botão fica
+   fora do scroll, sempre visível. */
+.drop-menu-lista { flex-direction: column; flex-wrap: nowrap; gap: 0; }
+.drop-opcoes {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: min(56vh, 420px); overflow-y: auto;
+}
+.drop-opcao {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; color: var(--zu-fg-1); cursor: pointer;
+  padding: 6px; border-radius: var(--zu-r-sm);
+}
+.drop-opcao:hover { background: var(--zu-green-bg); }
+.drop-opcao input {
+  accent-color: var(--zu-green); width: 15px; height: 15px;
+  margin: 0; cursor: pointer; flex: none;
+}
+.drop-aplicar {
+  flex: none; margin-top: 8px; width: 100%; cursor: pointer;
+  font-family: var(--zu-sans); font-size: 13px; font-weight: 600;
+  background: var(--zu-green); color: var(--zu-on-green);
+  border: 0; border-radius: var(--zu-r-sm); padding: 8px 12px;
+  transition: filter 120ms;
+}
+.drop-aplicar:hover { filter: brightness(1.08); }
+.drop-aplicar:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
 
 /* Calendário do filtro de data: mês em grid de 7 colunas; só dia com sessão
    é clicável (a grade real cobre ~8 dias — o resto fica apagado). */

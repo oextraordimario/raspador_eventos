@@ -5,6 +5,7 @@ import { REDES, HORARIOS, montarFaixas, redesParaCinemas } from '../../lib/cinem
 import FilmCard from './FilmCard'
 import Faixa from './Faixa'
 import Drop from './Drop'
+import DropFiltro from './DropFiltro'
 import Calendario from './Calendario'
 
 export const revalidate = 300
@@ -54,8 +55,9 @@ export default async function Filmes({ searchParams }) {
 
   const { filmes, facetas } = await catalogoFilmes(params)
 
-  // Toggle de um valor num filtro preservando os demais. Gêneros,
-  // classificação, rede e cinema são listas (CSV na URL); hora é única.
+  // Estado atual da URL, em dois formatos: `atual` alimenta o href do
+  // calendário (que navega no clique); `estado` desce aos DropFiltro como
+  // strings, para o "aplicar" preservar os demais filtros ao navegar.
   // Rede e cinema se excluem (os dois viram o MESMO param da API).
   const atual = { texto, generos, classificacao: classes, rede: redes,
                   cinema: cinemas, hora, data }
@@ -69,14 +71,8 @@ export default async function Filmes({ searchParams }) {
     const qs = q.toString()
     return qs ? `/filmes?${qs}` : '/filmes'
   }
-  const toggleLista = (chave, valor, extra = {}) => {
-    const lista = atual[chave]
-    return href({
-      [chave]: lista.includes(valor)
-        ? lista.filter((v) => v !== valor) : [...lista, valor],
-      ...extra,
-    })
-  }
+  const estado = { texto, generos: generos.join(','), classificacao: classes.join(','),
+                   rede: redes.join(','), cinema: cinemas.join(','), hora, data }
 
   const nFiltros = generos.length + classes.length + redes.length +
     cinemas.length + (hora ? 1 : 0) + (data ? 1 : 0)
@@ -105,47 +101,31 @@ export default async function Filmes({ searchParams }) {
           )}
 
           {facetas?.generos?.length > 0 && (
-            <Drop rotulo="gênero" ativos={generos.length} aberto={generos.length > 0}>
-              {facetas.generos.map((g) => (
-                <Link key={g} className="chip" href={toggleLista('generos', g)}
-                      data-on={generos.includes(g) ? '1' : '0'}>{g}</Link>
-              ))}
-            </Drop>
+            <DropFiltro rotulo="gênero" base="/filmes" estado={estado}
+                        param="generos" selecionados={generos}
+                        opcoes={facetas.generos.map((g) => ({ valor: g, rotulo: g }))} />
           )}
 
-          <Drop rotulo="rede" ativos={redes.length} aberto={redes.length > 0}>
-            {Object.entries(REDES).map(([chave, r]) => (
-              <Link key={chave} className="chip"
-                    href={toggleLista('rede', chave, { cinema: [] })}
-                    data-on={redes.includes(chave) ? '1' : '0'}>{r.rotulo}</Link>
-            ))}
-          </Drop>
+          <DropFiltro rotulo="rede" base="/filmes" estado={estado}
+                      param="rede" selecionados={redes} limpa="cinema"
+                      opcoes={Object.entries(REDES).map(([chave, r]) =>
+                        ({ valor: chave, rotulo: r.rotulo }))} />
 
           {facetas?.cinemas?.length > 0 && (
-            <Drop rotulo="cinema" ativos={cinemas.length} aberto={cinemas.length > 0}>
-              {facetas.cinemas.map((c) => (
-                <Link key={c} className="chip"
-                      href={toggleLista('cinema', c, { rede: [] })}
-                      data-on={cinemas.includes(c) ? '1' : '0'}>{c}</Link>
-              ))}
-            </Drop>
+            <DropFiltro rotulo="cinema" base="/filmes" estado={estado}
+                        param="cinema" selecionados={cinemas} limpa="rede"
+                        opcoes={facetas.cinemas.map((c) => ({ valor: c, rotulo: c }))} />
           )}
 
-          <Drop rotulo="horário" ativos={hora ? 1 : 0} aberto={Boolean(hora)}>
-            {Object.entries(HORARIOS).map(([chave, h]) => (
-              <Link key={chave} className="chip"
-                    href={href({ hora: hora === chave ? '' : chave })}
-                    data-on={hora === chave ? '1' : '0'}>{h.rotulo}</Link>
-            ))}
-          </Drop>
+          <DropFiltro rotulo="horário" base="/filmes" estado={estado}
+                      param="hora" selecionados={hora ? [hora] : []} unico
+                      opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
+                        ({ valor: chave, rotulo: h.rotulo }))} />
 
           {facetas?.classificacoes?.length > 0 && (
-            <Drop rotulo="classificação" ativos={classes.length} aberto={classes.length > 0}>
-              {facetas.classificacoes.map((c) => (
-                <Link key={c} className="chip" href={toggleLista('classificacao', c)}
-                      data-on={classes.includes(c) ? '1' : '0'}>{c}</Link>
-              ))}
-            </Drop>
+            <DropFiltro rotulo="classificação" base="/filmes" estado={estado}
+                        param="classificacao" selecionados={classes}
+                        opcoes={facetas.classificacoes.map((c) => ({ valor: c, rotulo: c }))} />
           )}
 
           {nFiltros > 0 && (

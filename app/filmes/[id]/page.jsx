@@ -5,7 +5,7 @@ import { ORIGEM } from '../../../lib/config'
 import { chaveDia, rotuloDia, diaMes } from '../../../lib/formato'
 import { REDES, HORARIOS, redesParaCinemas, notaFmt } from '../../../lib/cinema'
 import Cartaz from '../Cartaz'
-import Drop from '../Drop'
+import DropFiltro from '../DropFiltro'
 import SessaoLink from './SessaoLink'
 
 export const revalidate = 300
@@ -62,25 +62,8 @@ export default async function Filme({ params, searchParams }) {
   const grade = porCinema(filme.sessoes || [])
   const temFiltro = redes.length > 0 || cinemas.length > 0 || Boolean(hora)
 
-  const atual = { rede: redes, cinema: cinemas, hora }
-  const href = (mudanca) => {
-    const novo = { ...atual, ...mudanca }
-    const q = new URLSearchParams()
-    for (const [k, v] of Object.entries(novo)) {
-      const s = Array.isArray(v) ? v.join(',') : v
-      if (s) q.set(k, s)
-    }
-    const qs = q.toString()
-    return qs ? `/filmes/${id}?${qs}` : `/filmes/${id}`
-  }
-  const toggleLista = (chave, valor, extra = {}) => {
-    const lista = atual[chave]
-    return href({
-      [chave]: lista.includes(valor)
-        ? lista.filter((v) => v !== valor) : [...lista, valor],
-      ...extra,
-    })
-  }
+  // estado atual da URL, p/ o "aplicar" dos DropFiltro preservar os demais
+  const estado = { rede: redes.join(','), cinema: cinemas.join(','), hora }
 
   // só as redes com cinema onde o filme passa viram opção
   const redesDoFilme = Object.entries(REDES).filter(([, r]) =>
@@ -100,6 +83,9 @@ export default async function Filme({ params, searchParams }) {
     ...(filme.nota != null && filme.votos && {
       aggregateRating: { '@type': 'AggregateRating', ratingValue: filme.nota,
                          bestRating: 10, ratingCount: filme.votos },
+    }),
+    ...(filme.tmdb_id && {
+      sameAs: `https://www.themoviedb.org/movie/${filme.tmdb_id}`,
     }),
     url: `${ORIGEM}/filmes/${filme.id}`,
   }
@@ -125,7 +111,11 @@ export default async function Filme({ params, searchParams }) {
             <div className="meta">
               {filme.nota != null && (
                 <span className="nota">★ {notaFmt(filme.nota)}
-                  {filme.votos ? <span className="nota-fonte"> tmdb</span> : null}
+                  {filme.tmdb_id ? (
+                    <a className="nota-fonte"
+                       href={`https://www.themoviedb.org/movie/${filme.tmdb_id}`}
+                       target="_blank" rel="noopener nofollow"> tmdb ↗</a>
+                  ) : filme.votos ? <span className="nota-fonte"> tmdb</span> : null}
                 </span>
               )}
               {filme.duracao_min && <span className="tag tag-src">{filme.duracao_min} min</span>}
@@ -144,34 +134,22 @@ export default async function Filme({ params, searchParams }) {
           </div>
         </div>
 
-        <div className="label">Sessões — cada horário leva à compra na fonte</div>
-
         <div className="drops" role="group" aria-label="Filtrar sessões">
           {redesDoFilme.length > 1 && (
-            <Drop rotulo="rede" ativos={redes.length} aberto={redes.length > 0}>
-              {redesDoFilme.map(([chave, r]) => (
-                <Link key={chave} className="chip"
-                      href={toggleLista('rede', chave, { cinema: [] })}
-                      data-on={redes.includes(chave) ? '1' : '0'}>{r.rotulo}</Link>
-              ))}
-            </Drop>
+            <DropFiltro rotulo="rede" base={`/filmes/${id}`} estado={estado}
+                        param="rede" selecionados={redes} limpa="cinema"
+                        opcoes={redesDoFilme.map(([chave, r]) =>
+                          ({ valor: chave, rotulo: r.rotulo }))} />
           )}
           {(filme.cinemas || []).length > 1 && (
-            <Drop rotulo="cinema" ativos={cinemas.length} aberto={cinemas.length > 0}>
-              {filme.cinemas.map((c) => (
-                <Link key={c} className="chip"
-                      href={toggleLista('cinema', c, { rede: [] })}
-                      data-on={cinemas.includes(c) ? '1' : '0'}>{c}</Link>
-              ))}
-            </Drop>
+            <DropFiltro rotulo="cinema" base={`/filmes/${id}`} estado={estado}
+                        param="cinema" selecionados={cinemas} limpa="rede"
+                        opcoes={filme.cinemas.map((c) => ({ valor: c, rotulo: c }))} />
           )}
-          <Drop rotulo="horário" ativos={hora ? 1 : 0} aberto={Boolean(hora)}>
-            {Object.entries(HORARIOS).map(([chave, h]) => (
-              <Link key={chave} className="chip"
-                    href={href({ hora: hora === chave ? '' : chave })}
-                    data-on={hora === chave ? '1' : '0'}>{h.rotulo}</Link>
-            ))}
-          </Drop>
+          <DropFiltro rotulo="horário" base={`/filmes/${id}`} estado={estado}
+                      param="hora" selecionados={hora ? [hora] : []} unico
+                      opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
+                        ({ valor: chave, rotulo: h.rotulo }))} />
           {temFiltro && (
             <Link className="drop-limpar" href={`/filmes/${id}`}>limpar</Link>
           )}
