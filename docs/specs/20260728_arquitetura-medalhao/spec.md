@@ -1,10 +1,11 @@
 # Spec — Arquitetura medalhão: schemas por camada, uma trilha por fonte
 
-> **Status: FATIAS 1–6 IMPLEMENTADAS (2026-07-28); a 7 não.** As duas janelas
-> de migração foram executadas em produção, com as três redes e as
-> conferências dentro da transação (§9.11 e o commit da fatia 5). O que falta é
-> a **inversão do fluxo** — ver o aviso na fatia 7 da §13, que também registra
-> o que já está pronto para ela e o que a ausência dela custa.
+> **Status: IMPLEMENTADA (2026-07-28), as sete fatias.** As duas janelas de
+> migração foram executadas em produção, com as três redes e as conferências
+> dentro da transação (§9.11 e o commit da fatia 5). A inversão do fluxo (fatia
+> 7) fechou o NI-55: `--so-derivar` reconstrói a base inteira a partir do `cru`,
+> e o teste de fronteira da §10 verifica isso a cada execução da suíte. Os três
+> achados que a reconstrução contra a base real produziu estão na §13.
 >
 > ⚠️ **O cron da raspagem está DESLIGADO** no GitHub até o push (ver
 > `CRON-DESLIGADO.md` na raiz do repo).
@@ -1052,9 +1053,18 @@ repo na mesma leva, para não existirem duas fontes da verdade.
   aplicada; `valores_antes` que não bate mais vira pendência; campo fora da
   allowlist é rejeitado.
 - **Teste de fronteira** — o que a estrutura promete: depois de um ciclo
-  completo, `TRUNCATE tratado.*` + tratamento reproduz a base inteira. Roda no
-  CI, não na cabeça de ninguém.
+  completo, `DELETE FROM tratado.*` + tratamento reproduz a base inteira. Roda
+  na suíte, não na cabeça de ninguém. ✅ **Implementado** em
+  `tests/test_bronze.py`, que deixou de testar a violação de camada (o upsert
+  gravando a bronze de brinde) e passou a testar o contrário.
 - Os testes existentes passam a qualificar schema nas queries.
+
+> **Uma lição da §13.1(c) que vale para todo teste de idempotência daqui em
+> diante:** compare TODAS as colunas que o passo escreve, não uma amostra. O
+> teste de idempotência do `enriquecer` passava havia semanas comparando
+> `ruido`/`dedupe_grupo`/`dedupe_canonico` enquanto `dedupe_score` variava a
+> cada execução. Um teste que cobre parte das colunas garante exatamente a
+> parte que cobre — e dá a impressão de garantir o resto.
 
 ---
 
@@ -1181,23 +1191,57 @@ Fatias independentes, cada uma com valor próprio e reversível:
    "descrever" passa a consultar o `cru` (§6.4), `sumido` vira derivação sobre
    `operacao.coletas` (§8).
 
-   > ⚠️ **NÃO IMPLEMENTADA** (2026-07-28). As fatias 1–6 estão aplicadas,
-   > validadas e commitadas; esta ficou. É a maior mudança de comportamento do
-   > pipeline e a única que exige mover a normalização das cinco fontes de
-   > `coleta/` para `tratamento/`, reescrever `_raspar`/`_descrever`/
-   > `_precificar` e converter o tratamento inteiro numa transação — foi
-   > iniciada e revertida por inteiro, porque entregá-la pela metade deixaria o
-   > pipeline meio invertido, que é pior que não invertido.
-   >
-   > **O que já está pronto para ela**, das fatias anteriores: `tratado` é
-   > escrito por um lugar só (`tratamento/comum.py`), o `cru` guarda payload +
-   > rótulos externos + era por fonte, e `comum.aplicar()` já reconstrói todas
-   > as colunas derivadas e os lotes a partir do `cru`. **O que falta** é o
-   > último passo: as colunas de identidade do evento (nome, datas, local, url)
-   > ainda vêm da coleta, não da reconstrução.
-   >
-   > Enquanto ela não sai, a garantia do NI-55 é PARCIAL: a prata é
-   > reconstruível no que é derivado, não no que é identidade.
+   > ✅ **Implementada (2026-07-28).** `normalizar()` das cinco fontes mudou de
+   > `coleta/` para `tratamento/`, com assinatura `(payload, linha_do_cru)`;
+   > `raspar()` devolve payload cru; `tratamento/ciclo.py` roda o ciclo inteiro
+   > numa transação; `sumido` virou `tratamento/sumido.py` sobre
+   > `operacao.coletas`. O NI-55 fecha: identidade e derivadas saem as duas do
+   > `cru`.
+
+### 13.1 O que a fatia 7 revelou ao rodar contra a base real
+
+Três coisas que nenhuma leitura de código tinha achado. Ficam aqui porque as
+três são da mesma família — **um sinal que parece informação e não é** — e
+porque a única razão de terem aparecido é a reconstrução ter sido comparada
+campo a campo com o estado anterior, em vez de "rodou sem erro".
+
+**(a) A guarda de nome do NI-17 não pode rodar na leitura.** O rascunho da §6.3
+pedia que o tratamento repetisse a guarda ao ler o payload de detalhe, para um
+payload suspeito de antes da guarda não reenvenenar a base numa re-derivação.
+Implementado, ele descartou a descrição do `sympla:3512216` — cujo produtor
+renomeou o evento ("Sábado Despedida do Brazólia…" → "Gelada, Pagode e
+Sentimento…") entre a coleta do detalhe e a última do catálogo. Mesmo id, mesmo
+evento, dado bom jogado fora.
+
+O erro de raciocínio: tratar o nome do catálogo como se fosse fixo. Ele não é —
+o catálogo é justamente a coisa que se move. A guarda compara dois nomes e só
+vale enquanto os dois são **contemporâneos**, o que acontece na coleta e só lá.
+Conferir por id não substitui: o BFF é consultado PELO id da URL, então devolve
+sempre esse id — a checagem seria tautológica. `CONFERIR` ficou vazio nas cinco
+fontes, com o porquê no código.
+
+**(b) O antipadrão da `categoria` não era só do Sympla.** A §6.2 desmontou o
+`event_type`='NORMAL' (constante em 224/224) e parou aí. Medido agora: o Shotgun
+gravava a constante `"MusicEvent"` (65/65) e o Ticket and Go, `"Evento"` (71/72).
+Mesma coisa, mesmas duas consequências — zero poder de distinção e poluição do
+FTS, que indexa `categoria`. As duas saem; valor não-genérico da fonte continua
+valendo.
+
+Ninguém tinha visto porque a fatia 1 pôs `categoria` em `COLS_DERIVADAS`, e o
+reset a zerava para essas duas fontes antes que alguém a lesse. O bug estava
+escondido atrás de outro bug.
+
+**(c) `dedupe_score` era não determinístico.** Dois `enriquecer.aplicar()`
+seguidos sobre a MESMA base davam score diferente em 27 eventos. Causa: o
+`SELECT` das linhas não tinha `ORDER BY`, e o resultado dependia da ordem em que
+o Postgres devolvia. O agrupamento ficava de pé; o score da faixa cinzenta, não
+— e é ele que alimenta `curado.pendencias`, ou seja, era ruído entrando na fila
+de decisão humana.
+
+Só apareceu porque o diff da reconstrução tinha que fechar em zero. O teste de
+idempotência do `enriquecer` já existia e passava: ele comparava
+`ruido`/`dedupe_grupo`/`dedupe_canonico`, não o score. **Um teste de
+idempotência que não cobre todas as colunas dá a garantia de que não cobre.**
 
 A fatia 6 pode trocar de lugar com a 5 se a curadoria virar urgente — ela só
 depende dos schemas (fatia 3).

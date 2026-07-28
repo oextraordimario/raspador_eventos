@@ -1,5 +1,13 @@
 """Passo 1 do spike NI-14 (camada Bronze): captura os payloads brutos.
 
+⚠️ REGISTRO HISTÓRICO — NÃO RODA MAIS (2026-07-28). Este script existia para
+responder "quanto do payload a gente joga fora?" ANTES de haver camada bronze.
+A resposta virou o projeto: hoje o payload inteiro é gravado em `cru.<fonte>` a
+cada coleta, e o `_normalizar` que ele interceptava deixou de existir na coleta
+(virou `tratamento/<fonte>.normalizar`, na fatia 7 da spec do medalhão). Para
+inspecionar payload bruto hoje, consulte `cru.<fonte>_atual`. O que vale
+guardar deste spike é o RESULTADO.md, não o código.
+
 Não toca em src/ nem na base: intercepta o _normalizar de cada scraper
 (monkeypatch) durante uma raspagem normal e grava o payload de entrada em JSONL
 nesta pasta. Também captura, por amostra, o payload de detalhe (BFF do Sympla e

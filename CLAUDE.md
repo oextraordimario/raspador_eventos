@@ -31,20 +31,22 @@ python -m playwright install chromium          # necessário só p/ o Shotgun
 # (conta em app.monid.ai; a chave fica no config do monid, NÃO no repo) +
 # CLI `claude` logado na assinatura (extração do flyer por visão)
 
-# Atualização sob demanda — raspa as 5 fontes → marca sumidos → descreve/precifica
-# → cinema → Instagram → deriva → enriquece → FTS → relatório de saúde → grava a
-# rodada em `execucoes`. Rodar antes de usar o agente.
+# Atualização sob demanda, em DOIS TEMPOS: (1) coleta — raspa as 5 fontes,
+# descreve/precifica, cinema, Instagram, tudo escrevendo só em `cru`/`operacao`;
+# (2) tratamento a seco — reconstrói `tratado` do cru numa transação só, deriva
+# sumido, enriquece, reaplica a curadoria e refaz o FTS. Depois: relatório de
+# saúde e a rodada em `operacao.execucoes`. Rodar antes de usar o agente.
 python src/pipeline/atualizar.py
 python src/pipeline/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
 python src/pipeline/atualizar.py --sem-cinema            # pula a grade de cinema
 python src/pipeline/atualizar.py --sem-tmdb              # pula o enriquecimento TMDB dos filmes
 python src/pipeline/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
-python src/pipeline/atualizar.py --sem-extracao-flyer    # Instagram só até a Bronze, sem a visão
+python src/pipeline/atualizar.py --sem-extracao-flyer    # Instagram só até o cru, sem a visão
 python src/pipeline/atualizar.py --rodada-local          # o que o CI não faz: Shotgun + fila de
                                                 #   extração de flyer (--so-instagram é
                                                 #   o nome antigo, continua valendo)
 python src/pipeline/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: 30 dias)
-python src/pipeline/atualizar.py --so-derivar            # não raspa; re-deriva do bruto + regras + FTS
+python src/pipeline/atualizar.py --so-derivar            # não raspa; RECONSTRÓI `tratado` inteira do cru
 python src/pipeline/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
 
 # Camada de consulta isolada (roda exemplos de buscar_eventos)
@@ -75,7 +77,7 @@ vercel --prod
 # o banco descartável eventos_teste no Neon (EVENTOS_DB_URL_TESTE; recriam o schema
 # do zero — ver tests/base_teste.py), então exigem internet.
 python tests/test_enriquecer.py                 # ruído + dedupe + efeito na consulta
-python tests/test_bronze.py                     # Bronze/Prata (eventos_raw, lotes, derivação) + guarda anti-Bileto
+python tests/test_bronze.py                     # cru→prata + TESTE DE FRONTEIRA (apaga a prata e reconstrói)
 python tests/test_observabilidade.py            # execucoes + sumido + janela do precificar
 python tests/test_cinema.py                     # cinema_raw + snapshot, filmes/sessoes, buscar_filmes
 python tests/test_zig_ticketandgo.py            # normalização, filtro DF textual, lotes c/ taxa fracionária
@@ -97,50 +99,91 @@ check não enxerga o shim do npm no Windows. Pode usar `vercel`, `vercel env pul
 
 ## Arquitetura
 
-Duas frentes acopladas por uma base única — **Postgres no Neon** (driver psycopg 3;
-antes era SQLite local). A connection string vem de `EVENTOS_DB_URL` (env, com
-fallback no `.env` da raiz — resolvido por `store.env_var`); testes usam
-`EVENTOS_DB_URL_TESTE`. Spec: `docs/specs/20260711_consulta-na-nuvem/`.
+A base é **Postgres no Neon** (driver psycopg 3; antes era SQLite local), organizada
+em **camadas de medalhão que são schemas de verdade**, não convenção verbal. A
+connection string vem de `EVENTOS_DB_URL` (env, com fallback no `.env` da raiz —
+resolvido por `conexao.env_var`); testes usam `EVENTOS_DB_URL_TESTE`. Specs:
+`20260711_consulta-na-nuvem/`, `20260728_arquitetura-medalhao/`.
+
+```
+cru        bronze: o que a fonte disse, no formato dela. UMA TABELA POR FONTE,
+           append-only. NUNCA SE DROPA.
+tratado    prata: o schema unificado. DESCARTÁVEL POR DESENHO — se reconstrói
+           do cru a seco (`--so-derivar`).
+curado     o que uma PESSOA decidiu (correções, casas canônicas). NUNCA SE DROPA.
+public     SÓ VIEWS sobre tratado — é o contrato de consumo do site e do MCP.
+operacao   telemetria (execucoes, coletas) e artefatos nossos (midias). NUNCA SE DROPA.
+uso        quem usou (usuarios, acessos) — dado pessoal, LGPD. NUNCA SE DROPA.
+```
+
+O código espelha as camadas, com **uma trilha por fonte**:
+
+```
+coleta/ingresse.py -> cru.ingresse -> tratamento/ingresse.py -> tratado.eventos
+                                   -> curado (revisão humana) -> public -> site/MCP
+```
 
 ```
 src/
-  store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
-  auth.py                                         # verifica o token OAuth do MCP remoto
-  midia.py                                        # upload p/ storage próprio (Vercel Blob)
-  atualizar.py  mcp_server.py                     # entrypoints
-  scrapers/
-    sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  instagram.py  tmdb.py  discover_sympla.py
+  base/        conexao.py  tempo.py  texto.py       # infra transversal, sem regra de negócio
+  coleta/      sympla ingresse shotgun zig ticketandgo cinema instagram tmdb
+               gravar.py    # a ÚNICA escrita em `cru`
+               midias.py    # upload p/ storage próprio (Vercel Blob)
+  tratamento/  sympla ingresse shotgun zig ticketandgo   # uma trilha por fonte
+               comum.py     # o motor: cru -> tratado.eventos + lotes
+               cinema.py  instagram.py                   # domínios de contrato próprio
+               sumido.py  enriquecer.py  curadoria.py  busca.py
+               ciclo.py     # o ciclo inteiro numa transação só
+  servico/     consulta.py  mcp_server.py  auth.py
+  pipeline/    atualizar.py  execucoes.py            # orquestração
+  ferramentas/ curar.py  discover_sympla.py          # fora do pipeline
 api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
   index.py     #   MCP remoto (ASGI do FastMCP)
   dados.py     #   API de leitura do site — traduz querystring p/ consulta.py
 app/  lib/     # front Next.js (App Router) do site público — NA RAIZ, não em web/
 .github/workflows/raspar.yml   # cron diário da raspagem (NI-10)
-sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver/psql)
-dados/         # dado curado à mão, versionado (perfis_instagram.yaml — a watchlist;
-               #   locais_df.yaml — casas DF que ancoram o recorte do Ticket and Go)
+sql/           # UM ARQUIVO POR TABELA, em pastas por camada (fonte única do DDL)
+dados/         # dado curado à mão, versionado (perfis_instagram.yaml — a watchlist)
 docs/          # PRD, backlogs/, specs/
 tests/         # scripts executáveis + base_teste.py (redireciona p/ eventos_teste)
 ```
+
+**A regra que o desenho inteiro serve:** tudo que tem rede é **coleta** e escreve só
+em `cru` e `operacao`; tudo que é a seco é **tratamento**, e ele é o **único que
+escreve em `tratado`**. Sem exceção — nem para o "descrever", nem para o `preco_min`
+do Shotgun. Foi a ausência dessa fronteira que fez a prata não se reconstruir da
+bronze por semanas (NI-55) e que deixou duas escritas legítimas disputarem a coluna
+`categoria`, onde quem escrevia por último ganhava.
 
 **O front mora na RAIZ (`app/`, `lib/`, `package.json`), não numa subpasta.** É o
 arranjo que a Vercel suporta para framework + funções Python no mesmo projeto. Com o
 front em subpasta seria preciso configurar Root Directory e "include files outside
 root" no dashboard — configuração invisível no repo, que quebra em silêncio.
 
-**O DDL não fica em string Python:** mora em `sql/schema.sql` e é carregado por
-`store.conectar()`. Ao mudar o schema, edite o `.sql`. O SQL dinâmico (upsert,
-updates de derivação/enriquecimento) segue no código, porque não roda standalone.
+**O DDL não fica em string Python:** mora em `sql/`, um arquivo por tabela, em pastas
+por camada, e é carregado por `conexao.conectar(aplicar_schema=True)` na ordem de
+`_ORDEM_DDL`. Ao mudar o schema, edite o `.sql`. **`CREATE TABLE IF NOT EXISTS` não
+altera tabela que já existe**: coluna nova precisa do `ALTER TABLE ... ADD COLUMN IF
+NOT EXISTS` ao lado da definição, não só dentro dela. O SQL dinâmico (upsert, updates
+de derivação/enriquecimento) segue no código, porque não roda standalone.
 
-**Rodar entrypoints a partir da raiz** do repo (ex.: `python src/pipeline/atualizar.py`); o
-`sys.path[0]` vira `src/`, então `import store`/`import consulta` resolvem como
-irmãos, e os entrypoints importam scrapers via `from scrapers import ...`.
+**Só o `atualizar.py` aplica DDL.** `conectar()` não aplica por padrão — as outras
+conexões (site, MCP, API) só leem e escrevem dado.
 
-### Frente A — Raspagem
+**Rodar entrypoints a partir da raiz** do repo (ex.: `python src/pipeline/atualizar.py`);
+o `sys.path[0]` vira `src/`, então `from base import conexao` e `from tratamento import
+comum` resolvem (namespace packages, sem `__init__.py`).
 
-Um módulo por fonte em `src/coleta/`, cada um com `raspar(...)` devolvendo lista de
-dicts já normalizados para o schema unificado (exceções: cinema e instagram têm
-contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
-`total_site` — é daí que o `atualizar.py` mede cobertura.
+### Frente A — Coleta (`src/coleta/`)
+
+Um módulo por fonte, cada um com `raspar(...)` devolvendo **payload cru** — registros
+de `gravar.bruto(id_nativo, payload, **extras)`, não eventos normalizados. Quem LÊ o
+payload é `src/tratamento/<fonte>.py`; este lado só sabe FALAR com a fonte. `extras`
+são os rótulos que só a coleta conhece e o payload não diz (cidade/estado do parâmetro
+de busca no Shotgun, slug do Ticket and Go) e viram colunas próprias de `cru.<fonte>`.
+
+Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/`total_site` — é daí que o
+`atualizar.py` mede cobertura, e é o que vai para `operacao.coletas`.
 
 - **sympla** — API interna de descoberta (`discovery-bff/search`), sem navegador,
   tema `99` ("Festas e Shows"), paginado. Descrição e categoria real vêm de OUTRO BFF
@@ -175,8 +218,8 @@ contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
   Spec: `docs/specs/20260711_raspagem-cinema/`.
 - **tmdb** — enriquecimento, não catálogo: sinopse pt-BR/nota/ano por filme
   (`TMDB_API_KEY`). Matching **conservador** (título normalizado exato; na dúvida
-  `escolhido=None` e o filme fica sem nota). Incremental por filme novo. Bronze própria
-  `cinema_extra_raw` (PK filme_id+origem), **acumulativa** — sobrevive ao snapshot de
+  `escolhido=None` e o filme fica sem nota). Incremental por filme novo. Tabela cru
+  própria (`cru.tmdb`, PK filme_id), **acumulativa** — sobrevive ao snapshot de
   filmes/sessoes. Atribuição ao TMDB no rodapé e na página "sobre" (exigência dos ToS).
 - **instagram** — contrato próprio (payloads brutos por perfil): posts + stories dos
   perfis de `dados/perfis_instagram.yaml` via CLI do **Monid** (subprocess; chave no
@@ -188,38 +231,62 @@ contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
   próxima ocorrência no fuso de Brasília; ano explícito no passado = retrospectiva; ano
   inferido a mais de 270 dias não vira evento). Spec:
   `docs/specs/20260723_instagram-como-fonte/`.
-- **midia.py** — storage próprio (**Vercel Blob**): pôster de filme e flyer do
+- **midias.py** — storage próprio (**Vercel Blob**): pôster de filme e flyer do
   Instagram. Pathname ESTÁVEL (sem sufixo aleatório): re-subir substitui.
   `BLOB_READ_WRITE_TOKEN` no env; sem ele os passos são pulados e o front cai no
   hotlink da fonte. Hosts permitidos em `lib/imagens.mjs` (`HOSTS_IMAGEM`).
+- **gravar.py** — a única escrita em `cru`. **Append-only** nas 5 plataformas: coleta
+  que traz payload diferente do último acrescenta versão; nada é apagado no lugar. A
+  comparação é com a ÚLTIMA versão (A→B→A registra as três transições), pelo sha256 da
+  forma canônica (`sort_keys`) — sem isso, fonte que reordena chaves geraria versão
+  nova toda rodada. Payload IGUAL não vira linha, mas avança `visto_em`. Instagram,
+  cinema e TMDB são "último vence" por decisão explícita (cada `sql/cru/*.sql`
+  documenta a política da sua tabela). `ERAS` registra qual endpoint produziu cada
+  payload — é UMA linha por troca de API, e é o que impede o parser novo de degradar
+  em silêncio sobre payload velho.
 - **discover_sympla.py** — ferramenta de reconhecimento, fora do pipeline: intercepta
   XHR/fetch num navegador para achar a API interna quando um site muda.
 
-### Frente B — Consulta
+### Frente B — Tratamento (`src/tratamento/`) e consulta
 
-- `src/store.py` — aplica o schema + `upsert_eventos` (chave `<fonte>:<id_nativo>`;
-  **normaliza as datas na escrita**) + busca textual pela coluna `busca tsvector`
-  (config `pt`: unaccent + stemming). Depois de raspar, `reconstruir_fts(con)`. A chave
-  reservada `_raw` do dict normalizado vai para a **Bronze** (`eventos_raw`, PK
-  `evento_id+origem` — Sympla tem 2 payloads: catálogo e detalhe).
-- `src/tratamento/derivar.py` — derivação a seco (**camada Prata**): recalcula colunas de
-  `eventos` e a tabela `lotes` a partir de `eventos_raw`, sem rede. Campo novo do bruto
-  = função aqui + `--so-derivar`, **sem re-raspar**; idempotente. Lote guarda o nome CRU
-  da fonte e `preco` = total com taxa; `preco_min` é o menor lote **PAGO** (cortesia não
-  mascara o preço real) e `tem_gratis` marca lote grátis não esgotado. Os payloads de
-  tickets vêm do passo "precificar" — **não incremental** (preço é volátil), só na
-  janela de 30 dias, e no Sympla só para eventos com descrição validada (âncora da
-  guarda anti-Bileto).
-  `aplicar_cinema(con)` reconstrói `filmes`/`sessoes` do zero a partir de `cinema_raw`
-  (**SNAPSHOT**: sessão não tem id estável entre semanas — sem upsert, sem dedupe, sem
-  `sumido`; o id do FILME é estável e é a PK). `aplicar_instagram(con)` reconstrói os
-  eventos `fonte='instagram'` do zero (a "Prata" do Instagram é a própria `eventos`):
-  post comum = 1 item → `instagram:<code>`; carrossel-agenda = N itens →
-  `instagram:<code>:<n>` com URL `?img_index=<n>` (n estável — itens reprovados não
-  renumeram). Guarda POR ITEM: confiança ALTA + nome + data resolvida (errar p/ o lado
-  de NÃO criar). Preço do flyer vira lote sintético. Roda DEPOIS de `aplicar()`, que
-  trunca `lotes`. Specs: `20260710_camada-bronze/`, `-camada-prata/`,
-  `-lotes-ingressos/`.
+Tudo aqui é **a seco**: nenhuma requisição de rede. Campo novo do bruto = uma função
+aqui + `--so-derivar`, **sem re-raspar**.
+
+- `src/tratamento/<fonte>.py` — a trilha de leitura de UMA fonte. Declara só o que é
+  dela: `normalizar(payload, linha_do_cru)` (as colunas de identidade do evento),
+  `DERIVACOES` (por origem: catalogo/detalhe/tickets), `LOTES` e `CONFERIR`. Não sabe
+  SQL.
+- `src/tratamento/comum.py` — o motor que percorre o `cru` e escreve em `tratado`:
+  upsert (chave `<fonte>:<id_nativo>`, **normaliza as datas na escrita**), agregação de
+  lotes, e a **guarda do §6.3** — payload cujo id não bate com a chave da bronze, ou
+  sem nome/url, é PULADO e reportado, nunca sobrescreve dado bom com lixo plausível.
+  Escreve a linha INTEIRA, **sem COALESCE**: a verdade é o cru, e preservar valor
+  antigo esconderia bug de reconstrução em vez de evitá-lo.
+  Lote guarda o nome CRU da fonte e `preco` = total com taxa; `preco_min` é o menor
+  lote **PAGO** (cortesia não mascara o preço real) e `tem_gratis` marca lote grátis
+  não esgotado. Os payloads de tickets vêm do passo "precificar" — **não incremental**
+  (preço é volátil), só na janela de 30 dias, e no Sympla só para eventos com payload
+  de detalhe guardado (âncora da guarda anti-Bileto).
+- `src/tratamento/cinema.py` — reconstrói `filmes`/`sessoes` do zero a partir de
+  `cru.cinema` (**SNAPSHOT**: sessão não tem id estável entre semanas — sem upsert, sem
+  dedupe, sem `sumido`; o id do FILME é estável e é a PK).
+- `src/tratamento/instagram.py` — reconstrói os eventos `fonte='instagram'` do zero (a
+  "prata" do Instagram é a própria `tratado.eventos`): post comum = 1 item →
+  `instagram:<code>`; carrossel-agenda = N itens → `instagram:<code>:<n>` com URL
+  `?img_index=<n>` (n estável — itens reprovados não renumeram). Guarda POR ITEM:
+  confiança ALTA + nome + data resolvida (errar p/ o lado de NÃO criar). Preço do
+  flyer vira lote sintético. Roda DEPOIS de `comum.aplicar()`, que apaga `lotes`.
+  Specs: `20260710_camada-bronze/`, `-camada-prata/`, `-lotes-ingressos/`.
+- `src/tratamento/sumido.py` — deriva `sumido` de `operacao.coletas`: evento FUTURO
+  cujo `raspado_em` ficou atrás do início da última coleta boa da fonte não reapareceu
+  no catálogo. As três guardas saem do SQL, não de `if` no orquestrador: fonte que
+  falhou (`erro IS NULL`), fonte que coletou zero (`coletados > 0`, NI-59) e
+  Instagram/cinema (`FORA`).
+- `src/tratamento/ciclo.py` — o ciclo inteiro **numa transação só**, com `DELETE` e
+  **não `TRUNCATE`**: `public` é view sobre `tratado`, então o site e o MCP consultam
+  enquanto isto reconstrói. `TRUNCATE` é transacional mas toma `ACCESS EXCLUSIVE` — os
+  leitores BLOQUEIAM em vez de enxergar a versão anterior. Nenhum passo do tratamento
+  comita sozinho; quem comita é este.
 - `src/tratamento/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
   (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas — cross-fonte (mesmo
   dia + nome/local similares) e intra-fonte (regra mais apertada: mesmo local
@@ -265,16 +332,27 @@ contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
   sem tocar em código). O caminho da rota SAI de `MCP_RECURSO`, para o metadado
   anunciado nunca divergir da rota servida. `mcp>=1.28` é piso duro.
 
-### Fluxo (o que o `atualizar.py` orquestra)
+### Fluxo (o que o `atualizar.py` orquestra) — DOIS TEMPOS
 
-`raspar()` → `upsert_eventos()` (grava o bruto na Bronze junto) → marcar sumidos →
-descrever (incremental; o upsert usa COALESCE p/ nunca zerar a descrição) → precificar
-→ cinema (snapshot com poda de dias passados) → instagram (Bronze acumulativa +
-extração do flyer só p/ post NOVO ≤ 60 dias; falha re-tenta na próxima rodada) →
-`derivar.aplicar()` + `aplicar_instagram()` + `aplicar_cinema()` →
-`enriquecer.aplicar(aliases_local=...)` → `reconstruir_fts()` (eventos E filmes) →
-relatório (compara com a rodada anterior e **ALERTA queda > 50%** — detector de scraper
-quebrado) → `registrar_execucao()` (uma linha por rodada, com erros POR evento).
+**1. Coleta (rede).** `raspar()` → `gravar()` em `cru.<fonte>` + `registrar_coleta()`
+em `operacao.coletas` → descrever (incremental **pelo cru**: a fila é "não existe
+payload de detalhe para este id", não `descricao IS NULL`) → precificar → cinema
+(snapshot com poda de dias passados) → instagram (cru acumulativo + extração do flyer
+só p/ post NOVO ≤ 60 dias; falha re-tenta na próxima rodada) → flyer para o storage.
+
+**2. Tratamento (a seco), em `ciclo.executar`, numa transação só.**
+`comum.aplicar()` → `instagram.aplicar()` → `cinema.aplicar()` → `sumido.aplicar()` →
+`enriquecer.aplicar(aliases_local=...)` → `curadoria.aplicar()` →
+`reconstruir_fts()` (eventos E filmes) → **um commit**.
+
+Depois: TMDB e cópia de pôster (que só sabem o que buscar depois de a grade existir,
+então rodam entre um ciclo e outro — e disparam um segundo ciclo se trouxeram algo) →
+poda do histórico do cru → relatório (compara com a rodada anterior e **ALERTA queda >
+50%** — detector de scraper quebrado) → `registrar_execucao()`.
+
+As filas de descrever/precificar leem `cru` + `operacao`, nunca `tratado` — é isso que
+permite os dois rodarem antes de qualquer escrita na prata. E o parser é UM só: o
+mesmo `tratamento/<fonte>.py` que depois monta o evento.
 
 O FTS indexa nome/categoria/atrações/descrição + local_nome/organizador (para "o que
 tem no Ordinário?" achar pela casa rotulada, mesmo com a legenda dizendo só "Ordi"); em
@@ -282,8 +360,20 @@ filmes, título/gêneros.
 
 ## Convenções e armadilhas
 
-- **Schema unificado é o contrato.** Todo scraper normaliza para os campos de
-  `sql/schema.sql` antes de gravar. Fonte nova segue o mesmo `_normalizar(...)` → dict.
+- **Schema unificado é o contrato, e quem o produz é o TRATAMENTO.** Fonte nova = um
+  `coleta/<fonte>.py` (só fala com a fonte, devolve payload cru), um
+  `tratamento/<fonte>.py` (`normalizar` + `DERIVACOES` + `LOTES`), uma tabela em
+  `sql/cru/` e uma linha em `comum.TRILHAS` e `gravar.FONTES`.
+- **Rótulo constante não é categoria.** `event_type='NORMAL'` do Sympla (224/224),
+  `"MusicEvent"` do Shotgun (65/65) e `"Evento"` do Ticket and Go (71/72) foram todos
+  gravados como `categoria` em algum momento: zero poder de distinção e poluição do
+  FTS, que indexa a coluna. Antes de mapear um campo da fonte para `categoria`, conte
+  os valores distintos. Um só = não é categoria, é flag.
+- **Passo idempotente se compara TODAS as colunas que escreve.** O teste de
+  idempotência do `enriquecer` passava havia semanas comparando três colunas enquanto
+  a quarta (`dedupe_score`) variava a cada execução — o `SELECT` não tinha `ORDER BY` e
+  o resultado dependia da ordem em que o Postgres devolvia as linhas. Query sem
+  `ORDER BY` cujo resultado alimenta um cálculo é não determinismo esperando acontecer.
 - **Datas em formatos mistos** (Sympla/Ingresse `+00:00`, Shotgun `.000Z`, Zig
   `.000-03:00`, Ticket and Go manda data e hora locais SEPARADAS e sem fuso). O parse
   mora em UM lugar: `src/base/tempo.py` (`instante` → datetime UTC; `norm_ts` → texto ISO
@@ -291,11 +381,15 @@ filmes, título/gêneros.
   `start_date`/`end_date`/`raspado_em` (invariante: ISO UTC `+00:00`) e a `consulta.py`
   normaliza os parâmetros — a comparação no SQL é lexical e segura. Não grave data
   nessas colunas fora do upsert sem normalizar, nem reimplemente parse local.
-- **`raspado_em` é a âncora do `sumido`:** só o upsert do catálogo o atualiza
-  (descrever/precificar mexem em outras colunas). Atualizá-lo fora do upsert quebra a
-  detecção de evento sumido.
+- **`visto_em` é a âncora do `sumido`, e `raspado_em` do cru NÃO é.** No append-only,
+  `cru.<fonte>.raspado_em` é a data da última MUDANÇA do payload; `visto_em` é a do
+  último AVISTAMENTO, e avança em toda coleta sem custar linha nova. Usar o primeiro
+  marcaria como "saiu do catálogo" todo evento que simplesmente não mudou desde a
+  rodada passada. `tratado.eventos.raspado_em` sai do `visto_em` do CATÁLOGO — só dele:
+  descrever e precificar têm timestamp próprio e não provam presença no catálogo.
 - **Coleta ZERADA não é catálogo vazio** (NI-59): fonte que devolveu 0 nesta rodada
-  fica FORA do `_marcar_sumidos`, como já ficava a que falhou. Foi assim que o Shotgun
+  fica FORA do `sumido` — hoje por `WHERE coletados > 0`, e não por `if` no meio da
+  orquestração. Fonte que falhou também. Foi assim que o Shotgun
   quebrado no CI escondeu a própria agenda por três dias — coletou 0 **com sucesso** e
   todo evento futuro dele virou `sumido=1`. Pelo mesmo motivo, scraper que não
   conseguiu ler a listagem deve **LEVANTAR exceção, nunca devolver lista vazia**.
@@ -304,28 +398,31 @@ filmes, título/gêneros.
   Go vem nula e quem decide é o `_do_df`, sem endereço nenhum.
 - **Instagram tem regras próprias:** (a) URL de mídia do CDN **expira em horas** —
   baixar na hora da ingestão (`midias/instagram/`, gitignorado), nunca gravar a URL na
-  base; (b) a fonte fica **FORA** do `_marcar_sumidos` (post que sai da 1ª página do
-  perfil não significa cancelamento); (c) a watchlist é dado **curado à mão e
-  versionado** — não mover para a base; (d) a extração do flyer roda na ASSINATURA
-  (`claude -p`) e é incremental — nunca re-extrai shortcode que já tem origem
-  `extracao` na Bronze.
+  base; (b) a fonte fica **FORA** do `sumido`, duas vezes: não registra linha em
+  `operacao.coletas` e ainda está em `sumido.FORA` (post que sai da 1ª página do perfil
+  não significa cancelamento); (c) a watchlist é dado **curado à mão e versionado** —
+  não mover para a base; (d) a extração do flyer roda na ASSINATURA (`claude -p`) e é
+  incremental — nunca re-extrai shortcode que já tem origem `extracao` no cru.
 - **URLs do Bileto (`bileto.sympla.com.br`) não passam pelo "descrever":** o id no fim
   delas é de OUTRO namespace, e o BFF de página devolveria um evento alheio sem erro
-  HTTP. Além do filtro de URL, o `_descrever` valida o nome devolvido (`_mesmo_nome`)
-  antes de gravar — **não remova essa guarda**.
+  HTTP. Além do filtro de URL, o `_descrever` valida o nome devolvido
+  (`texto.mesmo_nome`) antes de gravar no cru — **não remova essa guarda**. E ela roda
+  SÓ na coleta, de propósito: repeti-la na leitura do payload foi medido contra a base
+  real e descartava descrição boa toda vez que o produtor renomeava o evento entre uma
+  raspagem e outra (o nome do catálogo se move; a comparação só vale fresca).
 - **Ruído conhecido:** o filtro `themes=99` do Sympla deixa passar anúncios/cursos —
   tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra NÃO marca: falso
   positivo esconde festa real; termos já descartados em `docs/backlogs/rejeitado.yaml`).
   `end_date` às vezes vem inconsistente na origem — filtre por `start_date`.
-- **Schema mudou? NUNCA `DROP SCHEMA` — a Bronze mora aqui.** A convenção antiga
-  ("base descartável") é da era SQLite, ANTES da Bronze, e custou o catálogo inteiro do
+- **Schema mudou? NUNCA `DROP SCHEMA` — o `cru` mora aqui.** A convenção antiga
+  ("base descartável") é da era SQLite, ANTES da bronze, e custou o catálogo inteiro do
   Shotgun num drop. Hoje: (a) mudança ADITIVA = `ADD COLUMN IF NOT EXISTS` /
-  `CREATE TABLE IF NOT EXISTS` no próprio `sql/schema.sql` — idempotente, o
+  `CREATE TABLE IF NOT EXISTS` no próprio `sql/<camada>/<tabela>.sql` — idempotente, o
   `conectar()` aplica sozinho; (b) NÃO-ADITIVA = dropar SÓ as derivadas afetadas
-  (`lotes`, `filmes`, `sessoes` são 100% reconstruíveis; `eventos` ainda NÃO é — NI-55)
-  e re-derivar; (c) `eventos_raw`, `instagram_raw`, `cinema_raw`, `cinema_extra_raw`,
-  `execucoes`, `usuarios` e `acessos` **não se reconstroem** — não dropar; se algo
-  destrutivo for inevitável, exportar antes (NI-56).
+  (`tratado` inteira é 100% reconstruível desde a fatia 7 da spec do medalhão)
+  e re-derivar; (c) os schemas `cru`, `curado`, `operacao` e `uso` **não se
+  reconstroem** — não dropar; se algo destrutivo for inevitável, exportar antes
+  (NI-56).
 - **MCP / FastMCP:** retorno `list` vira `structuredContent["result"]` + um content
   block por item; retorno `dict` vira content block único. `tests/test_mcp_server.py`
   lida com os dois formatos. Config em `.mcp.json`; setup dos clientes em
