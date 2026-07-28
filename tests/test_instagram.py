@@ -20,10 +20,10 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
 from base import conexao
+from tratamento import instagram as trat_instagram  # noqa: E402
 from coleta import gravar
 from tratamento import busca
 from tratamento import comum
-from tratamento import derivar  # noqa: E402
 from tratamento import enriquecer  # noqa: E402
 from servico import consulta  # noqa: E402
 from pipeline import atualizar  # noqa: E402
@@ -238,8 +238,8 @@ def test_derivacao_e_consulta():
     ]
     gravar.gravar_instagram_raw(con, itens, raspado)
 
-    derivar.aplicar(con)
-    r = derivar.aplicar_instagram(con)
+    comum.aplicar(con)
+    r = trat_instagram.aplicar(con)
     # eventos: AAA111, BBB222, CCC333, OLD888, AGE999:2/:3/:4, JJJ000
     # lotes: AAA111 (20), BBB222 (grátis), OLD888 (15), JJJ000 (25)
     # descartados (posts sem nenhum evento): DDD444, EEE555, FFF666, GGG777
@@ -291,8 +291,8 @@ def test_derivacao_e_consulta():
     print("agenda: N eventos por post, sub-id estável, ?img_index — ok")
 
     # idempotência (--so-derivar): re-derivar não duplica nem some
-    derivar.aplicar(con)
-    r2 = derivar.aplicar_instagram(con)
+    comum.aplicar(con)
+    r2 = trat_instagram.aplicar(con)
     assert r2 == r, "re-derivação mudou o resultado"
     n = con.execute("SELECT COUNT(*) AS n FROM tratado.eventos "
                     "WHERE fonte = 'instagram'").fetchone()["n"]

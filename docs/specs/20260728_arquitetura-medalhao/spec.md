@@ -1056,15 +1056,23 @@ repo na mesma leva, para não existirem duas fontes da verdade.
 ## 11. Conferência contínua (o que impede a peça de apodrecer)
 
 Uma reconstrução que só roda no dia da migração estará quebrada exatamente nesse
-dia — foi o modo de falha da doutrina "base descartável". Por isso, entre as
-fatias 5 e 7, **toda rodada roda o tratamento em modo conferência**: lê o `cru`,
-normaliza em memória, compara com `tratado` e imprime as divergências no
-relatório, sem escrever. Custo medido no protótipo: ~2s de CPU para 379 eventos,
-zero requisições. Uma troca de API aparece como "12 divergências em
-`ticketandgo.url`" no relatório do dia seguinte, não no dia da migração.
+dia — foi o modo de falha da doutrina "base descartável".
 
-Depois da inversão (fatia 7) o modo muda de papel: o tratamento já roda
-escrevendo, e a comparação vira diff "o que mudou nesta rodada".
+O rascunho previa um **modo conferência** rodando entre as fatias 5 e 7: o
+tratamento leria o `cru`, normalizaria em memória, compararia com `tratado` e
+imprimiria as divergências, sem escrever. Ele existia para cobrir o intervalo de
+dias em que a coleta ainda escreveria na prata.
+
+> **Na implementação as fatias 5 e 7 saíram na mesma sessão, então esse
+> intervalo não existiu** — e construir o modo conferência seria construir algo
+> obsoleto na chegada. O que substitui, e é mais forte, é o **teste de fronteira
+> da §10**: `DELETE FROM tratado.*` + tratamento reproduz a base inteira,
+> rodando no CI. A conferência é uma amostra que compara; o teste de fronteira é
+> a propriedade inteira, verificada.
+
+Depois da inversão, o papel que sobra para uma comparação por rodada é outro —
+diff "o que mudou nesta rodada", que é observabilidade de produto, não guarda de
+migração. Fica para quando houver pergunta que a justifique.
 
 ---
 

@@ -15,7 +15,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
 from servico import consulta  # noqa: E402
-from tratamento import derivar  # noqa: E402
+from tratamento import cinema as trat_cinema  # noqa: E402
 from base import conexao
 from coleta import gravar
 from tratamento import busca
@@ -76,7 +76,7 @@ def main():
                             [("128", HOJE, grade(HOJE, [toy, drama])),
                              ("124", HOJE, grade(HOJE, [toy_no_park, passado]))],
                             "2026-01-01T00:00:00+00:00")
-    r = derivar.aplicar_cinema(con)
+    r = trat_cinema.aplicar(con)
     assert r == {"filmes": 3, "sessoes": 5, "tmdb": 0}, r
     linhas = {s["id"]: s for s in con.execute("SELECT * FROM tratado.sessoes")}
     assert linhas["s2"]["tipos"] == "3D/XD/Legendado" and \
@@ -149,7 +149,7 @@ def main():
     print("sessoes_filme: filtros de cinema/hora; opções não encolhem — ok")
 
     # ── enriquecimento externo (NI-36/NI-37): Bronze fora do snapshot ──
-    gravar.gravar_cinema_extra(con, "100", "tmdb", {
+    gravar.gravar_tmdb(con, "100", {
         "consultas": ["Toy Story 5"],
         "candidatos": [],
         "escolhido": {"id": 552524, "title": "Toy Story 5",
@@ -157,13 +157,14 @@ def main():
                       "release_date": "2026-06-17",
                       "vote_average": 7.4, "vote_count": 120},
     }, "2026-01-01T00:00:00+00:00")
-    gravar.gravar_cinema_extra(con, "100", "poster", {"url": "http://blob/p.webp"},
-                              "2026-01-01T00:00:00+00:00")
-    gravar.gravar_cinema_extra(con, "200", "tmdb", {
+    # o pôster no NOSSO storage não é payload de fonte: vai para operacao.midias
+    gravar.gravar_midia(con, "100", "poster", "http://blob/p.webp",
+                        "2026-01-01T00:00:00+00:00")
+    gravar.gravar_tmdb(con, "200", {
         "consultas": ["Um Drama Qualquer"], "candidatos": [],
         "escolhido": None,   # matching não confiou: NÃO ganha nota
     }, "2026-01-01T00:00:00+00:00")
-    r = derivar.aplicar_cinema(con)
+    r = trat_cinema.aplicar(con)
     assert r["tmdb"] == 1, r
     toy_f = con.execute("SELECT * FROM tratado.filmes WHERE id = '100'").fetchone()
     assert toy_f["sinopse"] == "Buzz enfrenta a obsolescência." and \
@@ -204,7 +205,7 @@ def main():
                                                [sessao("s9", 4)])])),
               ("124", HOJE, grade(HOJE, []))],
         "2026-01-02T00:00:00+00:00")
-    r = derivar.aplicar_cinema(con)
+    r = trat_cinema.aplicar(con)
     assert r == {"filmes": 1, "sessoes": 1, "tmdb": 1}, \
         (r, "snapshot tinha que substituir E re-aplicar o extra")
     ids = {s["id"] for s in con.execute("SELECT id FROM tratado.sessoes")}

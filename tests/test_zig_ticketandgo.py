@@ -18,7 +18,6 @@ from base import conexao
 from coleta import gravar
 from tratamento import busca
 from tratamento import comum
-from tratamento import derivar  # noqa: E402
 from servico import consulta  # noqa: E402
 from coleta import ticketandgo, zig  # noqa: E402
 
@@ -164,11 +163,11 @@ def main():
     print("escrita: -03:00 das duas fontes normalizado p/ UTC no upsert — ok")
 
     # --- derivação: bairro do Zig; lotes do Ticket and Go com taxa 10% ---
-    gravar.gravar_raw(con, "ticketandgo:36999", "tickets", TNG_TICKETS,
+    gravar.gravar(con, "ticketandgo", "36999", "tickets", TNG_TICKETS,
                      "2026-07-12T00:00:00+00:00")
-    gravar.gravar_raw(con, "zig:22670", "tickets", ZIG_TICKETS,
+    gravar.gravar(con, "zig", "22670", "tickets", ZIG_TICKETS,
                      "2026-07-12T00:00:00+00:00")
-    derivar.aplicar(con)
+    comum.aplicar(con)
     r = con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'zig:22670'").fetchone()
     assert r["bairro"] == "Asa Norte", r["bairro"]
 

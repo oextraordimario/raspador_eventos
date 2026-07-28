@@ -22,8 +22,8 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 sys.path.insert(0, str(RAIZ / "api"))
 
-from tratamento import derivar  # noqa: E402
 from tratamento import enriquecer  # noqa: E402
+from tratamento import cinema as trat_cinema  # noqa: E402
 from base import conexao
 from coleta import gravar
 from tratamento import busca
@@ -105,7 +105,7 @@ gravar.gravar_cinema_raw(con, [("128", _daqui.date().isoformat(),
                                    _filme("900", "Sustão", ["Terror"], "16 anos"),
                                    _filme("901", "Bonequinhos", ["Animação"], "Livre"),
                                ]}])], AGORA.isoformat())
-derivar.aplicar_cinema(con)
+trat_cinema.aplicar(con)
 busca.reconstruir_fts(con)
 con.close()
 

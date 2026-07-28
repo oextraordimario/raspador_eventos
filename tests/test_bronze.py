@@ -18,7 +18,6 @@ sys.path.insert(0, str(RAIZ / "src"))
 from base import conexao
 from coleta import gravar
 from tratamento import comum
-from tratamento import derivar  # noqa: E402
 from servico import consulta  # noqa: E402
 
 import base_teste  # noqa: E402
@@ -42,9 +41,23 @@ def evento(id_, **kw):
 
 
 def raw_linhas(con, evento_id):
+    """Estado CORRENTE do evento no cru (view _atual, uma linha por origem).
+
+    A tabela por baixo é append-only: guarda todas as versões. Quem quer o
+    histórico consulta `cru.<fonte>`; quem quer o estado consulta `_atual`.
+    """
+    fonte, _, id_nativo = evento_id.partition(":")
     return con.execute(
-        "SELECT origem, payload, raspado_em FROM cru.eventos_raw "
-        "WHERE evento_id = %s ORDER BY origem", (evento_id,)).fetchall()
+        f"SELECT origem, payload, raspado_em FROM cru.{fonte}_atual "
+        "WHERE id_nativo = %s ORDER BY origem", (id_nativo,)).fetchall()
+
+
+def versoes(con, fonte, id_nativo, origem):
+    """Quantas versões o append-only guardou para uma chave."""
+    return con.execute(
+        f"SELECT count(*) AS n FROM cru.{fonte} "
+        "WHERE id_nativo = %s AND origem = %s",
+        (id_nativo, origem)).fetchone()["n"]
 
 
 def main():
@@ -67,15 +80,35 @@ def main():
     assert "_raw" not in cols, "_raw vazou como coluna de eventos"
     print("bronze: upsert grava eventos_raw, payload round-tripa, _raw não vaza — ok")
 
-    # --- upsert repetido não duplica; último payload vence ---
+    # --- APPEND-ONLY: payload novo acrescenta versão; igual NÃO acrescenta ---
+    # Cada rodada tem seu raspado_em (é componente da PK): duas rodadas com o
+    # mesmo conteúdo não podem gerar duas versões, e é isso que o hash resolve.
+    assert versoes(con, "sympla", "1", "catalogo") == 1
     comum.upsert_eventos(con, [evento("sympla:1", nome="Festa",
+                                      raspado_em="2026-07-11T00:00:00+00:00",
                                       _raw={"id": 1, "v": 2})])
+    assert versoes(con, "sympla", "1", "catalogo") == 2, "payload novo não virou versão"
     linhas = raw_linhas(con, "sympla:1")
-    assert len(linhas) == 1 and json.loads(linhas[0]["payload"]) == {"id": 1, "v": 2}
-    print("bronze: upsert repetido não duplica, último payload vence — ok")
+    assert len(linhas) == 1 and json.loads(linhas[0]["payload"]) == {"id": 1, "v": 2}, \
+        "a view _atual tem que devolver só a versão mais recente"
+    # o MESMO payload numa rodada nova NÃO gera versão — e nem se as chaves
+    # vierem em outra ordem, porque o hash é da forma canônica (sort_keys)
+    comum.upsert_eventos(con, [evento("sympla:1", nome="Festa",
+                                      raspado_em="2026-07-12T00:00:00+00:00",
+                                      _raw={"v": 2, "id": 1})])
+    assert versoes(con, "sympla", "1", "catalogo") == 2, \
+        "payload igual (ou só reordenado) não pode gerar versão nova"
+    # e o histórico responde por data, que é o que o append-only compra
+    antigo = con.execute(
+        "SELECT payload FROM cru.sympla WHERE id_nativo = '1' "
+        "AND origem = 'catalogo' ORDER BY raspado_em LIMIT 1").fetchone()
+    assert json.loads(antigo["payload"]) == payload, \
+        "a versão original tem que continuar consultável"
+    print("bronze: append-only — payload novo vira versão, igual não; _atual "
+          "devolve a última e o histórico continua lá — ok")
 
     # --- payload de detalhe convive com o de catálogo (PK composta) ---
-    gravar.gravar_raw(con, "sympla:1", "detalhe", {"detail": "<p>oi</p>"},
+    gravar.gravar(con, "sympla", "1", "detalhe", {"detail": "<p>oi</p>"},
                      "2026-07-10T01:00:00+00:00")
     origens = [r["origem"] for r in raw_linhas(con, "sympla:1")]
     assert origens == ["catalogo", "detalhe"], origens
@@ -87,7 +120,7 @@ def main():
         evento("sympla:4", _raw={"location": {}}),           # sem bairro
         evento("shotgun:5", _raw={"location": {"neighborhood": "não é sympla"}}),
     ])
-    contagem = derivar.aplicar(con)
+    contagem = comum.aplicar(con)
     bairros = {r["id"]: r["bairro"]
                for r in con.execute("SELECT id, bairro FROM tratado.eventos")}
     assert bairros["sympla:3"] == "Ceilândia"
@@ -102,16 +135,16 @@ def main():
 
     # --- idempotência: aplicar 2x = mesmo estado ---
     antes = sorted(bairros.items())
-    derivar.aplicar(con)
+    comum.aplicar(con)
     depois = sorted((r["id"], r["bairro"])
                     for r in con.execute("SELECT id, bairro FROM tratado.eventos"))
     assert depois == antes
     print("bronze: derivação idempotente — ok")
 
     # --- reset: bruto que perde o campo derruba a coluna na próxima aplicação ---
-    gravar.gravar_raw(con, "sympla:3", "catalogo", {"location": {}},
+    gravar.gravar(con, "sympla", "3", "catalogo", {"location": {}},
                      "2026-07-10T02:00:00+00:00")
-    derivar.aplicar(con)
+    comum.aplicar(con)
     assert con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'sympla:3'"
                        ).fetchone()["bairro"] is None
     print("bronze: recalcula do zero (não eterniza valor de payload antigo) — ok")
@@ -130,19 +163,19 @@ def main():
             "eventStatus": "https://schema.org/EventCancelled"}),
     ])
     ts = "2026-07-10T03:00:00+00:00"
-    gravar.gravar_raw(con, "sympla:p1", "detalhe", {"cancelled": False}, ts)
-    gravar.gravar_raw(con, "sympla:p1", "tickets", {"tickets": [
+    gravar.gravar(con, "sympla", "p1", "detalhe", {"cancelled": False}, ts)
+    gravar.gravar(con, "sympla", "p1", "tickets", {"tickets": [
         {"show": True, "isFree": False, "currentAvailableQty": 5,
          "salePriceWithDiscountMonetary": {"decimal": 44.0}},
         {"show": True, "isFree": True, "currentAvailableQty": 0},
     ]}, ts)
-    gravar.gravar_raw(con, "ingresse:p4", "tickets", {"detail": {"responseData": [
+    gravar.gravar(con, "ingresse", "p4", "tickets", {"detail": {"responseData": [
         {"name": "Passaporte PISTA",
          "type": [{"name": "Inteira", "price": 400, "tax": 40, "status": "finished"},
                   {"name": "Meia", "price": 200, "tax": 20, "status": "finished"},
                   {"price": 1, "status": "available", "hidden": True}]},
     ]}}, ts)
-    derivar.aplicar(con)
+    comum.aplicar(con)
 
     def prata(ev_id):
         return dict(con.execute(
@@ -176,7 +209,7 @@ def main():
                          "completo de DJs a noite toda. " + "Detalhes. " * 50),
         evento("sympla:sc", nome="Evento Só Cortesia"),
     ])
-    gravar.gravar_raw(con, "sympla:hc", "tickets", {"tickets": [
+    gravar.gravar(con, "sympla", "hc", "tickets", {"tickets": [
         {"show": True, "isFree": True, "currentAvailableQty": 2,
          "name": "CORTESIA FEMININA DA COPA ATÉ 00H"},
         {"show": True, "isFree": False, "currentAvailableQty": 5,
@@ -192,11 +225,11 @@ def main():
          "salePriceWithDiscountMonetary": {"decimal": 418.0},
          "feeMonetary": {"decimal": 38.0}},
     ]}, ts)
-    gravar.gravar_raw(con, "sympla:sc", "tickets", {"tickets": [
+    gravar.gravar(con, "sympla", "sc", "tickets", {"tickets": [
         {"show": True, "isFree": True, "currentAvailableQty": 10,
          "name": "Entrada franca"},
     ]}, ts)
-    derivar.aplicar(con)
+    comum.aplicar(con)
     hc = prata("sympla:hc")
     assert hc["preco_min"] == 38.99 and hc["tem_gratis"] == 1 \
         and hc["esgotado"] == 0, hc  # antes da spec: preco_min viria 0.0
@@ -205,7 +238,7 @@ def main():
         sc  # evento grátis: sem lote pago + tem_gratis
     # derivação idempotente também para lotes (DELETE + reinsert)
     n_lotes = con.execute("SELECT COUNT(*) AS n FROM tratado.lotes").fetchone()["n"]
-    derivar.aplicar(con)
+    comum.aplicar(con)
     assert con.execute("SELECT COUNT(*) AS n FROM tratado.lotes").fetchone()["n"] == n_lotes
     print("NI-18: cortesia não mascara preço pago; só-cortesia = grátis — ok")
 

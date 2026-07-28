@@ -113,7 +113,12 @@ def _normalizar(ld, slug, cidade_label, estado_label):
         "descricao": (ld.get("description") or "").strip() or None,
         "atracoes": _atracoes(ld),
         "preco_min": _preco_min(ld),
-        "_raw": ld,  # JSON-LD bruto -> eventos_raw (camada Bronze)
+        "_raw": ld,  # JSON-LD bruto -> cru.shotgun (append-only)
+        # Colunas proprias de cru.shotgun: cidade/estado NAO vem do payload (o
+        # addressLocality do JSON-LD e o BAIRRO), vem do parametro de busca.
+        # Gravar o que a coleta CONHECE evita que a reconstrucao tenha que
+        # deduzir por convencao — era o ponto de atencao nº 1 do NI-55.
+        "_cru": {"cidade_label": cidade_label, "estado_label": estado_label},
     }
 
 

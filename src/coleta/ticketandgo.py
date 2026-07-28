@@ -232,7 +232,14 @@ def _normalizar(det, slug, cidade_label, estado_label):
         "raspado_em": datetime.now(timezone.utc).isoformat(),
         # descrição já vem no detalhe — sem passo "descrever" p/ esta fonte
         "descricao": _limpar_html(det.get("descricao")),
-        "_raw": det,  # payload bruto -> eventos_raw (camada Bronze)
+        "_raw": det,  # payload bruto -> cru.ticketandgo (append-only)
+        # Colunas proprias de cru.ticketandgo: a fonte NAO expoe mais endereco
+        # (a V1 foi desligada), entao cidade/estado vem do _do_df da coleta; e
+        # o `slug` nao e derivavel do id numerico e mudou de chave entre as
+        # eras (`slug_evento` na V2, `slug` na V1). Gravar o que a coleta de
+        # fato usou torna a reconstrucao independente de adivinhar a forma.
+        "_cru": {"slug": slug or None, "cidade_label": cidade_label,
+                 "estado_label": estado_label},
     }
 
 

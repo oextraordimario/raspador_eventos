@@ -46,7 +46,12 @@ from base import conexao, tempo                                   # noqa: E402
 from coleta import (cinema, gravar, ingresse, instagram, midias,  # noqa: E402
                     shotgun, sympla, ticketandgo, tmdb, zig)
 from pipeline import execucoes                                    # noqa: E402
-from tratamento import busca, comum, derivar, enriquecer          # noqa: E402
+from tratamento import busca, comum, enriquecer                   # noqa: E402
+# Aliases: `cinema` e `instagram` existem nos DOIS estágios — coleta/ sabe
+# falar com a fonte, tratamento/ sabe ler o payload dela. O alias deixa claro
+# em cada linha de qual lado se está falando.
+from tratamento import cinema as trat_cinema                      # noqa: E402
+from tratamento import instagram as trat_instagram                # noqa: E402
 
 # Rede com IPv6 quebrado (opt-in, FORCAR_IPV4=1 no env): urllib e psycopg
 # tentam os endereços IPv6 em SEQUÊNCIA (sem happy eyeballs do navegador/curl)
@@ -75,6 +80,18 @@ QUEDA_ALERTA = 0.5
 # está na base desde a rodada em que o post era novo): protege a 1ª rodada de
 # um perfil novo de gastar visão com o feed histórico.
 EXTRAIR_POSTS_DIAS = 60
+
+# Janela do histórico append-only do `cru`. Passado isso, sobra só a última
+# versão de cada (id_nativo, origem) — nunca o estado atual.
+#
+# 90 dias porque o dedupe por hash NÃO segura o crescimento tanto quanto
+# parece: o `global_score` do Sympla muda todo dia e o `currentAvailableQty`
+# dos tickets muda a cada ingresso vendido, então há versão nova quase toda
+# rodada (~2,7 MB/rodada, ≈1 GB/ano sem poda). Com 90 dias estabiliza em
+# ~250 MB, levando a branch do Neon a ~60% do teto de 512 MiB — que é POR
+# BRANCH, e a branch carrega quatro bancos. O degrau, se apertar, é 30 dias
+# (~80 MB). Spec 20260728_arquitetura-medalhao §3.5.
+JANELA_HISTORICO_DIAS = 90
 
 
 def _checar_schema(con):
@@ -208,7 +225,7 @@ def _descrever(con, erros, pausa=0.4):
     # URLs do Bileto ficam de fora: o id no fim delas é de outro namespace e o
     # BFF de página devolveria outro evento (NI-17). Sumidos não valem requisição.
     pendentes = con.execute(
-        "SELECT id, fonte, nome, url FROM tratado.eventos "
+        "SELECT id, fonte, id_nativo, nome, url FROM tratado.eventos "
         "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse', 'zig') "
         "AND sumido = 0 AND url IS NOT NULL AND url NOT LIKE %s",
         (f"%{sympla.BILETO_HOST}%",)).fetchall()
@@ -252,9 +269,9 @@ def _descrever(con, erros, pausa=0.4):
                 d = ingresse.raspar_descricao(slug)
                 con.execute("UPDATE tratado.eventos SET descricao = %s WHERE id = %s",
                             (d["descricao"], r["id"]))
-            gravar.gravar_raw(con, r["id"], "detalhe", d["payload"],
-                             datetime.now(timezone.utc).isoformat(),
-                             commit=False)
+            gravar.gravar(con, r["fonte"], r["id_nativo"], "detalhe",
+                          d["payload"], datetime.now(timezone.utc).isoformat(),
+                          commit=False)
             buscadas += 1 if d["descricao"] else 0
         except Exception as e:
             falhas += 1
@@ -326,9 +343,9 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
                     r["url"].rstrip("/").rsplit("/", 1)[-1])
             else:
                 t = ingresse.raspar_tickets(r["id_nativo"])
-            gravar.gravar_raw(con, r["id"], "tickets", t["payload"],
-                             datetime.now(timezone.utc).isoformat(),
-                             commit=False)
+            gravar.gravar(con, r["fonte"], r["id_nativo"], "tickets",
+                          t["payload"], datetime.now(timezone.utc).isoformat(),
+                          commit=False)
             buscados += 1
         except Exception as e:
             falhas += 1
@@ -571,10 +588,16 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
         print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
 
     # --- camada Bronze: payloads brutos e colunas derivadas ---
-    raws = con.execute("SELECT origem, COUNT(*) AS n FROM cru.eventos_raw "
-                       "GROUP BY origem ORDER BY origem").fetchall()
-    print("  payloads brutos (Bronze): " +
-          (", ".join(f"{r['origem']}: {r['n']}" for r in raws) or "nenhum"))
+    # cru.inventario reúne as CONTAGENS das oito tabelas de bruto (não os
+    # payloads). `versoes` > `registros` é o append-only funcionando: são as
+    # versões guardadas de cada chave ao longo do tempo.
+    raws = con.execute("SELECT fonte, origem, versoes, registros "
+                       "FROM cru.inventario WHERE registros > 0 "
+                       "ORDER BY fonte, origem").fetchall()
+    print("  camada cru (registros → versões guardadas):")
+    for r in raws:
+        print(f"    {r['fonte']:<12} {r['origem']:<14} {r['registros']:>5}"
+              f" → {r['versoes']}")
     if derivado is not None:
         derivado = dict(derivado)
         lotes_n = derivado.pop("lotes", 0)
@@ -644,8 +667,7 @@ def _enriquecer_cinema(con, erros):
         return None
     pendentes = con.execute(
         "SELECT f.id, f.titulo, f.titulo_original FROM tratado.filmes f "
-        "LEFT JOIN cru.cinema_extra x "
-        "  ON x.filme_id = f.id AND x.origem = 'tmdb' "
+        "LEFT JOIN cru.tmdb x ON x.filme_id = f.id "
         "WHERE x.filme_id IS NULL ORDER BY f.titulo").fetchall()
     if not pendentes:
         return 0
@@ -660,7 +682,7 @@ def _enriquecer_cinema(con, erros):
             erros.append({"passo": "tmdb", "evento_id": f["id"],
                           "erro": f"{type(e).__name__}: {e}"})
             continue
-        gravar.gravar_cinema_extra(con, f["id"], "tmdb", payload, agora)
+        gravar.gravar_tmdb(con, f["id"], payload, agora)
         buscados += 1
         if payload.get("escolhido"):
             com_match += 1
@@ -681,9 +703,9 @@ def _copiar_posters(con, erros):
         return None
     pendentes = con.execute(
         "SELECT f.id, f.poster FROM tratado.filmes f "
-        "LEFT JOIN cru.cinema_extra x "
-        "  ON x.filme_id = f.id AND x.origem = 'poster' "
-        "WHERE f.poster IS NOT NULL AND x.filme_id IS NULL "
+        "LEFT JOIN operacao.midias m "
+        "  ON m.chave = f.id AND m.tipo = 'poster' "
+        "WHERE f.poster IS NOT NULL AND m.chave IS NULL "
         "ORDER BY f.id").fetchall()
     if not pendentes:
         return 0
@@ -699,7 +721,7 @@ def _copiar_posters(con, erros):
             erros.append({"passo": "poster", "evento_id": f["id"],
                           "erro": f"{type(e).__name__}: {e}"})
             continue
-        gravar.gravar_cinema_extra(con, f["id"], "poster", {"url": url}, agora)
+        gravar.gravar_midia(con, f["id"], "poster", url, agora)
         n += 1
         time.sleep(0.2)
     print(f"  {n} copiados")
@@ -716,8 +738,10 @@ def _subir_midias_instagram(con, erros):
         return None
     pendentes = con.execute(
         "SELECT p.perfil, p.code FROM cru.instagram p "
-        "LEFT JOIN cru.instagram m ON m.code = p.code AND m.origem = 'midia' "
-        "WHERE p.origem = 'post' AND m.code IS NULL ORDER BY p.code").fetchall()
+        "LEFT JOIN operacao.midias m "
+        "  ON m.chave = p.code AND m.tipo = 'flyer' "
+        "WHERE p.origem = 'post' AND m.chave IS NULL "
+        "ORDER BY p.code").fetchall()
     agora = datetime.now(timezone.utc).isoformat()
     n = 0
     for r in pendentes:
@@ -736,8 +760,7 @@ def _subir_midias_instagram(con, erros):
             erros.append({"passo": "midia-instagram", "evento_id": r["code"],
                           "erro": f"{type(e).__name__}: {e}"})
             continue
-        gravar.gravar_instagram_raw(
-            con, [(r["perfil"], r["code"], "midia", {"url": url})], agora)
+        gravar.gravar_midia(con, r["code"], "flyer", url, agora)
         n += 1
     if n:
         print(f"\n[midia] {n} flyer(s) do Instagram no storage próprio")
@@ -824,9 +847,9 @@ def main():
     # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
     # o fluxo normal e o --so-derivar recalculam as derivadas a partir da
     # Bronze. aplicar_instagram roda DEPOIS de aplicar() (que trunca lotes).
-    derivado = None if so_enriquecer else derivar.aplicar(con)
-    insta = None if so_enriquecer else derivar.aplicar_instagram(con)
-    cine = None if so_enriquecer else derivar.aplicar_cinema(con)
+    derivado = None if so_enriquecer else comum.aplicar(con)
+    insta = None if so_enriquecer else trat_instagram.aplicar(con)
+    cine = None if so_enriquecer else trat_cinema.aplicar(con)
 
     # TMDB e cópia de pôster depois da derivação (a lista do que está em
     # cartaz É a tabela) e só em rodada que raspou; se algo novo chegou à
@@ -838,12 +861,20 @@ def main():
         novos = _enriquecer_cinema(con, erros) or 0
         novos += _copiar_posters(con, erros) or 0
         if novos:
-            cine = derivar.aplicar_cinema(con)
+            cine = trat_cinema.aplicar(con)
     if not (so_enriquecer or so_derivar):
         if _subir_midias_instagram(con, erros):
-            insta = derivar.aplicar_instagram(con)
+            insta = trat_instagram.aplicar(con)
 
     enriq = enriquecer.aplicar(con, aliases_local=instagram.aliases_local())
+    # Única exceção ao "nada é apagado" no cru, e só de versão INTERMEDIÁRIA
+    # antiga: a mais recente de cada chave nunca tem sibling mais nova, então
+    # nunca casa a condição. Não roda em --so-enriquecer (não houve coleta).
+    if not so_enriquecer:
+        podados = gravar.podar_historico(con, JANELA_HISTORICO_DIAS)
+        if podados:
+            print(f"\n[cru] histórico podado (> {JANELA_HISTORICO_DIAS} dias): "
+                  + ", ".join(f"{f}: {n}" for f, n in podados.items()))
     busca.reconstruir_fts(con)
     duracao = time.monotonic() - inicio
     # O relatório lê execucoes ANTES do registro: a comparação é com a rodada
