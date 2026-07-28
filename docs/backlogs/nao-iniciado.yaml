@@ -1044,37 +1044,6 @@
     script. Barato de propósito: o valor está em existir o passo executável,
     não na sofisticação.
 
-- codigo: NI-57
-  status: pendente
-  prioridade: critica
-  rank: 0
-  esforco: M
-  eixo: raspagem
-  fase: 0
-  titulo: "Ticket and Go: a API V1 foi desligada — migrar para a V2 (listagem) + rota nova de detalhe"
-  resumo: "POST /eventos/pesquisa e GET /eventos/{slug} respondem 404 desde 2026-07-28; o front migrou a listagem para production-api-v2-service (/api/v2/site/list/all) e o detalhe ganhou sufixo (/eventos/{slug}/evento)"
-  data: 2026-07-28
-  depende_de: []
-  relacionado: [NI-58, NI-59]
-  caso_real: ["rodada do cron de 2026-07-28 08:24 UTC: 'ticketandgo FALHOU: HTTPError: HTTP Error 404: Not Found' — 75 eventos futuros da fonte pararam de ser atualizados (na véspera coletava 81/82)"]
-  detalhe: |
-    Diagnóstico completo e verificado na spec
-    docs/specs/20260728_fontes-quebradas/spec.md §1.1. O essencial: o host
-    responde (200 na raiz), as ROTAS é que morreram. O detalhe novo ainda traz
-    o `id` NUMÉRICO (a chave `ticketandgo:<id>` não muda: atualiza, não
-    duplica) e já vem com `setores[].bilhetes[]` + `taxa_conveniencia`, que o
-    derivar._lotes_ticketandgo JÁ sabe ler — a camada Prata não muda.
-
-    O problema de verdade é o recorte DF: `endereco` agora vem SEMPRE vazio e
-    cidade/estado/lat/lon são nulos, então o filtro textual _do_df perdeu o
-    insumo. A brecha é o `filter=` da V2, que alcança um campo de endereço não
-    exposto no JSON (filter=brasilia traz eventos do Teatro Nacional sem
-    "brasília" no nome nem no local). Estratégia da spec §3.1: dicionário de
-    termos DF (Brasília + RAs) → união por uuid → detalhe só dos candidatos.
-
-    Antes de reescrever, medir recall contra gabarito grátis: os 75 eventos
-    futuros que já estão na base foram raspados quando o endereço existia.
-
 - codigo: NI-58
   status: pendente
   prioridade: alta
@@ -1082,53 +1051,49 @@
   esforco: P
   eixo: raspagem
   fase: 0
-  titulo: "Shotgun devolve 0 no CI (funciona local) — falhar alto e capturar evidência"
-  resumo: "o scraper está bom (56 slugs em 3 páginas + JSON-LD íntegro na máquina do autor); no runner do Actions a listagem vem sem nenhum slug, e como o módulo devolve lista vazia em silêncio o CI não deixa rastro para diagnosticar"
+  titulo: "Shotgun devolve 0 no CI (funciona local) — decidir a mitigação com a evidência na mão"
+  resumo: "a INSTRUMENTAÇÃO saiu em 2026-07-28 (listagem vazia levanta exceção + HTML/screenshot viram artifact do Actions); o que falta é ler a evidência da próxima rodada do cron e escolher entre stealth, proxy ou tirar o Shotgun do CI"
   data: 2026-07-28
   depende_de: []
   relacionado: [NI-59, NI-10]
   caso_real: ["última coleta boa: 77 eventos em 2026-07-17 (rodada LOCAL); as três rodadas no Actions (26, 27 e 28/07) deram 0/0 — quebrou exatamente ao sair da máquina do autor"]
   detalhe: |
-    Hipótese de trabalho: bloqueio anti-bot para IP de datacenter (Azure) —
-    o site já respondia 429 a HTTP puro, que é o motivo de existir o Playwright
-    ali. Mas é hipótese: falta ver o que o runner recebe.
+    Hipótese de trabalho: bloqueio anti-bot para IP de datacenter (Azure) — o
+    site já respondia 429 a HTTP puro, que é o motivo de existir o Playwright
+    ali. Local o scraper vai bem (56 slugs em 3 páginas, JSON-LD íntegro em
+    2026-07-28). Descartados no diagnóstico: o redirect /pt/ → /en/cities e os
+    links /en/events/<slug> (a regex não é ancorada, continua casando).
 
-    Escopo desta entrada é só instrumentação (spec §3.2): listagem sem nenhum
-    slug levanta exceção (fonte que não coletou nada NÃO é fonte que coletou
-    zero — ver NI-59) e salva HTML + screenshot em diagnostico/shotgun/, que o
-    workflow sobe como artifact num passo `if: failure()`.
+    FEITO (spec 20260728_fontes-quebradas §3.2): página 1 sem nenhum slug
+    levanta RuntimeError e despeja HTML + screenshot em diagnostico/shotgun/;
+    o workflow sobe a pasta como artifact num passo `always()` (com
+    `failure()` nunca rodaria — o atualizar.py isola a falha por fonte e o job
+    termina verde).
 
-    A mitigação (stealth, proxy, ou tirar o Shotgun do cron e rodá-lo local
-    junto do --so-instagram) fica para DEPOIS da evidência — escolher às cegas
-    é rodada de tentativa e erro no CI. Descartados no diagnóstico: o redirect
-    /pt/ → /en/cities e os links /en/events/<slug> (a regex não é ancorada,
-    continua casando) e o JSON-LD (íntegro).
+    FALTA: baixar o artifact da próxima rodada do cron e decidir. Se confirmar
+    bloqueio por IP, a saída provável é tirar o Shotgun do cron e rodá-lo local
+    junto do --so-instagram (que já é rodada local recorrente) — proxy
+    residencial pago não se justifica por ~50 eventos/semana.
 
-- codigo: NI-59
-  status: pendente
-  prioridade: critica
-  rank: 0
-  esforco: P
-  eixo: infra
-  fase: 0
-  titulo: "Coleta zerada nunca pode marcar `sumido` — scraper quebrado escondeu agenda boa"
-  resumo: "_marcar_sumidos pula fonte que FALHOU, mas não fonte que devolveu 0 com sucesso; o Shotgun zerado no CI marcou sumido=1 em todos os seus eventos futuros e a consulta os escondeu por três dias"
-  data: 2026-07-28
-  depende_de: []
-  relacionado: [NI-58, NI-57]
-  caso_real: ["relatório de 2026-07-27: 45 sumidos, a maioria [shotgun] — 'Festa Homem 5 Anos', 'Noize + Suave Baile', 'Infinu Recebe Tuyo Pelo Brasil'; eventos reais, à venda, escondidos por scraper quebrado"]
-  detalhe: |
-    Guarda de duas linhas em `_marcar_sumidos` (spec §3.3): pular fonte cujo
-    `coletados` desta rodada é 0. Catálogo de plataforma de ingresso não
-    esvazia de um dia para o outro; quando esvazia de verdade, os eventos
-    morrem por data passada — que já não é marcado. O custo do falso negativo
-    (evento cancelado demora um dia a mais para sumir) é ordens de grandeza
-    menor que o do falso positivo (agenda inteira escondida).
+    Atenção: o drop de 2026-07-27 apagou os eventos do Shotgun da base
+    (0 linhas), então a fonte foi repovoada por raspagem local em 28/07 —
+    enquanto o CI não voltar, cada rodada local é o que mantém a agenda dela
+    viva.
 
-    Complemento: o alerta de queda >50% no relatório já disparou em 26/07 e
-    ninguém leu — detector sem freio não é proteção. Ele passa a dizer também
-    que os sumidos NÃO foram recalculados para aquela fonte, para o alerta
-    explicar o que o sistema fez, não só gritar.
+# NI-57 (Ticket and Go pela API V2) e NI-59 (coleta zerada não marca sumido)
+# foram IMPLEMENTADOS em 2026-07-28, no mesmo dia em que entraram — spec
+# docs/specs/20260728_fontes-quebradas/. NI-57: a V1 foi desligada; listagem
+# passou para /api/v2/site/list/all e o detalhe para /eventos/{slug}/evento
+# (que ainda traz o id numérico, então a chave ticketandgo:<id> sobreviveu e a
+# base atualizou em vez de duplicar). Como a fonte parou de expor endereço, o
+# recorte DF virou três sinais — local em dados/locais_df.yaml, termo
+# inequívoco, CEP 70-73/DF na descrição — medidos em 77/77 contra os eventos
+# que a base tinha da era com endereço. A estratégia planejada na spec (buscar
+# por termos no filter= da V2) foi REPROVADA por medição (1% de recall) e o
+# desvio está registrado na §7 da spec. NI-59: guarda de duas linhas no
+# _marcar_sumidos + o alerta dizendo o que o sistema fez; teste em
+# tests/test_observabilidade.py trava os dois lados (zero pula, coleta real
+# continua marcando). NI-58 continua na lista: só a instrumentação saiu.
 
 # NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
 # IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).
