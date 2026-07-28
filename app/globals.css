@@ -596,6 +596,7 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 .cal-dia.off { color: var(--zu-fg-4); }
 
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
+.filme-divisor { border: 0; border-top: 1px solid var(--zu-divider); margin: 4px 0 0; }
 .filme-topo { display: grid; grid-template-columns: minmax(110px, 150px) 1fr; gap: 16px; align-items: start; }
 .filme-cartaz .cartaz { border: 1px solid var(--zu-divider); }
 .filme-info { display: flex; flex-direction: column; gap: 8px; min-width: 0; }

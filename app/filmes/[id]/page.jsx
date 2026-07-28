@@ -134,6 +134,10 @@ export default async function Filme({ params, searchParams }) {
           </div>
         </div>
 
+        <hr className="filme-divisor" />
+
+        <h2>encontre sua sessão</h2>
+
         <div className="drops" role="group" aria-label="Filtrar sessões">
           {redesDoFilme.length > 1 && (
             <DropFiltro rotulo="rede" base={`/filmes/${id}`} estado={estado}
