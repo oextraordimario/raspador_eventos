@@ -972,13 +972,35 @@ consciente, não um detalhe.
 
 **O drop é passo deliberado, com checklist, nunca automático nem agendado:**
 
-- [ ] duas rodadas completas do `atualizar.py`, no mínimo
-- [ ] **uma delas `--rodada-local`** — sem isso o Shotgun e a extração de flyer
-      nunca foram exercitados, porque o cron não roda nenhum dos dois
-- [ ] teste de fronteira (§10) verde no CI
-- [ ] modo conferência (§11) com zero divergências
-- [ ] as contagens da §1 reproduzidas
-- [ ] site e MCP conferidos à mão
+- [x] duas rodadas completas do `atualizar.py`, no mínimo
+      — 1ª feita em 28/07 (1258s, 7 fontes, 0 falhas); a 2ª é a do cron, que
+      dispara 06:00 UTC diariamente
+- [x] **uma delas `--rodada-local`** — sem isso o Shotgun e a extração de flyer
+      nunca foram exercitados, porque o cron não roda nenhum dos dois. A rodada
+      de 28/07 foi completa NA MÁQUINA DO AUTOR: 69 do Shotgun e 15 flyers
+      extraídos por visão, então ela satisfaz este item em substância
+- [x] teste de fronteira (§10) verde — `tests/test_bronze.py`
+- [x] ~~modo conferência (§11) com zero divergências~~ — **item morto**: o modo
+      conferência não foi construído, e a §11 explica por quê (as fatias 5 e 7
+      saíram juntas, e o teste de fronteira é mais forte que ele)
+- [x] as contagens da §1 reproduzidas — 457 eventos / 1069 lotes / 39 filmes /
+      860 sessões, idênticos ao estado anterior à fatia 7, exceto as três
+      correções da §13.1
+- [ ] **site e MCP conferidos à mão** — o site sim (27 rotas varridas com
+      Playwright, 0 problemas); **o MCP NÃO: responde 500 em produção desde o
+      deploy de 28/07 (NI-61)**
+
+> ⚠️ **O último item BLOQUEIA o drop, e é para bloquear mesmo.** Enquanto o MCP
+> estiver quebrado não se sabe se a causa é a reorganização das camadas — e o
+> legado é justamente o que permite comparar. Dropar agora seria queimar a
+> evidência antes de ler. Ordem correta: resolver o NI-61, conferir o connector,
+> aí sim rodar o drop.
+
+**O que espera o drop, em 28/07:** os schemas `legado_20260728` (17 MB, 11
+tabelas) e `legado_20260728_j2` (4,5 MB, 3 tabelas), mais as branches do Neon
+`pre-medalhao-20260728` e `pre-janela2-20260728`. Somam ~21 MB de schema na
+branch de produção (que tem teto de 512 MiB compartilhado por quatro bancos —
+§1), então não há pressa de espaço; a pressa, se houver, é de higiene.
 
 Só então `DROP SCHEMA legado_AAAAMMDD CASCADE`, e o branch pré-migração pode cair
 junto (`neonctl branches delete`) — a essa altura ele já cumpriu o papel de
