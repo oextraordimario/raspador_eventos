@@ -593,7 +593,7 @@
 # ─────────────────────────── Feedback do beta (2026-07-27) ───────────────────
 # Rodada de feedback do autor + vários amigos após a abertura do site. Os itens
 # de eventos executáveis com dado JÁ EXISTENTE têm spec própria:
-# docs/specs/20260727_rework-eventos/ (NI-38, NI-39, NI-41, NI-43, NI-44,
+# docs/specs/20260728_rework-eventos/ (NI-38, NI-39, NI-41, NI-43, NI-44,
 # NI-45, NI-46, NI-47). O resto fica aqui até ter vez.
 
 - codigo: NI-38
@@ -615,7 +615,7 @@
     (line-clamp de ~2 linhas, como o card de filme do NI-35 fez com a
     sinopse). Cuidado com densidade: o card já tem line-up + meta; avaliar
     esconder o resumo quando há `atracoes` (ou vice-versa).
-    Spec: docs/specs/20260727_rework-eventos/.
+    Spec: docs/specs/20260728_rework-eventos/.
 
 - codigo: NI-39
   status: pendente
@@ -636,7 +636,7 @@
     `local_nome + endereco + cidade` textual. Entra no bloco "where" do
     `/evento/[id]`. Embed de mapa (iframe) foi considerado e descartado no v1
     (peso na página + chave de API para nada — o clique resolve).
-    Spec: docs/specs/20260727_rework-eventos/.
+    Spec: docs/specs/20260728_rework-eventos/.
 
 - codigo: NI-40
   status: nao-iniciado
@@ -674,7 +674,7 @@
   caso_real: ["beta com amigos (2026-07-27): pesquisar 'Ordinário' 'deu erro' (voltou vazio)"]
   detalhe: |
     Diagnóstico CONFIRMADO na base real em 2026-07-27 (spec
-    docs/specs/20260727_rework-eventos/ §3): o FTS está OK —
+    docs/specs/20260728_rework-eventos/ §3): o FTS está OK —
     websearch_to_tsquery('pt','Ordinário') → 'ordinari' casa com os ~40
     eventos da casa, majoritariamente canônicos e visíveis. A causa é o
     front: `app/festas/page.jsx` usa período default `hoje`; quem digita o
@@ -722,7 +722,7 @@
     `facetas_filmes()["dias"]` — dia LOCAL de Brasília com corte às 6h, o
     mesmo do `_janela`). Seleção de dia vira `de/ate` na URL; faixa de datas
     (de–até) é o passo 2 se o dia único não bastar.
-    Spec: docs/specs/20260727_rework-eventos/.
+    Spec: docs/specs/20260728_rework-eventos/.
 
 - codigo: NI-44
   status: pendente
@@ -746,7 +746,7 @@
     por ser ADITIVA entra via ADD COLUMN IF NOT EXISTS no schema.sql — sem
     drop da base, sem re-raspar (ver spec §2). Quando o NI-05 entrar,
     o LLM assume o rótulo e a heurística vira fallback.
-    Spec: docs/specs/20260727_rework-eventos/.
+    Spec: docs/specs/20260728_rework-eventos/.
 
 - codigo: NI-45
   status: pendente
@@ -756,20 +756,30 @@
   eixo: consulta
   fase: 1
   titulo: "Filtro por bairro"
-  resumo: "a coluna bairro existe mas a cobertura é desigual (Sympla/Zig derivam do payload; Shotgun guarda o bairro em endereco; Ticket and Go tem endereco_completo textual; Instagram fica nulo) — melhorar a derivação e expor faceta + filtro"
+  resumo: "a coluna bairro existe mas a cobertura é desigual (23% dos futuros em 28/07: Sympla/Zig derivam do payload; o endereco do Shotgun JÁ É o bairro e só falta copiá-lo; Ticket and Go e Instagram não têm endereço nenhum) — melhorar a derivação e expor faceta + filtro"
   data: 2026-07-27
   depende_de: []
   relacionado: [NI-16, NI-46]
   caso_real: ["beta com amigos (2026-07-27): 'filtro por bairro / proximidade (ex: bairro do amigo)'"]
   detalhe: |
-    Duas metades: (a) COBERTURA — extração textual do bairro a partir de
-    `endereco` para as fontes que não o dão estruturado (Brasília ajuda: os
-    nomes de RA/quadra são padronizados — Asa Norte/Sul, SCLS, Taguatinga...);
-    é derivação a seco, `--so-derivar` resolve sem re-raspar; o bairro
-    canônico da CASA (NI-16) cobriria o resto (Instagram). (b) EXPOSIÇÃO —
-    faceta de bairros com evento futuro + parâmetro `bairro` em
-    `buscar_eventos` + dropdown no site (a tool MCP herda de graça).
-    Spec: docs/specs/20260727_rework-eventos/.
+    TRÊS partes, remedidas em 2026-07-28 (a spec foi revista junto):
+    (a) SHOTGUN — o `addressLocality` do JSON-LD é o bairro e hoje só vai para
+    `endereco`; mapeá-lo também para `bairro` é UMA LINHA em
+    `tratamento/shotgun.py` e leva a cobertura de 23% para ~41%. Melhor razão
+    custo/benefício do item inteiro, e não estava separado antes.
+    (b) DICIONÁRIO textual das RAs sobre `endereco` (Brasília ajuda: Asa
+    Norte/Sul, SCLS, Taguatinga...), que hoje só ajuda o SYMPLA — o Ticket and
+    Go PAROU de expor endereço quando a V1 foi desligada (NI-57), então a
+    premissa original do item ("endereco_completo textual") não vale mais.
+    Derivação a seco; `--so-derivar` resolve sem re-raspar. ATENÇÃO: roda
+    dentro de `comum.aplicar()`, não no `enriquecer` — `bairro` já tem um
+    escritor, e dois escritores na mesma coluna é o bug que a arquitetura
+    medalhão desmontou.
+    (c) EXPOSIÇÃO — faceta de bairros com evento futuro + parâmetro `bairro`
+    em `buscar_eventos` + dropdown no site (a tool MCP herda de graça).
+    Teto: Ticket and Go + Instagram = 112 dos 379 futuros sem endereço; para
+    eles só o NI-16 (bairro canônico da casa em `curado.locais`) resolve.
+    Spec: docs/specs/20260728_rework-eventos/.
 
 - codigo: NI-46
   status: nao-iniciado
@@ -779,23 +789,26 @@
   eixo: produto
   fase: 1
   titulo: "'Eventos perto de mim' — geolocalização do visitante"
-  resumo: "lat/lon já vêm das 5 fontes; falta o front pedir a localização (navigator.geolocation) e a consulta ordenar/filtrar por distância — primeiro recurso do site que exige JS, degradar para o filtro de bairro (NI-45)"
+  resumo: "lat/lon cobrem 69% dos futuros (Sympla e Shotgun 100%; Zig, Ticket and Go e Instagram mandam nulo); falta o front pedir a localização (navigator.geolocation) e a consulta ordenar por distância — primeiro recurso do site que exige JS, degradar para o filtro de bairro (NI-45)"
   data: 2026-07-27
   depende_de: []
   relacionado: [NI-45, NI-39]
   caso_real: ["beta com amigos (2026-07-27): 'eventos perto de mim (puxar loc da própria pessoa que acessou)'"]
   detalhe: |
-    Cobertura MEDIDA em 2026-07-27 (285 futuros visíveis): lat em 65% —
-    Sympla/Ingresse 100%, mas Ticket and Go (75 futuros, 2ª maior fonte)
-    manda coordenada NULA e Instagram idem. Passa no gate de ~60% da spec,
-    raspando; re-medir na hora de implementar. Se precisar subir: geocoding
-    barato do endereco do Ticket and Go (CEP → coordenada) — chamada externa,
-    decidir aqui. Distância por haversine no SQL basta no recorte
+    Cobertura REMEDIDA em 2026-07-28 (379 futuros visíveis): lat em 69% —
+    Sympla, Ingresse e Shotgun 100%, mas Ticket and Go (75 futuros, 2ª maior
+    fonte), Instagram (37) e Zig mandam coordenada NULA. Subiu de 65% para 69%
+    porque o Shotgun voltou a funcionar; passa no gate de ~60% da spec com mais
+    folga que antes, mas re-medir na hora de implementar.
+    A alavanca que existia para subir mais FECHOU: o geocoding do endereco do
+    Ticket and Go (CEP → coordenada) dependia do endereço que a API V1 dava, e
+    a V1 foi desligada (NI-57) — a V2 não expõe endereço nenhum. O que sobra é
+    o NI-16 (coordenada canônica da casa em `curado.locais`). Distância por haversine no SQL basta no recorte
     DF (sem PostGIS). Postura: a localização do visitante desce como parâmetro
     de query — não gravar, não logar em `acessos`-equivalente; anotar no
     privacy da página "sobre". Sem JS/permissão negada → o filtro de bairro é
     o fallback. Ordenar por distância × filtrar por raio: decidir na spec.
-    Spec: docs/specs/20260727_rework-eventos/ (etapa condicionada à cobertura).
+    Spec: docs/specs/20260728_rework-eventos/ (etapa condicionada à cobertura).
 
 - codigo: NI-47
   status: nao-iniciado
@@ -814,7 +827,7 @@
     Mapa curado pequeno em `lib/` ({rótulo, termos FTS, janela do ano}); o
     chip só aparece na época (junho-julho mostra "festa junina"). É a versão
     barata; a cara ("temporada" como tag derivada) só se a busca por termos
-    falhar. Spec: docs/specs/20260727_rework-eventos/ (item menor).
+    falhar. Spec: docs/specs/20260728_rework-eventos/ (item menor).
 
 - codigo: NI-48
   status: nao-iniciado

@@ -459,6 +459,10 @@ Não faça commit sem pedido. Mensagens em português.
   cron, site, instrumentação, JSON-LD/sitemap; **implementada**, incluindo o OAuth do
   MCP), com os anexos `tos.md` (postura sobre Termos de Uso: **agregador com
   atribuição** — leia antes de mexer no que o site expõe) e `cron.md`;
-  `20260727_rework-pagina-cinema/` (implementada) e `20260727_rework-eventos/`
-  (**especificada, aguardando implementação**).
+  `20260727_rework-pagina-cinema/` (implementada); `20260728_arquitetura-medalhao/`
+  (**implementada** — as camadas viraram schemas e a prata se reconstrói do cru;
+  a §13.1 registra os três achados que a reconstrução contra a base real
+  produziu, e é a leitura mais curta sobre por que o desenho é esse) e
+  `20260728_rework-eventos/` (**especificada, aguardando implementação** — a §0
+  dela lista o que o medalhão mudou no plano).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.
