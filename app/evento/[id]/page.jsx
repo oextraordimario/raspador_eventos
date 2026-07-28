@@ -4,6 +4,7 @@ import { detalharEvento, slugParaId } from '../../../lib/api'
 import { diaSemana, diaMes, horaOuNada, reais, tituloLimpo } from '../../../lib/formato'
 import { MARCA, ORIGEM } from '../../../lib/config'
 import { TicketCta, OtherPlatformCta } from './CtaButton'
+import { MapaLink, AgendaLink, Compartilhar } from './Acoes'
 import { Hero } from '../../Flyer'
 
 export const revalidate = 300
@@ -29,6 +30,9 @@ export default async function Evento({ params }) {
   const outras = ev.outras_urls ? ev.outras_urls.split(',').filter(Boolean) : []
   const titulo = tituloLimpo(ev.nome)
   const horario = horaOuNada(ev.start_date, ev.fonte)
+  // endereço absoluto desta página: o JSON-LD, o link da agenda e o
+  // compartilhar apontam todos para cá, e é obrigatório ser um só
+  const pagina = `${ORIGEM}/evento/${id}`
 
   // JSON-LD schema.org/Event — é o que faz a Porta B da Fase 2 existir: o
   // agente e o buscador leem a página como dado estruturado, não como texto.
@@ -73,7 +77,7 @@ export default async function Evento({ params }) {
           : 'https://schema.org/InStock',
       },
     }),
-    url: `${ORIGEM}/evento/${id}`,
+    url: pagina,
   }
 
   return (
@@ -94,6 +98,12 @@ export default async function Evento({ params }) {
           {ev.local_nome || 'local a confirmar'}
           {ev.bairro && ` — ${ev.bairro}`}
           {ev.endereco && <><br /><span className="also">{ev.endereco}</span></>}
+        </div>
+
+        <div className="acoes">
+          <MapaLink ev={ev} />
+          <AgendaLink ev={ev} titulo={titulo} url={pagina} />
+          <Compartilhar titulo={titulo} url={pagina} />
         </div>
 
         {ev.lotes?.length > 0 && (

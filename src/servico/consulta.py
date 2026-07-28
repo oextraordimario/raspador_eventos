@@ -30,10 +30,14 @@ from base import conexao, tempo  # noqa: E402
 # gratis nao esgotado (com preco_min NULL = evento gratis); esgotado 1 = sem
 # ingressos; bairro/popularidade derivados da camada Bronze (specs camada-prata
 # e lotes-ingressos).
+# lat/lon entraram em 2026-07-28 (spec 20260728_rework-site §4.2): o link "ver
+# no mapa" prefere coordenada ao endereco textual das fontes, que as vezes e
+# sujo. Coordenada de local publico nao e dado pessoal — diferente do
+# `organizador`, que a API do site continua ocultando.
 CAMPOS = ["id", "nome", "fonte", "start_date", "end_date", "cidade", "estado",
-          "local_nome", "endereco", "bairro", "categoria", "organizador",
-          "url", "imagem", "atracoes", "preco_min", "tem_gratis", "esgotado",
-          "popularidade"]
+          "local_nome", "endereco", "bairro", "lat", "lon", "categoria",
+          "organizador", "url", "imagem", "atracoes", "preco_min",
+          "tem_gratis", "esgotado", "popularidade"]
 
 # A descricao completa de dezenas de eventos e peso morto no contexto do agente;
 # um trecho basta para ele entender o estilo do evento (o texto inteiro fica na

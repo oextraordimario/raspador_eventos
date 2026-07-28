@@ -447,8 +447,11 @@ a { color: inherit; text-decoration: none; }
 /* Card da grade filtrada: pôster à esquerda, como o card de evento. */
 .fcard { grid-template-columns: 78px 1fr; }
 
-/* Sinopse (TMDB, NI-36): 2 linhas no card, texto inteiro no detalhe. */
-.sinopse {
+/* Sinopse (TMDB, NI-36): 2 linhas no card, texto inteiro no detalhe.
+   `.resumo` é o equivalente no card de evento (NI-38) — mesmo papel, mesma
+   posição na hierarquia, então mesmo desenho; os nomes ficam separados porque
+   um dia um dos dois pode divergir, e aí a mudança não vaza para o outro. */
+.sinopse, .resumo {
   font-size: 12.5px; color: var(--zu-fg-3); line-height: 1.45;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
@@ -739,6 +742,22 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 }
 .row-val.when-col { font-weight: 400; font-size: 11.5px; color: var(--zu-fg-3); }
 .row-val.when-col.bad { color: var(--zu-warn); }
+
+/* Ações secundárias do detalhe (mapa, agenda, compartilhar — NI-39/51/53).
+   Pílulas discretas: elas competiriam com o CTA de compra se tivessem peso, e
+   o CTA é o que paga a conta de quem publica o evento. Altura de 36px para o
+   alvo de toque no celular continuar honesto. */
+.acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.acao {
+  display: inline-flex; align-items: center; min-height: 36px;
+  font-family: var(--zu-sans); font-size: 13px; font-weight: 500;
+  color: var(--zu-fg-2); background: var(--zu-card);
+  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-pill);
+  padding: 0 14px; cursor: pointer;
+  transition: color 200ms, border-color 200ms;
+}
+.acao:hover { color: var(--zu-green); border-color: var(--zu-green); }
+.acao:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
 
 .desc { font-size: 14.5px; color: var(--zu-fg-2); line-height: 1.75; white-space: pre-wrap; }
 .desc-corte { font-size: 12px; color: var(--zu-fg-4); margin-top: 8px; }
