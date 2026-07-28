@@ -50,9 +50,6 @@ python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regra
 # Camada de consulta isolada (roda exemplos de buscar_eventos)
 python src/consulta.py
 
-# Demo da PoC (raspa e roda consultas de exemplo; mantida como registro)
-python src/demo.py [--sem-shotgun|--so-consultar]
-
 # MCP server (normalmente quem executa é o cliente de IA; assim é só p/ depurar)
 python src/mcp_server.py                        # stdio (clientes locais)
 # MCP remoto local com OAuth (o modo de produção): serve /mcp + a rota de
@@ -110,7 +107,7 @@ src/
   store.py  consulta.py  enriquecer.py  derivar.py  tempo.py  # núcleo (imports irmãos)
   auth.py                                         # verifica o token OAuth do MCP remoto
   midia.py                                        # upload p/ storage próprio (Vercel Blob)
-  atualizar.py  mcp_server.py  demo.py            # entrypoints
+  atualizar.py  mcp_server.py                     # entrypoints
   scrapers/
     sympla.py  ingresse.py  shotgun.py  zig.py  ticketandgo.py  cinema.py  instagram.py  tmdb.py  discover_sympla.py
 api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
@@ -134,7 +131,7 @@ root" no dashboard — configuração invisível no repo, que quebra em silênci
 `store.conectar()`. Ao mudar o schema, edite o `.sql`. O SQL dinâmico (upsert,
 updates de derivação/enriquecimento) segue no código, porque não roda standalone.
 
-**Rodar entrypoints a partir da raiz** do repo (ex.: `python src/demo.py`); o
+**Rodar entrypoints a partir da raiz** do repo (ex.: `python src/atualizar.py`); o
 `sys.path[0]` vira `src/`, então `import store`/`import consulta` resolvem como
 irmãos, e os entrypoints importam scrapers via `from scrapers import ...`.
 
