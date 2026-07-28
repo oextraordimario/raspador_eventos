@@ -81,7 +81,10 @@ export default async function Filmes({ searchParams }) {
   return (
     <>
       <div className="secao">
-        <h2>cinema</h2>
+        <div>
+          <h2 className="titulo-pagina">cinema</h2>
+          <p className="sub-pagina">todos os filmes passando em Brasília</p>
+        </div>
         <Link href="/">← início</Link>
       </div>
 

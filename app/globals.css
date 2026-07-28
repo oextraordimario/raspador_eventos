@@ -427,6 +427,10 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- cinema: pôster, vitrine em faixas, filtros, detalhe ---------- */
 
+/* Cabeçalho da página: título maior que o padrão da .secao + subheader. */
+.secao h2.titulo-pagina { font-size: 30px; letter-spacing: -.025em; }
+.sub-pagina { margin: 4px 0 0; font-size: 14px; color: var(--zu-fg-3); }
+
 /* O pôster é retrato 2:3 (como a fonte publica) — difere do flyer 4:5. */
 .cartaz {
   position: relative; overflow: hidden;
@@ -596,6 +600,7 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 .cal-dia.off { color: var(--zu-fg-4); }
 
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
+.filme-info h1 { font-size: 30px; }
 .filme-divisor { border: 0; border-top: 1px solid var(--zu-divider); margin: 4px 0 0; }
 .filme-topo { display: grid; grid-template-columns: minmax(110px, 150px) 1fr; gap: 16px; align-items: start; }
 .filme-cartaz .cartaz { border: 1px solid var(--zu-divider); }
