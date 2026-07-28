@@ -110,6 +110,23 @@ def main():
                        ).fetchone()["sumido"] == 0
     print("sumido: evento que reaparece é desmarcado — ok")
 
+    # ── NI-59: coleta ZERADA não condena a fonte (o caso Shotgun no CI) ──
+    # shotgun:fora é futuro e não foi revisto — sem a guarda, uma rodada que
+    # devolve 0 COM sucesso marcaria ele (e toda a agenda da fonte).
+    atualizar._marcar_sumidos(
+        con, {"shotgun": {"coletados": 0, "total_site": 0}}, iso(AGORA))
+    assert con.execute("SELECT sumido FROM eventos WHERE id = 'shotgun:fora'"
+                       ).fetchone()["sumido"] == 0, \
+        "coleta zerada não pode marcar sumido (NI-59)"
+    # e a fonte que coletou de verdade continua marcando
+    sumidos = atualizar._marcar_sumidos(
+        con, {"shotgun": {"coletados": 3, "total_site": 3}}, iso(AGORA))
+    assert con.execute("SELECT sumido FROM eventos WHERE id = 'shotgun:fora'"
+                       ).fetchone()["sumido"] == 1, \
+        "fonte que coletou tem que continuar marcando o que não reapareceu"
+    assert sumidos == [("Evento shotgun:fora", "shotgun")], sumidos
+    print("sumido: coleta zerada é pulada; coleta real continua marcando — ok")
+
     # ── janela do precificar: 7 dias entra, 60 fica fora, --tudo cobre ──
     store.upsert_eventos(con, [
         evento("ingresse:perto", start_date=iso(AGORA + timedelta(days=7)),

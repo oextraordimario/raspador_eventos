@@ -155,11 +155,21 @@ def _marcar_sumidos(con, resultados, iniciada_em):
     o feed do perfil não é um catálogo de eventos futuros — post que sai da
     1ª página não significa cancelamento; evento do Instagram morre por data
     passada. Spec: 20260723_instagram-como-fonte §2.6.
+
+    Fonte que coletou ZERO também fica fora (NI-59, 2026-07-28): coleta vazia
+    não é catálogo vazio. O Shotgun devolveu 0 COM sucesso por três rodadas no
+    CI e escondeu a agenda inteira dele da consulta. Catálogo de plataforma de
+    ingresso não esvazia de um dia para o outro; quando esvazia de verdade, os
+    eventos morrem por data passada — que já não é marcado. O falso negativo
+    (evento cancelado demora um dia a mais para sumir) é ordens de grandeza
+    mais barato que o falso positivo. Spec: 20260728_fontes-quebradas §3.3.
     """
     inicio = tempo.instante(iniciada_em)
     sumidos = []
     for fonte, res in resultados.items():
         if "erro" in res or fonte in ("instagram", "cinema"):
+            continue
+        if not res.get("coletados"):
             continue
         for r in con.execute("SELECT id, nome, start_date, raspado_em "
                              "FROM eventos WHERE fonte = %s", (fonte,)).fetchall():
@@ -506,6 +516,12 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
                 print(f"  *** ALERTA {nome}: coleta caiu {pct}% "
                       f"({antes} → {atual}; rodada anterior "
                       f"{quando[:16]}) — scraper quebrado?")
+                # O alerta diz também o que o sistema FEZ a respeito: com
+                # coleta zerada o _marcar_sumidos pula a fonte (NI-59), então
+                # os eventos dela continuam visíveis na consulta.
+                if atual == 0:
+                    print(f"      coleta ZERADA — sumidos NÃO recalculados "
+                          f"para {nome} (os eventos seguem visíveis)")
             else:
                 print(f"  {nome:<9} vs. rodada anterior: {antes} → {atual}")
 
