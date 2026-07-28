@@ -25,7 +25,11 @@ import re
 import json
 from datetime import datetime, timezone
 
-from playwright.sync_api import sync_playwright
+# O Playwright e importado DENTRO de raspar(), nao aqui: so a coleta precisa de
+# navegador. Com o import no topo, `import shotgun` para ler o JSON-LD ja
+# gravado (derivacao a seco, testes, CI sem Chromium) exigia a dependencia
+# inteira — e o CI parou de instalar o Chromium em 2026-07-28 justamente para
+# emagrecer. Ver spec 20260728_arquitetura-medalhao §6.6.
 
 BASE = "https://shotgun.live"
 # Onde a evidência de bloqueio é despejada quando a listagem vem vazia (NI-58).
@@ -156,6 +160,8 @@ def raspar(city_slug="brasilia", cidade_label="Brasília", estado_label="DF",
     conhecido (~77 eventos em 5 páginas) — o loop para sozinho quando uma
     página não traz slug inédito.
     """
+    from playwright.sync_api import sync_playwright  # só a coleta precisa
+
     eventos = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)

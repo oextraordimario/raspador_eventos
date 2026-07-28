@@ -74,7 +74,12 @@ def conectar():
 
 # Campos ricos que podem ser colhidos num passo separado do catalogo (o "descrever"
 # do atualizar.py): no upsert, valor novo NULL preserva o que ja esta na base.
-_COLS_PRESERVAR = {"descricao", "atracoes", "preco_min"}
+#
+# `categoria` esta aqui desde 2026-07-28: o "descrever" colhe a categoria real
+# do Sympla e a raspagem seguinte do catalogo a sobrescrevia. Isto so funciona
+# porque o catalogo passou a mandar categoria NULL (ver sympla._normalizar) —
+# COALESCE nao protege contra valor novo NAO-nulo.
+_COLS_PRESERVAR = {"descricao", "atracoes", "preco_min", "categoria"}
 
 
 def upsert_eventos(con, eventos):

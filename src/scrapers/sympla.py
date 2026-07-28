@@ -138,7 +138,11 @@ def _normalizar(ev):
         "endereco": loc.get("address") or None,
         "lat": loc.get("lat") or None,
         "lon": loc.get("lon") or None,
-        "categoria": ev.get("event_type") or None,
+        # NAO usar event_type aqui: e 'NORMAL' em 100% do catalogo (224/224 em
+        # 2026-07-28) — flag de modalidade, nao categoria. Mapea-lo destruia a
+        # categoria boa (eventsCategory do BFF de pagina) a cada raspagem, e
+        # poluia o FTS. A categoria do Sympla vem do "descrever", so.
+        "categoria": None,
         "organizador": org.get("name") or None,
         "url": ev.get("url"),
         "imagem": imgs.get("lg") or imgs.get("original") or None,
