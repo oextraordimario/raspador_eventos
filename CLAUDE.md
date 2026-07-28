@@ -463,6 +463,8 @@ Não faça commit sem pedido. Mensagens em português.
   (**implementada** — as camadas viraram schemas e a prata se reconstrói do cru;
   a §13.1 registra os três achados que a reconstrução contra a base real
   produziu, e é a leitura mais curta sobre por que o desenho é esse) e
-  `20260728_rework-eventos/` (**especificada, aguardando implementação** — a §0
-  dela lista o que o medalhão mudou no plano).
+  `20260728_rework-site/` (**especificada, aguardando implementação** — o rework
+  do site pós-beta: eventos + usabilidade transversal. A §0 dela registra as
+  duas revisões que a spec sofreu antes de executar, e vale por si: a §0.2 é o
+  que a leitura do código do site desmentiu do plano escrito um dia antes).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.
