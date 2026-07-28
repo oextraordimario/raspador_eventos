@@ -20,6 +20,7 @@ rotulamos cidade/estado a partir do parâmetro de busca para manter a base
 consultável por cidade.
 """
 
+import os
 import re
 import json
 from datetime import datetime, timezone
@@ -27,6 +28,9 @@ from datetime import datetime, timezone
 from playwright.sync_api import sync_playwright
 
 BASE = "https://shotgun.live"
+# Onde a evidência de bloqueio é despejada quando a listagem vem vazia (NI-58).
+# Gitignorado; no CI o workflow sobe como artifact.
+DIAGNOSTICO = os.path.join("diagnostico", "shotgun")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 _LD_RE = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
@@ -125,6 +129,25 @@ def _futuro(ld):
 ULTIMA_RASPAGEM = {}
 
 
+def _guardar_evidencia(page, city_slug):
+    """Despeja HTML + screenshot da listagem vazia em DIAGNOSTICO (NI-58).
+
+    Sem isto, o CI não deixa rastro: o Shotgun devolve 0 desde que a raspagem
+    saiu da máquina do autor (2026-07-26) e não dá para distinguir bloqueio
+    anti-bot de mudança de layout sem ver o que o runner recebeu. Nunca
+    levanta: falha ao gravar evidência não pode virar a exceção reportada.
+    """
+    try:
+        os.makedirs(DIAGNOSTICO, exist_ok=True)
+        base = os.path.join(DIAGNOSTICO, f"listagem-{city_slug}")
+        with open(f"{base}.html", "w", encoding="utf-8") as f:
+            f.write(page.content())
+        page.screenshot(path=f"{base}.png", full_page=True)
+        print(f"  evidência salva em {base}.html/.png")
+    except Exception as e:
+        print(f"  (não consegui salvar evidência: {type(e).__name__}: {e})")
+
+
 def raspar(city_slug="brasilia", cidade_label="Brasília", estado_label="DF",
            max_paginas=20, max_eventos=200, apenas_futuros=True):
     """Raspa eventos de uma cidade no Shotgun e normaliza para o schema unificado.
@@ -153,6 +176,17 @@ def raspar(city_slug="brasilia", cidade_label="Brasília", estado_label="DF",
             vistos.extend(novos)
             print(f"  pagina {n}: +{len(novos)} slugs ineditos | "
                   f"acumulado: {len(vistos)}")
+            # Página 1 sem NENHUM slug não é catálogo vazio — é a listagem que
+            # não chegou (bloqueio/challenge/layout novo). Fonte que não
+            # coletou nada tem que FALHAR, não devolver lista vazia em
+            # silêncio: silêncio o pipeline lê como "catálogo esvaziou"
+            # (NI-58/NI-59). Spec: 20260728_fontes-quebradas §3.2.
+            if n == 1 and not vistos:
+                _guardar_evidencia(page, city_slug)
+                browser.close()
+                raise RuntimeError(
+                    f"listagem de '{city_slug}' sem nenhum slug — provável "
+                    f"bloqueio/challenge (evidência em {DIAGNOSTICO}/)")
             if not novos:
                 break
         print(f"  {len(vistos)} eventos encontrados em '{city_slug}'")

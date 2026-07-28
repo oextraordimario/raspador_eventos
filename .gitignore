@@ -7,6 +7,10 @@
 # Capturas de descoberta (grandes, regeneráveis)
 capturas_*.json
 
+# Evidência de fonte quebrada (HTML/screenshot do que o runner recebeu — NI-58);
+# no CI o workflow sobe como artifact, aqui é lixo local
+diagnostico/
+
 # Mídia baixada do Instagram (flyers p/ extração/auditoria; URLs do CDN expiram,
 # mas a extração já persistida na base torna os arquivos regeneráveis-o-bastante)
 midias/

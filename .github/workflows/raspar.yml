@@ -93,3 +93,17 @@ jobs:
         run: |
           python src/atualizar.py --sem-extracao-flyer \
             ${{ inputs.sem_shotgun && '--sem-shotgun' || '' }}
+
+      # Evidência de fonte quebrada (NI-58). O atualizar.py isola a falha POR
+      # FONTE, então o job termina VERDE mesmo com uma fonte bloqueada — daí o
+      # `always()`: com `failure()` este passo nunca rodaria. Sem artifact não
+      # dá para distinguir bloqueio anti-bot de mudança de layout, que foi
+      # exatamente o buraco do Shotgun em 0/0 desde 2026-07-26.
+      - name: Subir evidência de diagnóstico
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-${{ github.run_id }}
+          path: diagnostico/
+          if-no-files-found: ignore
+          retention-days: 7
