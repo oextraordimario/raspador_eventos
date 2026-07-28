@@ -41,7 +41,7 @@ def evento(id_, **kw):
 
 def raw_linhas(con, evento_id):
     return con.execute(
-        "SELECT origem, payload, raspado_em FROM eventos_raw "
+        "SELECT origem, payload, raspado_em FROM cru.eventos_raw "
         "WHERE evento_id = %s ORDER BY origem", (evento_id,)).fetchall()
 
 
@@ -61,7 +61,7 @@ def main():
     assert raw_linhas(con, "sympla:2") == []
     cols = {r["column_name"] for r in con.execute(
         "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = 'public' AND table_name = 'eventos'")}
+        "WHERE table_schema = 'tratado' AND table_name = 'eventos'")}
     assert "_raw" not in cols, "_raw vazou como coluna de eventos"
     print("bronze: upsert grava eventos_raw, payload round-tripa, _raw não vaza — ok")
 
@@ -87,7 +87,7 @@ def main():
     ])
     contagem = derivar.aplicar(con)
     bairros = {r["id"]: r["bairro"]
-               for r in con.execute("SELECT id, bairro FROM eventos")}
+               for r in con.execute("SELECT id, bairro FROM tratado.eventos")}
     assert bairros["sympla:3"] == "Ceilândia"
     assert bairros["sympla:4"] is None
     assert bairros["sympla:2"] is None, "evento sem raw não deriva"
@@ -102,7 +102,7 @@ def main():
     antes = sorted(bairros.items())
     derivar.aplicar(con)
     depois = sorted((r["id"], r["bairro"])
-                    for r in con.execute("SELECT id, bairro FROM eventos"))
+                    for r in con.execute("SELECT id, bairro FROM tratado.eventos"))
     assert depois == antes
     print("bronze: derivação idempotente — ok")
 
@@ -110,7 +110,7 @@ def main():
     store.gravar_raw(con, "sympla:3", "catalogo", {"location": {}},
                      "2026-07-10T02:00:00+00:00")
     derivar.aplicar(con)
-    assert con.execute("SELECT bairro FROM eventos WHERE id = 'sympla:3'"
+    assert con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'sympla:3'"
                        ).fetchone()["bairro"] is None
     print("bronze: recalcula do zero (não eterniza valor de payload antigo) — ok")
 
@@ -145,7 +145,7 @@ def main():
     def prata(ev_id):
         return dict(con.execute(
             "SELECT preco_min, tem_gratis, esgotado, cancelado, popularidade "
-            "FROM eventos WHERE id = %s", (ev_id,)).fetchone())
+            "FROM tratado.eventos WHERE id = %s", (ev_id,)).fetchone())
 
     # preco_min = menor lote PAGO; cortesia esgotada NÃO liga tem_gratis
     assert prata("sympla:p1") == {"preco_min": 44.0, "tem_gratis": 0,
@@ -163,7 +163,7 @@ def main():
                                    "popularidade": None}
     # nome do lote Ingresse = "setor — lote"
     nomes_lotes = [r["nome"] for r in con.execute(
-        "SELECT nome FROM lotes WHERE evento_id = 'ingresse:p4' ORDER BY ordem")]
+        "SELECT nome FROM tratado.lotes WHERE evento_id = 'ingresse:p4' ORDER BY ordem")]
     assert nomes_lotes == ["Passaporte PISTA — Inteira", "Passaporte PISTA — Meia"]
     print("prata: preço pago mín./tem_gratis/esgotado/cancelado derivados — ok")
 
@@ -202,9 +202,9 @@ def main():
     assert sc["preco_min"] is None and sc["tem_gratis"] == 1, \
         sc  # evento grátis: sem lote pago + tem_gratis
     # derivação idempotente também para lotes (DELETE + reinsert)
-    n_lotes = con.execute("SELECT COUNT(*) AS n FROM lotes").fetchone()["n"]
+    n_lotes = con.execute("SELECT COUNT(*) AS n FROM tratado.lotes").fetchone()["n"]
     derivar.aplicar(con)
-    assert con.execute("SELECT COUNT(*) AS n FROM lotes").fetchone()["n"] == n_lotes
+    assert con.execute("SELECT COUNT(*) AS n FROM tratado.lotes").fetchone()["n"] == n_lotes
     print("NI-18: cortesia não mascara preço pago; só-cortesia = grátis — ok")
 
     # --- detalhar_evento: descrição inteira + lotes na ordem da fonte ---
@@ -218,13 +218,13 @@ def main():
                                "esgotado": 0}
     assert "erro" in consulta.detalhar_evento("https://x/nao-existe")
     # url de membro não-canônico de dedupe responde pelo canônico
-    con.execute("UPDATE eventos SET dedupe_grupo = 'sympla:hc' "
+    con.execute("UPDATE tratado.eventos SET dedupe_grupo = 'sympla:hc' "
                 "WHERE id IN ('sympla:hc', 'sympla:sc')")
-    con.execute("UPDATE eventos SET dedupe_canonico = 0 WHERE id = 'sympla:sc'")
+    con.execute("UPDATE tratado.eventos SET dedupe_canonico = 0 WHERE id = 'sympla:sc'")
     con.commit()
     assert consulta.detalhar_evento("https://x/sympla:sc")["nome"] == \
         "HOUSE CLUB 13 ANOS"
-    con.execute("UPDATE eventos SET dedupe_grupo = NULL, dedupe_canonico = 1 "
+    con.execute("UPDATE tratado.eventos SET dedupe_grupo = NULL, dedupe_canonico = 1 "
                 "WHERE id IN ('sympla:hc', 'sympla:sc')")
     con.commit()
     print("detalhar_evento: descrição completa, lotes em ordem, erro amigável — ok")

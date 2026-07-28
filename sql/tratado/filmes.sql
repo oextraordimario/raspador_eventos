@@ -8,7 +8,7 @@
 -- O dominio cinema NAO entra em eventos: sessao e volatil e sem id nativo
 -- estavel entre semanas. Spec: docs/specs/20260711_raspagem-cinema/.
 
-CREATE TABLE IF NOT EXISTS filmes (
+CREATE TABLE IF NOT EXISTS tratado.filmes (
     id            TEXT PRIMARY KEY,  -- id do filme na Ingresso.com
     titulo        TEXT NOT NULL,
     titulo_original TEXT,            -- originalTitle da fonte; chave do matching TMDB (NI-36)
@@ -30,4 +30,4 @@ CREATE TABLE IF NOT EXISTS filmes (
     raspado_em    TEXT,              -- ISO UTC "+00:00"
     busca         TSVECTOR           -- titulo + generos + sinopse; preenchida pelo reconstruir_fts.sql
 );
-CREATE INDEX IF NOT EXISTS idx_filmes_busca ON filmes USING GIN (busca);
+CREATE INDEX IF NOT EXISTS idx_filmes_busca ON tratado.filmes USING GIN (busca);

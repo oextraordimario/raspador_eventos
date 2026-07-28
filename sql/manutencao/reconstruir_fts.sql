@@ -10,7 +10,7 @@
 -- rotulada da watchlist em local_nome, nao do texto. Vale para todas as
 -- fontes ("o que tem no Culto" acha pelo local, nao so pela descricao).
 
-UPDATE eventos SET busca = to_tsvector('pt',
+UPDATE tratado.eventos SET busca = to_tsvector('pt',
     coalesce(nome, '') || ' ' || coalesce(categoria, '') || ' ' ||
     coalesce(atracoes, '') || ' ' || coalesce(descricao, '') || ' ' ||
     coalesce(local_nome, '') || ' ' || coalesce(organizador, ''));
@@ -18,6 +18,6 @@ UPDATE eventos SET busca = to_tsvector('pt',
 -- Filmes em cartaz (dominio cinema, NI-07): titulo + generos + sinopse (a
 -- sinopse chegou com o NI-36/TMDB — "filme de robo" acha pelo texto) + o
 -- titulo original ("weapons" acha o filme que aqui chama "A Hora do Mal").
-UPDATE filmes SET busca = to_tsvector('pt',
+UPDATE tratado.filmes SET busca = to_tsvector('pt',
     coalesce(titulo, '') || ' ' || coalesce(titulo_original, '') || ' ' ||
     coalesce(generos, '') || ' ' || coalesce(sinopse, ''));

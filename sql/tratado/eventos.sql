@@ -11,7 +11,7 @@
 -- entao comparacao e ordenacao LEXICAIS sao seguras. Nao gravar data nessas
 -- colunas fora do upsert sem normalizar.
 
-CREATE TABLE IF NOT EXISTS eventos (
+CREATE TABLE IF NOT EXISTS tratado.eventos (
     id            TEXT PRIMARY KEY,   -- chave unica "<fonte>:<id_nativo>", evita colisao entre fontes
     fonte         TEXT NOT NULL,      -- plataforma de origem: sympla | ingresse | shotgun | zig | ticketandgo | instagram
     id_nativo     TEXT NOT NULL,      -- id do evento na plataforma de origem
@@ -76,6 +76,6 @@ CREATE TABLE IF NOT EXISTS eventos (
     busca         TSVECTOR
 );
 
-CREATE INDEX IF NOT EXISTS idx_eventos_start ON eventos(start_date);
-CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON eventos(cidade);
-CREATE INDEX IF NOT EXISTS idx_eventos_busca ON eventos USING GIN (busca);
+CREATE INDEX IF NOT EXISTS idx_eventos_start ON tratado.eventos(start_date);
+CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON tratado.eventos(cidade);
+CREATE INDEX IF NOT EXISTS idx_eventos_busca ON tratado.eventos USING GIN (busca);

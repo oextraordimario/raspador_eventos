@@ -10,7 +10,7 @@
 -- nao e payload de fonte — a fatia 3 da spec 20260728_arquitetura-medalhao a
 -- move para operacao.midias, e o que sobra aqui vira cru.tmdb.
 
-CREATE TABLE IF NOT EXISTS cinema_extra_raw (
+CREATE TABLE IF NOT EXISTS cru.cinema_extra (
     filme_id   TEXT NOT NULL,     -- filmes.id (id da Ingresso.com, estavel)
     origem     TEXT NOT NULL,     -- 'tmdb' | 'poster' | futuras
     payload    TEXT NOT NULL,     -- JSON bruto (candidatos + escolhido, p/ auditoria)

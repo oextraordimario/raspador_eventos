@@ -78,11 +78,11 @@ EVENTOS = [
 def dump(con):
     return con.execute(
         "SELECT id, ruido, ruido_motivo, dedupe_grupo, dedupe_canonico "
-        "FROM eventos ORDER BY id").fetchall()
+        "FROM tratado.eventos ORDER BY id").fetchall()
 
 
 def linha(con, ev_id):
-    return con.execute("SELECT * FROM eventos WHERE id = %s", (ev_id,)).fetchone()
+    return con.execute("SELECT * FROM tratado.eventos WHERE id = %s", (ev_id,)).fetchone()
 
 
 def main():
@@ -93,7 +93,7 @@ def main():
 
     # --- ruído ---
     marcados = {r["id"] for r in con.execute(
-        "SELECT id FROM eventos WHERE ruido = 1")}
+        "SELECT id FROM tratado.eventos WHERE ruido = 1")}
     assert marcados == {"sympla:r1", "sympla:r2", "sympla:r3", "sympla:r4"}, marcados
     assert linha(con, "sympla:r1")["ruido_motivo"] == "banda larga"
     assert linha(con, "sympla:r3")["ruido_motivo"] == "imersao"

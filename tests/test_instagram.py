@@ -242,7 +242,7 @@ def test_derivacao_e_consulta():
     # descartados (posts sem nenhum evento): DDD444, EEE555, FFF666, GGG777
     assert r == {"eventos": 8, "lotes": 4, "descartados": 4}, r
 
-    ev = con.execute("SELECT * FROM eventos WHERE id = 'instagram:AAA111'"
+    ev = con.execute("SELECT * FROM tratado.eventos WHERE id = 'instagram:AAA111'"
                      ).fetchone()
     assert ev["nome"] == "Alquimia Dark"
     assert ev["url"] == "https://www.instagram.com/p/AAA111/"
@@ -255,30 +255,30 @@ def test_derivacao_e_consulta():
     esperado = (EM_10_DIAS.date() + timedelta(days=1)).isoformat()
     assert ev["start_date"] == f"{esperado}T00:00:00+00:00", ev["start_date"]
     # lote sintético + agregação
-    lote = con.execute("SELECT * FROM lotes WHERE evento_id = "
+    lote = con.execute("SELECT * FROM tratado.lotes WHERE evento_id = "
                        "'instagram:AAA111'").fetchone()
     assert lote["nome"] == "entrada (do flyer)" and lote["preco"] == 20.0
     assert ev["preco_min"] == 20.0 and ev["tem_gratis"] == 0
 
-    gratis = con.execute("SELECT preco_min, tem_gratis FROM eventos "
+    gratis = con.execute("SELECT preco_min, tem_gratis FROM tratado.eventos "
                          "WHERE id = 'instagram:BBB222'").fetchone()
     assert gratis["preco_min"] is None and gratis["tem_gratis"] == 1, \
         "preco 0 no flyer = evento grátis (lote grátis, sem lote pago)"
-    prod = con.execute("SELECT local_nome, organizador, preco_min FROM eventos"
+    prod = con.execute("SELECT local_nome, organizador, preco_min FROM tratado.eventos"
                        " WHERE id = 'instagram:CCC333'").fetchone()
     assert prod["local_nome"] == "Setor Comercial Sul", "produtora: local do flyer"
     assert prod["organizador"] == "Produtora XYZ"
     assert prod["preco_min"] is None, "preco=true (bool) virou lote"
-    assert con.execute("SELECT COUNT(*) AS n FROM lotes WHERE evento_id = "
+    assert con.execute("SELECT COUNT(*) AS n FROM tratado.lotes WHERE evento_id = "
                        "'instagram:CCC333'").fetchone()["n"] == 0
-    velho = con.execute("SELECT nome, preco_min FROM eventos "
+    velho = con.execute("SELECT nome, preco_min FROM tratado.eventos "
                         "WHERE id = 'instagram:OLD888'").fetchone()
     assert velho["nome"] == "Velho Formato Fest" and velho["preco_min"] == 15.0
     print("derivação: guarda por item, adaptador do formato antigo, lote — ok")
 
     # sub-eventos da agenda: id/posição estáveis (item 1 reprovado não
     # renumera) e URL com ?img_index (única, exigência do detalhar)
-    ags = con.execute("SELECT id, nome, url FROM eventos WHERE id LIKE "
+    ags = con.execute("SELECT id, nome, url FROM tratado.eventos WHERE id LIKE "
                       "'instagram:AGE999%' ORDER BY id").fetchall()
     assert [(a["id"], a["nome"]) for a in ags] == [
         ("instagram:AGE999:2", "Terça na Roda"),
@@ -291,7 +291,7 @@ def test_derivacao_e_consulta():
     derivar.aplicar(con)
     r2 = derivar.aplicar_instagram(con)
     assert r2 == r, "re-derivação mudou o resultado"
-    n = con.execute("SELECT COUNT(*) AS n FROM eventos "
+    n = con.execute("SELECT COUNT(*) AS n FROM tratado.eventos "
                     "WHERE fonte = 'instagram'").fetchone()["n"]
     assert n == 8
     print("derivação: idempotente (--so-derivar) — ok")
@@ -300,42 +300,42 @@ def test_derivacao_e_consulta():
     atualizar._marcar_sumidos(
         con, {"sympla": {"coletados": 1}, "instagram": {"coletados": 1}},
         (AGORA + timedelta(hours=1)).isoformat())
-    marcados = con.execute("SELECT id FROM eventos WHERE sumido = 1").fetchall()
+    marcados = con.execute("SELECT id FROM tratado.eventos WHERE sumido = 1").fetchall()
     assert all(not m["id"].startswith("instagram:") for m in marcados), \
         f"instagram entrou na lógica de sumido: {marcados}"
-    con.execute("UPDATE eventos SET sumido = 0")  # sympla "sumiu" de mentira
+    con.execute("UPDATE tratado.eventos SET sumido = 0")  # sympla "sumiu" de mentira
     con.commit()
     print("sumido: fonte instagram fora da lógica — ok")
 
     # dedupe: cross-fonte via alias + intra-fonte (NI-01)
     enriq = enriquecer.aplicar(con, aliases_local=instagram.aliases_local())
-    grupo = con.execute("SELECT dedupe_grupo, dedupe_canonico FROM eventos "
+    grupo = con.execute("SELECT dedupe_grupo, dedupe_canonico FROM tratado.eventos "
                         "WHERE id = 'instagram:AAA111'").fetchone()
     assert grupo["dedupe_grupo"] == "sympla:111", (enriq["grupos"], dict(grupo))
     assert grupo["dedupe_canonico"] == 0
     # NI-01: "DEU BENZA" 3x mesma casa/dia colapsa num grupo só
     benza = con.execute(
-        "SELECT dedupe_grupo, dedupe_canonico FROM eventos WHERE id IN "
+        "SELECT dedupe_grupo, dedupe_canonico FROM tratado.eventos WHERE id IN "
         "('sympla:201','sympla:202','sympla:203')").fetchall()
     assert len({b["dedupe_grupo"] for b in benza}) == 1 and \
         all(b["dedupe_grupo"] for b in benza), benza
     assert sum(b["dedupe_canonico"] for b in benza) == 1
     # contraexemplo: festas distintas da mesma casa no mesmo dia NÃO agrupam
     distintas = con.execute(
-        "SELECT dedupe_grupo FROM eventos WHERE id IN "
+        "SELECT dedupe_grupo FROM tratado.eventos WHERE id IN "
         "('sympla:301','sympla:302')").fetchall()
     assert all(d["dedupe_grupo"] is None for d in distintas), distintas
     # agenda ↔ post individual: agrupa e o canônico é o INDIVIDUAL (tem o
     # preço do flyer → completude com preco_min, spec §8.4)
     par = {r_["id"]: dict(r_) for r_ in con.execute(
-        "SELECT id, dedupe_grupo, dedupe_canonico FROM eventos WHERE id IN "
+        "SELECT id, dedupe_grupo, dedupe_canonico FROM tratado.eventos WHERE id IN "
         "('instagram:AGE999:3','instagram:JJJ000')")}
     assert par["instagram:AGE999:3"]["dedupe_grupo"] == "instagram:JJJ000", par
     assert par["instagram:JJJ000"]["dedupe_canonico"] == 1
     assert par["instagram:AGE999:3"]["dedupe_canonico"] == 0
     # sub-eventos do MESMO post nunca colam entre si (mesmo dia + nomes ≥0.55)
     mesmo_post = con.execute(
-        "SELECT id, dedupe_grupo FROM eventos WHERE id IN "
+        "SELECT id, dedupe_grupo FROM tratado.eventos WHERE id IN "
         "('instagram:AGE999:2','instagram:AGE999:4')").fetchall()
     assert all(m["dedupe_grupo"] is None for m in mesmo_post), mesmo_post
     print("dedupe: NI-01 (DEU BENZA, agenda ↔ post do dia) + cross-fonte — ok")

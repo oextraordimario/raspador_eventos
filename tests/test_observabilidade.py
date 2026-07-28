@@ -84,7 +84,7 @@ def main():
     sumidos = atualizar._marcar_sumidos(
         con, {"sympla": {"coletados": 1}, "shotgun": {"erro": "x"}}, iso(AGORA))
     marcas = {r["id"]: r["sumido"]
-              for r in con.execute("SELECT id, sumido FROM eventos")}
+              for r in con.execute("SELECT id, sumido FROM tratado.eventos")}
     assert marcas["sympla:velho"] == 1, "futuro não revisto tinha que sumir"
     assert marcas["sympla:passado"] == 0, "evento passado nunca é marcado"
     assert marcas["sympla:revisto"] == 0, "quem reapareceu não pode sumir"
@@ -106,7 +106,7 @@ def main():
     store.upsert_eventos(con, [
         evento("sympla:velho", raspado_em=iso(AGORA + timedelta(minutes=1)))])
     atualizar._marcar_sumidos(con, {"sympla": {"coletados": 1}}, iso(AGORA))
-    assert con.execute("SELECT sumido FROM eventos WHERE id = 'sympla:velho'"
+    assert con.execute("SELECT sumido FROM tratado.eventos WHERE id = 'sympla:velho'"
                        ).fetchone()["sumido"] == 0
     print("sumido: evento que reaparece é desmarcado — ok")
 
@@ -115,13 +115,13 @@ def main():
     # devolve 0 COM sucesso marcaria ele (e toda a agenda da fonte).
     atualizar._marcar_sumidos(
         con, {"shotgun": {"coletados": 0, "total_site": 0}}, iso(AGORA))
-    assert con.execute("SELECT sumido FROM eventos WHERE id = 'shotgun:fora'"
+    assert con.execute("SELECT sumido FROM tratado.eventos WHERE id = 'shotgun:fora'"
                        ).fetchone()["sumido"] == 0, \
         "coleta zerada não pode marcar sumido (NI-59)"
     # e a fonte que coletou de verdade continua marcando
     sumidos = atualizar._marcar_sumidos(
         con, {"shotgun": {"coletados": 3, "total_site": 3}}, iso(AGORA))
-    assert con.execute("SELECT sumido FROM eventos WHERE id = 'shotgun:fora'"
+    assert con.execute("SELECT sumido FROM tratado.eventos WHERE id = 'shotgun:fora'"
                        ).fetchone()["sumido"] == 1, \
         "fonte que coletou tem que continuar marcando o que não reapareceu"
     assert sumidos == [("Evento shotgun:fora", "shotgun")], sumidos

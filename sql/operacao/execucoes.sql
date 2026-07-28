@@ -16,7 +16,7 @@
 -- copia nasce em 1 — precisa de setval, ou o primeiro registrar_execucao()
 -- depois colide na PK.
 
-CREATE TABLE IF NOT EXISTS execucoes (
+CREATE TABLE IF NOT EXISTS operacao.execucoes (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     iniciada_em TEXT NOT NULL,    -- ISO 8601 UTC do inicio da rodada
     duracao_s   DOUBLE PRECISION, -- duracao total em segundos

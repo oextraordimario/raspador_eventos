@@ -152,10 +152,10 @@ def main():
     con = store.conectar()
     store.upsert_eventos(con, [dict(z, _raw=ZIG_CATALOGO),
                                dict(t, _raw=TNG_CATALOGO)])
-    r = con.execute("SELECT start_date FROM eventos "
+    r = con.execute("SELECT start_date FROM tratado.eventos "
                     "WHERE id = 'ticketandgo:36999'").fetchone()
     assert r["start_date"] == "2026-08-29T22:00:00+00:00", r["start_date"]
-    r = con.execute("SELECT start_date FROM eventos "
+    r = con.execute("SELECT start_date FROM tratado.eventos "
                     "WHERE id = 'zig:22670'").fetchone()
     assert r["start_date"] == "2026-08-22T01:00:00+00:00", r["start_date"]
     print("escrita: -03:00 das duas fontes normalizado p/ UTC no upsert — ok")
@@ -166,13 +166,13 @@ def main():
     store.gravar_raw(con, "zig:22670", "tickets", ZIG_TICKETS,
                      "2026-07-12T00:00:00+00:00")
     derivar.aplicar(con)
-    r = con.execute("SELECT bairro FROM eventos WHERE id = 'zig:22670'").fetchone()
+    r = con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'zig:22670'").fetchone()
     assert r["bairro"] == "Asa Norte", r["bairro"]
 
     # lotes do Zig (NI-23): preco = value + fee; unavailables = esgotado;
     # public=0 não entra; sector_name só prefixa quando o nome não o traz
     lotes_zig = con.execute(
-        "SELECT nome, preco, taxa, gratis, esgotado FROM lotes "
+        "SELECT nome, preco, taxa, gratis, esgotado FROM tratado.lotes "
         "WHERE evento_id = 'zig:22670' ORDER BY ordem").fetchall()
     assert [dict(lt) for lt in lotes_zig] == [
         {"nome": "Geral [Infantil (6-12 anos)] Individual", "preco": 99.68,
@@ -182,10 +182,10 @@ def main():
         {"nome": "Geral [Adulto - Meia Entrada] Individual", "preco": 301.28,
          "taxa": 32.28, "gratis": 0, "esgotado": 1},
     ], [dict(lt) for lt in lotes_zig]
-    r = con.execute("SELECT preco_min, tem_gratis, esgotado FROM eventos "
+    r = con.execute("SELECT preco_min, tem_gratis, esgotado FROM tratado.eventos "
                     "WHERE id = 'zig:22670'").fetchone()
     assert dict(r) == {"preco_min": 99.68, "tem_gratis": 1, "esgotado": 0}, dict(r)
-    lotes = con.execute("SELECT nome, preco, taxa, gratis, esgotado FROM lotes "
+    lotes = con.execute("SELECT nome, preco, taxa, gratis, esgotado FROM tratado.lotes "
                         "WHERE evento_id = 'ticketandgo:36999' "
                         "ORDER BY ordem").fetchall()
     assert [dict(lt) for lt in lotes] == [
@@ -196,7 +196,7 @@ def main():
         {"nome": "Cabanas — Trust Love 14/07", "preco": 55.0, "taxa": 5.0,
          "gratis": 0, "esgotado": 0},   # aninhado em setores[].bilhetes[]
     ], [dict(lt) for lt in lotes]
-    r = con.execute("SELECT preco_min, tem_gratis, esgotado FROM eventos "
+    r = con.execute("SELECT preco_min, tem_gratis, esgotado FROM tratado.eventos "
                     "WHERE id = 'ticketandgo:36999'").fetchone()
     assert dict(r) == {"preco_min": 55.0, "tem_gratis": 1, "esgotado": 0}, dict(r)
     print("derivação: bairro (zig) e lotes c/ taxa fracionária (ticketandgo) — ok")

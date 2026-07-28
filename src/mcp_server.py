@@ -100,7 +100,7 @@ def _registrar(sub, tool, args, resultados, ms, erro):
     try:
         con = store.conectar()
         con.execute(
-            "INSERT INTO acessos (sub, em, tool, args, resultados, ms, erro) "
+            "INSERT INTO uso.acessos (sub, em, tool, args, resultados, ms, erro) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (sub, datetime.now(timezone.utc).isoformat(), tool,
              json.dumps(args, ensure_ascii=False, default=str)[:2000],
@@ -130,12 +130,12 @@ def registrado(fn):
             try:
                 con = store.conectar()
                 u = con.execute(
-                    "SELECT bloqueado FROM usuarios WHERE sub = %s",
+                    "SELECT bloqueado FROM uso.usuarios WHERE sub = %s",
                     (sub,)).fetchone()
                 agora = datetime.now(timezone.utc)
                 if u is None:
                     con.execute(
-                        "INSERT INTO usuarios (sub, email, criado_em, visto_em)"
+                        "INSERT INTO uso.usuarios (sub, email, criado_em, visto_em)"
                         " VALUES (%s, %s, %s, %s) ON CONFLICT (sub) DO NOTHING",
                         (sub, email, agora.isoformat(), agora.isoformat()))
                 else:
@@ -145,11 +145,11 @@ def registrado(fn):
                         # erro de DADO, não exceção de transporte: o agente
                         # precisa conseguir explicar isso a quem perguntou.
                         return {"erro": "Acesso suspenso."}
-                    con.execute("UPDATE usuarios SET visto_em = %s WHERE sub = %s",
+                    con.execute("UPDATE uso.usuarios SET visto_em = %s WHERE sub = %s",
                                 (agora.isoformat(), sub))
                 corte = (agora - timedelta(hours=1)).isoformat()
                 n = con.execute(
-                    "SELECT COUNT(*) AS n FROM acessos WHERE sub = %s AND em >= %s",
+                    "SELECT COUNT(*) AS n FROM uso.acessos WHERE sub = %s AND em >= %s",
                     (sub, corte)).fetchone()["n"]
                 con.commit()
                 con.close()

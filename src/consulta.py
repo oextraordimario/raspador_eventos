@@ -85,11 +85,11 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
         params.append(tempo.norm_ts(data_fim))
 
     # outras_urls: links do mesmo evento nas outras plataformas (NULL sem grupo).
-    outras = ("(SELECT string_agg(o.url, ',') FROM eventos o "
+    outras = ("(SELECT string_agg(o.url, ',') FROM public.eventos o "
               "WHERE o.dedupe_grupo = e.dedupe_grupo AND o.id != e.id) "
               "AS outras_urls")
     descr = f"substr(e.descricao, 1, {DESCRICAO_MAX}) AS descricao"
-    sql = f"SELECT {', '.join(CAMPOS)}, {descr}, {outras} FROM eventos e"
+    sql = f"SELECT {', '.join(CAMPOS)}, {descr}, {outras} FROM public.eventos e"
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY e.start_date LIMIT %s"
@@ -119,24 +119,24 @@ def detalhar_evento(url):
     con = store.conectar()
     alvo = (url or "").strip()
     coluna = "url" if alvo.startswith("http") else "id"
-    row = con.execute(f"SELECT id, dedupe_grupo, dedupe_canonico FROM eventos "
+    row = con.execute(f"SELECT id, dedupe_grupo, dedupe_canonico FROM public.eventos "
                       f"WHERE {coluna} = %s", (alvo,)).fetchone()
     if row and not row["dedupe_canonico"] and row["dedupe_grupo"]:
         row = con.execute(
-            "SELECT id FROM eventos WHERE dedupe_grupo = %s "
+            "SELECT id FROM public.eventos WHERE dedupe_grupo = %s "
             "AND dedupe_canonico = 1", (row["dedupe_grupo"],)).fetchone() or row
     if not row:
         con.close()
         return {"erro": f"nenhum evento na base com a url {url!r} — use a url "
                         "exata devolvida por buscar_eventos"}
-    outras = ("(SELECT string_agg(o.url, ',') FROM eventos o "
+    outras = ("(SELECT string_agg(o.url, ',') FROM public.eventos o "
               "WHERE o.dedupe_grupo = e.dedupe_grupo AND o.id != e.id) "
               "AS outras_urls")
     ev = dict(con.execute(
         f"SELECT {', '.join(CAMPOS)}, e.descricao, {outras} "
-        "FROM eventos e WHERE e.id = %s", (row["id"],)).fetchone())
+        "FROM public.eventos e WHERE e.id = %s", (row["id"],)).fetchone())
     ev["lotes"] = [dict(r) for r in con.execute(
-        "SELECT nome, preco, taxa, gratis, esgotado FROM lotes "
+        "SELECT nome, preco, taxa, gratis, esgotado FROM public.lotes "
         "WHERE evento_id = %s ORDER BY ordem", (row["id"],))]
     con.close()
     return ev
@@ -252,7 +252,7 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
         f"SELECT {campos}, COUNT(s.id) AS sessoes, "
         "string_agg(DISTINCT s.cinema, ', ' ORDER BY s.cinema) AS cinemas, "
         "MIN(s.inicio) AS primeira_sessao, MAX(s.inicio) AS ultima_sessao "
-        "FROM filmes f JOIN sessoes s ON s.filme_id = f.id "
+        "FROM public.filmes f JOIN public.sessoes s ON s.filme_id = f.id "
         f"WHERE {' AND '.join(where)} "
         f"GROUP BY {campos} ORDER BY COUNT(s.id) DESC, f.titulo LIMIT %s",
         [*params, limite]).fetchall()
@@ -274,7 +274,7 @@ def facetas_filmes():
     agora = datetime.now(timezone.utc).isoformat()
     rows = con.execute(
         "SELECT DISTINCT f.generos, f.classificacao "
-        "FROM filmes f JOIN sessoes s ON s.filme_id = f.id "
+        "FROM public.filmes f JOIN public.sessoes s ON s.filme_id = f.id "
         "WHERE s.inicio >= %s", (agora,)).fetchall()
     generos, classes = set(), set()
     for r in rows:
@@ -283,14 +283,14 @@ def facetas_filmes():
         if r["classificacao"]:
             classes.add(r["classificacao"])
     cinemas = [r["cinema"] for r in con.execute(
-        "SELECT DISTINCT cinema FROM sessoes WHERE inicio >= %s "
+        "SELECT DISTINCT cinema FROM public.sessoes WHERE inicio >= %s "
         "ORDER BY cinema", (agora,))]
     # dias LOCAIS com sessão futura — é o que o calendário do site habilita
     # (a grade real cobre ~8 dias; o resto do mês fica desabilitado)
     dias = [r["dia"] for r in con.execute(
         "SELECT DISTINCT to_char(inicio::timestamptz AT TIME ZONE "
         f"'{_TZ_BSB}', 'YYYY-MM-DD') AS dia "
-        "FROM sessoes WHERE inicio >= %s ORDER BY dia", (agora,))]
+        "FROM public.sessoes WHERE inicio >= %s ORDER BY dia", (agora,))]
     con.close()
 
     def _ordem_classe(c):
@@ -319,14 +319,14 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     con = store.conectar()
     alvo = (filme or "").strip()
     agora = datetime.now(timezone.utc).isoformat()
-    row = con.execute("SELECT id FROM filmes WHERE id = %s",
+    row = con.execute("SELECT id FROM public.filmes WHERE id = %s",
                       (alvo,)).fetchone()
     if not row and alvo:
         # título parcial, sem caixa/acento; empate vai para quem tem mais
         # sessões futuras (o "em cartaz de verdade")
         row = con.execute(
-            "SELECT f.id FROM filmes f "
-            "LEFT JOIN sessoes s ON s.filme_id = f.id AND s.inicio >= %s "
+            "SELECT f.id FROM public.filmes f "
+            "LEFT JOIN public.sessoes s ON s.filme_id = f.id AND s.inicio >= %s "
             "WHERE unaccent(f.titulo) ILIKE unaccent(%s) "
             "GROUP BY f.id ORDER BY COUNT(s.id) DESC LIMIT 1",
             (agora, f"%{alvo}%")).fetchone()
@@ -335,11 +335,11 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
         return {"erro": f"nenhum filme em cartaz casando com {filme!r} — use "
                         "o id ou título devolvido por buscar_filmes"}
     campos = ", ".join(CAMPOS_FILME + ["trailer"])
-    f = dict(con.execute(f"SELECT {campos} FROM filmes WHERE id = %s",
+    f = dict(con.execute(f"SELECT {campos} FROM public.filmes WHERE id = %s",
                          (row["id"],)).fetchone())
     inicio_janela = tempo.norm_ts(data_inicio) or agora
     f["cinemas"] = [r["cinema"] for r in con.execute(
-        "SELECT DISTINCT cinema FROM sessoes "
+        "SELECT DISTINCT cinema FROM public.sessoes "
         "WHERE filme_id = %s AND inicio >= %s ORDER BY cinema",
         (row["id"], inicio_janela))]
     where = ["filme_id = %s", "inicio >= %s"]
@@ -350,7 +350,7 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     _filtro_cinemas(where, params, cinema, col="cinema")
     _filtro_hora(where, params, hora_de, hora_ate, col="inicio")
     f["sessoes"] = [dict(r) for r in con.execute(
-        "SELECT cinema, inicio, sala, tipos, preco, url_compra FROM sessoes "
+        "SELECT cinema, inicio, sala, tipos, preco, url_compra FROM public.sessoes "
         f"WHERE {' AND '.join(where)} ORDER BY inicio, cinema", params)]
     con.close()
     return f
@@ -382,7 +382,7 @@ def procedencia():
         "                        AND sumido = 0 "
         "                        AND (cancelado IS NULL OR cancelado = 0)) "
         "         AS futuros "
-        "FROM eventos GROUP BY fonte ORDER BY MAX(raspado_em) DESC",
+        "FROM public.eventos GROUP BY fonte ORDER BY MAX(raspado_em) DESC",
         (agora,)).fetchall()
     con.close()
     return [dict(r) for r in rows]

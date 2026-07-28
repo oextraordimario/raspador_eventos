@@ -9,7 +9,7 @@
 -- Instrumentacao do MCP remoto (NI-11). Preenchida no PRIMEIRO acesso
 -- autenticado (upsert pelo sub do provedor); nao ha cadastro nosso.
 
-CREATE TABLE IF NOT EXISTS usuarios (
+CREATE TABLE IF NOT EXISTS uso.usuarios (
     sub        TEXT PRIMARY KEY,  -- id estavel do usuario no IdP (claim `sub` do JWT)
     email      TEXT,              -- claim `email` — e o que torna o registro legivel
     nome       TEXT,

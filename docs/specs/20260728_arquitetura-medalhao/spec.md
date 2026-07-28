@@ -806,24 +806,32 @@ enquanto existir uma tabela com esse nome.
 O novo se constrói copiando **do legado**:
 
 ```sql
-CREATE TABLE tratado.eventos (LIKE legado_20260728.eventos INCLUDING ALL);
-INSERT INTO tratado.eventos SELECT * FROM legado_20260728.eventos;
+INSERT INTO tratado.eventos (<colunas>) SELECT <colunas> FROM legado_20260728.eventos;
 ```
+
+> **As tabelas de destino são criadas pelos `.sql` de `sql/` (`store.ddl()`), e
+> não por `LIKE ... INCLUDING ALL`** como o rascunho previa. Motivo descoberto
+> ao implementar: `LIKE INCLUDING INDEXES` gera **nomes de índice novos**, e o
+> `CREATE INDEX IF NOT EXISTS idx_eventos_start` do DDL criaria então um índice
+> **duplicado** — o `IF NOT EXISTS` casa por nome, não por definição. Usar o DDL
+> é seguro porque a fatia 2 provou que ele reproduz o schema de produção coluna
+> a coluna, e de quebra torna os `.sql` a fonte única de verdade, que era o
+> objetivo. As colunas são listadas explicitamente nos dois lados do `INSERT`,
+> o que torna a cópia independente da ordem física.
 
 Três armadilhas, todas conferidas contra a base real:
 
-- **`LIKE ... INCLUDING ALL` não copia chave estrangeira** — é a única coisa que
-  ele deixa passar. **Não há nenhuma FK neste banco**, por decisão registrada no
-  próprio `schema.sql` ("sem FK para filmes… quem garante a consistência é a
-  derivação"). Reconferir se alguma nascer antes da migração.
-- **`INSERT ... SELECT *` FALHA em `execucoes` e `acessos`.** As duas têm
+- **Chave estrangeira não sobrevive a cópia nenhuma** (nem `LIKE INCLUDING ALL`,
+  nem `CREATE TABLE`). **Não há nenhuma FK neste banco**, por decisão registrada
+  no próprio DDL ("sem FK para filmes… quem garante a consistência é a
+  derivação"). Reconferir se alguma nascer.
+- **`INSERT ... SELECT` FALHA em `execucoes` e `acessos`.** As duas têm
   `id BIGINT GENERATED ALWAYS AS IDENTITY`, que **recusa valor explícito**;
   precisa de `OVERRIDING SYSTEM VALUE`. São justamente duas das que não se
   reconstroem — e o erro aparece no meio da migração, não antes.
-- **A sequence copiada nasce em 1.** `INCLUDING IDENTITY` cria uma sequence
-  nova, zerada. Com `execucoes` já tendo os ids 1–5, o **primeiro**
-  `registrar_execucao()` depois da migração colide na PK. Some na mesma
-  transação:
+- **A sequence da tabela nova nasce em 1.** Com `execucoes` já tendo os ids 1–5,
+  o **primeiro** `registrar_execucao()` depois da migração colidiria na PK. Some
+  na mesma transação:
   ```sql
   SELECT setval(pg_get_serial_sequence('operacao.execucoes','id'),
                 COALESCE((SELECT max(id) FROM operacao.execucoes), 0) + 1, false);
@@ -978,7 +986,46 @@ junto da divisão por fonte, não custa nada a mais: as tabelas novas já nascem
 a PK `(id_nativo, origem, raspado_em)` e a coluna `hash`, preenchida na própria
 cópia. **A divisão por fonte e o append-only são a mesma migração** (janela #2).
 
-### 9.11 A carga do `locais_df.yaml`
+### 9.11 Registro da execução — janela 1 (2026-07-28)
+
+Aplicada. As três redes, na ordem:
+
+| Rede | O que ficou |
+|---|---|
+| `pg_dump -Fc` | `backups/eventos_20260728_pre-medalhao.dump`, 1,78 MB — 11 tabelas, 2 sequences, 8 índices, a config de busca `pt` |
+| Branch do Neon | `pre-medalhao-20260728` (`br-still-hat-acjgs99o`), forkado no LSN `0/1375DF20` |
+| Schema de backup | `legado_20260728`, com as 11 tabelas originais intactas |
+
+A transação: 11 `SET SCHEMA` → `public` vazio (conferido) → DDL → 11 `INSERT`
+com lista explícita de colunas → 2 `setval` → conferência → `COMMIT`.
+
+**Conferência: as 11 tabelas com contagem E md5 do conteúdo idênticos.**
+
+| | linhas |
+|---|---|
+| `cru.eventos_raw` | 875 |
+| `cru.instagram` | 271 |
+| `cru.cinema` | 64 |
+| `cru.cinema_extra` | 78 |
+| `tratado.eventos` | 457 |
+| `tratado.lotes` | 1069 |
+| `tratado.filmes` | 39 |
+| `tratado.sessoes` | 860 |
+| `operacao.execucoes` | 5 (`setval` → próximo id 6) |
+| `uso.usuarios` / `uso.acessos` | 0 / 0 |
+
+As quatro views de `public` devolvem exatamente o que a tabela de origem tem.
+Depois do commit, conferido contra produção: `consulta.py` responde (20
+resultados para "pagode", zero evento passado vazando) e o `test_mcp_server.py`,
+agindo como cliente MCP real, passa inteiro — **sem deploy nenhum**, porque a
+camada servida manteve os nomes (§9.7).
+
+Os nomes perderam o sufixo `_raw` dentro do `cru`, onde ele é redundante
+(`cru.instagram`, `cru.cinema`, `cru.cinema_extra`). `cru.eventos_raw` manteve o
+seu de propósito: convive com `tratado.eventos` até a janela 2 desmontá-lo, e
+`cru.eventos` ao lado de `tratado.eventos` seria confusão gratuita.
+
+### 9.12 A carga do `locais_df.yaml`
 
 Única, com `autor='migração'` e o motivo apontando para esta spec; o YAML sai do
 repo na mesma leva, para não existirem duas fontes da verdade.

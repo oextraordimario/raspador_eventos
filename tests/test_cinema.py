@@ -76,7 +76,7 @@ def main():
                             "2026-01-01T00:00:00+00:00")
     r = derivar.aplicar_cinema(con)
     assert r == {"filmes": 3, "sessoes": 5, "tmdb": 0}, r
-    linhas = {s["id"]: s for s in con.execute("SELECT * FROM sessoes")}
+    linhas = {s["id"]: s for s in con.execute("SELECT * FROM tratado.sessoes")}
     assert linhas["s2"]["tipos"] == "3D/XD/Legendado" and \
         linhas["s2"]["preco"] == 61.55, linhas["s2"]
     assert linhas["s3"]["tipos"] == "2D", "sem tipo exibível tinha que cair no 2D"
@@ -163,12 +163,12 @@ def main():
     }, "2026-01-01T00:00:00+00:00")
     r = derivar.aplicar_cinema(con)
     assert r["tmdb"] == 1, r
-    toy_f = con.execute("SELECT * FROM filmes WHERE id = '100'").fetchone()
+    toy_f = con.execute("SELECT * FROM tratado.filmes WHERE id = '100'").fetchone()
     assert toy_f["sinopse"] == "Buzz enfrenta a obsolescência." and \
         toy_f["nota"] == 7.4 and toy_f["ano"] == 2026 and \
         toy_f["titulo_original"] == "Toy Story 5" and \
         toy_f["poster_proprio"] == "http://blob/p.webp", dict(toy_f)
-    drama_f = con.execute("SELECT nota, sinopse FROM filmes "
+    drama_f = con.execute("SELECT nota, sinopse FROM tratado.filmes "
                           "WHERE id = '200'").fetchone()
     assert drama_f["nota"] is None and drama_f["sinopse"] is None, \
         "sem match confiável não pode ganhar nota"
@@ -205,11 +205,11 @@ def main():
     r = derivar.aplicar_cinema(con)
     assert r == {"filmes": 1, "sessoes": 1, "tmdb": 1}, \
         (r, "snapshot tinha que substituir E re-aplicar o extra")
-    ids = {s["id"] for s in con.execute("SELECT id FROM sessoes")}
+    ids = {s["id"] for s in con.execute("SELECT id FROM tratado.sessoes")}
     assert ids == {"s9"}, ids
-    dias = {x["dia"] for x in con.execute("SELECT dia FROM cinema_raw")}
+    dias = {x["dia"] for x in con.execute("SELECT dia FROM cru.cinema")}
     assert ONTEM not in dias, "dia passado tinha que ser podado da Bronze"
-    nota_pos = con.execute("SELECT nota FROM filmes WHERE id = '100'").fetchone()
+    nota_pos = con.execute("SELECT nota FROM tratado.filmes WHERE id = '100'").fetchone()
     assert nota_pos["nota"] == 7.4, \
         "a nota do TMDB tem que SOBREVIVER à reconstrução do snapshot"
     print("snapshot: grade nova substitui; poda dia passado; extra sobrevive — ok")

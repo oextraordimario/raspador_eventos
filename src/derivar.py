@@ -304,11 +304,11 @@ def aplicar_cinema(con):
     """
     from scrapers.cinema import CINEMAS  # dict puro (apelido por theaterId)
 
-    con.execute("DELETE FROM sessoes")
-    con.execute("DELETE FROM filmes")
+    con.execute("DELETE FROM tratado.sessoes")
+    con.execute("DELETE FROM tratado.filmes")
     filmes, sessoes = {}, {}
     for r in con.execute("SELECT cinema_id, dia, payload, raspado_em "
-                         "FROM cinema_raw ORDER BY dia").fetchall():
+                         "FROM cru.cinema ORDER BY dia").fetchall():
         apelido = CINEMAS.get(r["cinema_id"], r["cinema_id"])
         for bloco in json.loads(r["payload"]):
             for m in (bloco.get("movies") or []):
@@ -321,13 +321,13 @@ def aplicar_cinema(con):
     if filmes:
         cols = list(next(iter(filmes.values())))
         con.cursor().executemany(
-            f"INSERT INTO filmes ({','.join(cols)}) "
+            f"INSERT INTO tratado.filmes ({','.join(cols)}) "
             f"VALUES ({','.join('%s' for _ in cols)})",
             [[f[c] for c in cols] for f in filmes.values()])
     if sessoes:
         cols = list(next(iter(sessoes.values())))
         con.cursor().executemany(
-            f"INSERT INTO sessoes ({','.join(cols)}) "
+            f"INSERT INTO tratado.sessoes ({','.join(cols)}) "
             f"VALUES ({','.join('%s' for _ in cols)})",
             [[s[c] for c in cols] for s in sessoes.values()])
     # Enriquecimento externo (NI-36/NI-37): a Bronze cinema_extra_raw
@@ -336,7 +336,7 @@ def aplicar_cinema(con):
     # o matching não confiou — não grava nada (auditoria fica no payload).
     tmdb_ok = 0
     for r in con.execute("SELECT filme_id, origem, payload "
-                         "FROM cinema_extra_raw").fetchall():
+                         "FROM cru.cinema_extra").fetchall():
         if r["filme_id"] not in filmes:
             continue  # filme fora de cartaz; a Bronze fica para reexibição
         extra = json.loads(r["payload"])
@@ -344,7 +344,7 @@ def aplicar_cinema(con):
             e = extra["escolhido"]
             lanc = e.get("release_date") or ""
             con.execute(
-                "UPDATE filmes SET sinopse = %s, ano = %s, nota = %s, "
+                "UPDATE tratado.filmes SET sinopse = %s, ano = %s, nota = %s, "
                 "votos = %s, tmdb_id = %s WHERE id = %s",
                 (e.get("overview") or None,
                  int(lanc[:4]) if len(lanc) >= 4 else None,
@@ -355,7 +355,7 @@ def aplicar_cinema(con):
                  r["filme_id"]))
             tmdb_ok += 1
         elif r["origem"] == "poster" and extra.get("url"):
-            con.execute("UPDATE filmes SET poster_proprio = %s WHERE id = %s",
+            con.execute("UPDATE tratado.filmes SET poster_proprio = %s WHERE id = %s",
                         (extra["url"], r["filme_id"]))
     con.commit()
     return {"filmes": len(filmes), "sessoes": len(sessoes), "tmdb": tmdb_ok}
@@ -454,12 +454,12 @@ def aplicar_instagram(con):
     # flyer re-hospedado no storage próprio (origem='midia', NI-34/NI-37):
     # é a ÚNICA URL de imagem que pode ir para eventos.imagem
     midias = {r["code"]: json.loads(r["payload"]).get("url")
-              for r in con.execute("SELECT code, payload FROM instagram_raw "
+              for r in con.execute("SELECT code, payload FROM cru.instagram "
                                    "WHERE origem = 'midia'")}
     rows = con.execute(
         "SELECT p.perfil, p.code, p.payload AS post, p.raspado_em, "
         "       x.payload AS extracao "
-        "FROM instagram_raw p JOIN instagram_raw x "
+        "FROM cru.instagram p JOIN cru.instagram x "
         "  ON x.code = p.code AND x.origem = 'extracao' "
         "WHERE p.origem = 'post' ORDER BY p.code").fetchall()
     eventos, lotes, descartados = [], [], 0
@@ -491,19 +491,19 @@ def aplicar_instagram(con):
                               "gratis": preco == 0, "esgotado": 0})
         if not do_post:
             descartados += 1
-    con.execute("DELETE FROM lotes WHERE evento_id LIKE 'instagram:%'")
-    con.execute("DELETE FROM eventos WHERE fonte = 'instagram'")
+    con.execute("DELETE FROM tratado.lotes WHERE evento_id LIKE 'instagram:%'")
+    con.execute("DELETE FROM tratado.eventos WHERE fonte = 'instagram'")
     if eventos:
         store.upsert_eventos(con, eventos)
     for lt in lotes:
         con.execute(
-            "INSERT INTO lotes (evento_id, ordem, nome, preco, taxa, gratis, "
+            "INSERT INTO tratado.lotes (evento_id, ordem, nome, preco, taxa, gratis, "
             "esgotado) VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (lt["evento_id"], lt["ordem"], lt["nome"], lt["preco"], lt["taxa"],
              1 if lt["gratis"] else 0, lt["esgotado"]))
         agg = _agregar([lt])
         con.execute(
-            "UPDATE eventos SET preco_min = %s, tem_gratis = %s, esgotado = %s"
+            "UPDATE tratado.eventos SET preco_min = %s, tem_gratis = %s, esgotado = %s"
             " WHERE id = %s", (agg["preco_min"], agg["tem_gratis"],
                                agg["esgotado"], lt["evento_id"]))
     con.commit()
@@ -517,14 +517,14 @@ def aplicar(con):
     Retorna {coluna: quantos eventos ganharam valor} (+ chave "lotes" com o
     total de lotes gravados), para o relatório.
     """
-    con.execute("UPDATE eventos SET " +
+    con.execute("UPDATE tratado.eventos SET " +
                 ", ".join(f"{c} = NULL" for c in COLS_DERIVADAS))
-    con.execute("DELETE FROM lotes")
+    con.execute("DELETE FROM tratado.lotes")
     contagem = dict.fromkeys(COLS_DERIVADAS, 0)
     contagem["lotes"] = 0
     rows = con.execute(
         "SELECT r.evento_id, r.origem, r.payload, e.fonte "
-        "FROM eventos_raw r JOIN eventos e ON e.id = r.evento_id").fetchall()
+        "FROM cru.eventos_raw r JOIN tratado.eventos e ON e.id = r.evento_id").fetchall()
     for r in rows:
         derivacao = _DERIVACOES.get((r["fonte"], r["origem"]))
         extrator = _LOTES.get((r["fonte"], r["origem"]))
@@ -539,7 +539,7 @@ def aplicar(con):
             lotes = extrator(payload)
             if lotes:
                 con.cursor().executemany(
-                    "INSERT INTO lotes (evento_id, ordem, nome, preco, taxa, "
+                    "INSERT INTO tratado.lotes (evento_id, ordem, nome, preco, taxa, "
                     "gratis, esgotado) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     [(r["evento_id"], i, lt["nome"], lt["preco"], lt["taxa"],
                       1 if lt["gratis"] else 0, lt["esgotado"])
@@ -550,7 +550,7 @@ def aplicar(con):
         if not campos:
             continue
         con.execute(
-            "UPDATE eventos SET " + ", ".join(f"{c} = %s" for c in campos) +
+            "UPDATE tratado.eventos SET " + ", ".join(f"{c} = %s" for c in campos) +
             " WHERE id = %s", [*campos.values(), r["evento_id"]])
         for c in campos:
             contagem[c] += 1

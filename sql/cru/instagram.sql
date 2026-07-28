@@ -14,7 +14,7 @@
 -- ATENCAO: a URL de midia do CDN expira em HORAS. A midia e baixada na hora da
 -- ingestao (midias/instagram/, gitignorado); a URL do CDN nunca vai para a base.
 
-CREATE TABLE IF NOT EXISTS instagram_raw (
+CREATE TABLE IF NOT EXISTS cru.instagram (
     perfil     TEXT NOT NULL,   -- @ da watchlist (sem arroba)
     code       TEXT NOT NULL,   -- shortcode do post/story (instagram.com/p/<code>/)
     origem     TEXT NOT NULL,   -- 'post' | 'story' | 'extracao' | 'midia'

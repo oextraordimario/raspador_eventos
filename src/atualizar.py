@@ -78,7 +78,7 @@ def _checar_schema(con):
     o cabeçalho de sql/cru/eventos_raw.sql)."""
     cols = {r["column_name"] for r in con.execute(
         "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = 'public' AND table_name = 'eventos'")}
+        "WHERE table_schema = 'tratado' AND table_name = 'eventos'")}
     if "ruido" not in cols or "sumido" not in cols:
         sys.exit("A base é de um schema antigo.\nNÃO rode DROP SCHEMA (a "
                  "camada cru mora nesse banco e não se reconstrói). Aplique "
@@ -177,12 +177,12 @@ def _marcar_sumidos(con, resultados, iniciada_em):
         if not res.get("coletados"):
             continue
         for r in con.execute("SELECT id, nome, start_date, raspado_em "
-                             "FROM eventos WHERE fonte = %s", (fonte,)).fetchall():
+                             "FROM tratado.eventos WHERE fonte = %s", (fonte,)).fetchall():
             dt = tempo.instante(r["start_date"])
             visto = tempo.instante(r["raspado_em"])
             sumido = 1 if (dt and dt >= inicio
                            and (not visto or visto < inicio)) else 0
-            con.execute("UPDATE eventos SET sumido = %s WHERE id = %s",
+            con.execute("UPDATE tratado.eventos SET sumido = %s WHERE id = %s",
                         (sumido, r["id"]))
             if sumido:
                 sumidos.append((r["nome"], fonte))
@@ -203,7 +203,7 @@ def _descrever(con, erros, pausa=0.4):
     # URLs do Bileto ficam de fora: o id no fim delas é de outro namespace e o
     # BFF de página devolveria outro evento (NI-17). Sumidos não valem requisição.
     pendentes = con.execute(
-        "SELECT id, fonte, nome, url FROM eventos "
+        "SELECT id, fonte, nome, url FROM tratado.eventos "
         "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse', 'zig') "
         "AND sumido = 0 AND url IS NOT NULL AND url NOT LIKE %s",
         (f"%{sympla.BILETO_HOST}%",)).fetchall()
@@ -228,7 +228,7 @@ def _descrever(con, erros, pausa=0.4):
                                           "NI-17) — payload descartado"})
                     continue  # payload suspeito não entra nem na Bronze
                 con.execute(
-                    "UPDATE eventos SET descricao = %s, "
+                    "UPDATE tratado.eventos SET descricao = %s, "
                     "categoria = COALESCE(%s, categoria) WHERE id = %s",
                     (d["descricao"], d.get("categoria"), r["id"]))
             elif r["fonte"] == "zig":  # slug no fim da URL pública
@@ -240,12 +240,12 @@ def _descrever(con, erros, pausa=0.4):
                                   "erro": "nome divergente da API — payload "
                                           "descartado"})
                     continue  # payload suspeito não entra nem na Bronze
-                con.execute("UPDATE eventos SET descricao = %s WHERE id = %s",
+                con.execute("UPDATE tratado.eventos SET descricao = %s WHERE id = %s",
                             (d["descricao"], r["id"]))
             else:  # ingresse: slug no fim da URL pública
                 slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
                 d = ingresse.raspar_descricao(slug)
-                con.execute("UPDATE eventos SET descricao = %s WHERE id = %s",
+                con.execute("UPDATE tratado.eventos SET descricao = %s WHERE id = %s",
                             (d["descricao"], r["id"]))
             store.gravar_raw(con, r["id"], "detalhe", d["payload"],
                              datetime.now(timezone.utc).isoformat(),
@@ -283,7 +283,7 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
     alvos, fora_janela = [], 0
     for r in con.execute(
             "SELECT id, fonte, id_nativo, nome, url, start_date, descricao "
-            "FROM eventos WHERE fonte IN ('sympla', 'ingresse', 'zig', "
+            "FROM tratado.eventos WHERE fonte IN ('sympla', 'ingresse', 'zig', "
             "'ticketandgo') AND sumido = 0"):
         dt = tempo.instante(r["start_date"])
         if not dt or dt < agora:
@@ -418,8 +418,8 @@ def _raspar_instagram(erros, extrair=True):
         # descartava (backfill dirigido, spec §8.5; instagram.extracao_pendente).
         for row in con.execute(
                 "SELECT p.perfil, p.code, p.payload, x.payload AS ext "
-                "FROM instagram_raw p "
-                "LEFT JOIN instagram_raw x "
+                "FROM cru.instagram p "
+                "LEFT JOIN cru.instagram x "
                 "  ON x.code = p.code AND x.origem = 'extracao' "
                 "WHERE p.origem = 'post' ORDER BY p.code").fetchall():
             if not instagram.extracao_pendente(
@@ -484,7 +484,7 @@ def _coleta_anterior(con):
     a comparação do relatório só faz sentido coleta contra coleta."""
     ant = {}
     for r in con.execute(
-            "SELECT iniciada_em, fontes FROM execucoes ORDER BY id DESC"):
+            "SELECT iniciada_em, fontes FROM operacao.execucoes ORDER BY id DESC"):
         for nome, dados in json.loads(r["fontes"] or "{}").items():
             if nome not in ant and isinstance(dados.get("coletados"), int):
                 ant[nome] = (dados["coletados"], r["iniciada_em"])
@@ -531,7 +531,7 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
                 print(f"  {nome:<9} vs. rodada anterior: {antes} → {atual}")
 
     # --- base: totais e janela futura por fonte ---
-    rows = con.execute("SELECT fonte, start_date, ruido FROM eventos").fetchall()
+    rows = con.execute("SELECT fonte, start_date, ruido FROM tratado.eventos").fetchall()
     futuros = {}
     for r in rows:
         dt = tempo.instante(r["start_date"])
@@ -550,12 +550,12 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
     print("  descrição preenchida por fonte:")
     for r in con.execute(
             "SELECT fonte, COUNT(descricao) AS com, COUNT(*) AS tot "
-            "FROM eventos GROUP BY fonte ORDER BY fonte"):
+            "FROM tratado.eventos GROUP BY fonte ORDER BY fonte"):
         print(f"    {r['fonte']:<9} {r['com']}/{r['tot']}  "
               f"({100 * r['com'] // r['tot']}%)")
     print("  preço mínimo preenchido por fonte (eventos futuros):")
     stats = {}
-    for r in con.execute("SELECT fonte, start_date, preco_min FROM eventos"):
+    for r in con.execute("SELECT fonte, start_date, preco_min FROM tratado.eventos"):
         dt = tempo.instante(r["start_date"])
         if not dt or dt < agora:
             continue
@@ -566,7 +566,7 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
         print(f"    {fonte:<9} {com}/{tot}  ({100 * com // tot}%)")
 
     # --- camada Bronze: payloads brutos e colunas derivadas ---
-    raws = con.execute("SELECT origem, COUNT(*) AS n FROM eventos_raw "
+    raws = con.execute("SELECT origem, COUNT(*) AS n FROM cru.eventos_raw "
                        "GROUP BY origem ORDER BY origem").fetchall()
     print("  payloads brutos (Bronze): " +
           (", ".join(f"{r['origem']}: {r['n']}" for r in raws) or "nenhum"))
@@ -638,8 +638,8 @@ def _enriquecer_cinema(con, erros):
         print("\n[tmdb] TMDB_API_KEY ausente — filmes seguem sem sinopse/nota.")
         return None
     pendentes = con.execute(
-        "SELECT f.id, f.titulo, f.titulo_original FROM filmes f "
-        "LEFT JOIN cinema_extra_raw x "
+        "SELECT f.id, f.titulo, f.titulo_original FROM tratado.filmes f "
+        "LEFT JOIN cru.cinema_extra x "
         "  ON x.filme_id = f.id AND x.origem = 'tmdb' "
         "WHERE x.filme_id IS NULL ORDER BY f.titulo").fetchall()
     if not pendentes:
@@ -675,8 +675,8 @@ def _copiar_posters(con, erros):
         print("\n[poster] BLOB_READ_WRITE_TOKEN ausente — hotlink mantido.")
         return None
     pendentes = con.execute(
-        "SELECT f.id, f.poster FROM filmes f "
-        "LEFT JOIN cinema_extra_raw x "
+        "SELECT f.id, f.poster FROM tratado.filmes f "
+        "LEFT JOIN cru.cinema_extra x "
         "  ON x.filme_id = f.id AND x.origem = 'poster' "
         "WHERE f.poster IS NOT NULL AND x.filme_id IS NULL "
         "ORDER BY f.id").fetchall()
@@ -710,8 +710,8 @@ def _subir_midias_instagram(con, erros):
     if not midia.token():
         return None
     pendentes = con.execute(
-        "SELECT p.perfil, p.code FROM instagram_raw p "
-        "LEFT JOIN instagram_raw m ON m.code = p.code AND m.origem = 'midia' "
+        "SELECT p.perfil, p.code FROM cru.instagram p "
+        "LEFT JOIN cru.instagram m ON m.code = p.code AND m.origem = 'midia' "
         "WHERE p.origem = 'post' AND m.code IS NULL ORDER BY p.code").fetchall()
     agora = datetime.now(timezone.utc).isoformat()
     n = 0

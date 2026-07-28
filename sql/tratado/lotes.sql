@@ -12,7 +12,7 @@
 -- 00H", "meia-entrada") e para o agente ler, nao para regex.
 -- Spec: docs/specs/20260710_lotes-ingressos/spec.md.
 
-CREATE TABLE IF NOT EXISTS lotes (
+CREATE TABLE IF NOT EXISTS tratado.lotes (
     evento_id  TEXT NOT NULL,      -- eventos.id ("<fonte>:<id_nativo>")
     ordem      INTEGER NOT NULL,   -- posicao no payload (ordem de exibicao da fonte)
     nome       TEXT,               -- nome cru do lote na fonte
@@ -21,4 +21,4 @@ CREATE TABLE IF NOT EXISTS lotes (
     gratis     INTEGER NOT NULL,   -- 1 = lote gratuito (cortesia/entrada franca)
     esgotado   INTEGER             -- 1 = lote sem estoque / vendas encerradas
 );
-CREATE INDEX IF NOT EXISTS idx_lotes_evento ON lotes(evento_id);
+CREATE INDEX IF NOT EXISTS idx_lotes_evento ON tratado.lotes(evento_id);

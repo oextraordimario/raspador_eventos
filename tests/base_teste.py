@@ -23,7 +23,12 @@ def preparar():
                  "a base de produção (a URL precisa conter 'teste').")
     store.DB_URL = url
     with psycopg.connect(url, autocommit=True) as con:
-        con.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
+        # Os SEIS schemas, não só `public` (spec 20260728_arquitetura-medalhao).
+        # Aqui dropar é seguro e desejado — é o banco descartável, e a guarda de
+        # nome acima garante que nunca é o de produção, onde `cru`/`curado`/
+        # `operacao`/`uso` NUNCA se dropam.
+        con.execute("DROP SCHEMA IF EXISTS cru, tratado, curado, operacao, uso "
+                    "CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public")
         # O DDL é aplicado AQUI, e não no primeiro store.conectar(): desde
         # 2026-07-28 conectar() não aplica schema por padrão (spec
         # 20260728_arquitetura-medalhao, D9). Os testes continuam chamando

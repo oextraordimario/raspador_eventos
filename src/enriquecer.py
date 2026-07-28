@@ -99,10 +99,10 @@ def _sim(a, b):
 def _marcar_ruido(con):
     """Marca ruido=1 nos nomes que casam com RUIDO_TERMOS. Retorna [(nome, termo)]."""
     marcados = []
-    for r in con.execute("SELECT id, nome FROM eventos"):
+    for r in con.execute("SELECT id, nome FROM tratado.eventos"):
         m = _RUIDO_RE.search(_normalizar_texto(r["nome"]))
         if m:
-            con.execute("UPDATE eventos SET ruido = 1, ruido_motivo = %s "
+            con.execute("UPDATE tratado.eventos SET ruido = 1, ruido_motivo = %s "
                         "WHERE id = %s", (m.group(1), r["id"]))
             marcados.append((r["nome"], m.group(1)))
     return marcados
@@ -141,7 +141,7 @@ def _agrupar_duplicatas(con, aliases_local=None):
                    for a, nome in (aliases_local or {}).items()}
     rows = [dict(r) for r in con.execute(
         "SELECT id, fonte, nome, start_date, local_nome, endereco, organizador,"
-        "       imagem, end_date, lat, preco_min FROM eventos WHERE ruido = 0")]
+        "       imagem, end_date, lat, preco_min FROM tratado.eventos WHERE ruido = 0")]
 
     por_dia = {}
     for r in rows:
@@ -194,7 +194,7 @@ def _agrupar_duplicatas(con, aliases_local=None):
         canonico = grupo[0]
         for r in grupo:
             con.execute(
-                "UPDATE eventos SET dedupe_grupo = %s, dedupe_canonico = %s "
+                "UPDATE tratado.eventos SET dedupe_grupo = %s, dedupe_canonico = %s "
                 "WHERE id = %s",
                 (canonico["id"], 1 if r["id"] == canonico["id"] else 0, r["id"]))
         grupos.append(grupo)
@@ -213,7 +213,7 @@ def aplicar(con, aliases_local=None):
           grupos: lista de grupos de dedupe; cada grupo é uma lista de dicts
                   dos membros (canônico primeiro), com fonte/nome/id.
     """
-    con.execute("UPDATE eventos SET ruido = 0, ruido_motivo = NULL, "
+    con.execute("UPDATE tratado.eventos SET ruido = 0, ruido_motivo = NULL, "
                 "dedupe_grupo = NULL, dedupe_canonico = 1")
     ruido = _marcar_ruido(con)
     grupos = _agrupar_duplicatas(con, aliases_local)

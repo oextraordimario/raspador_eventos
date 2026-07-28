@@ -13,7 +13,7 @@
 -- tabela POR FONTE e troca o upsert por append-only com dedupe por hash.
 -- Specs: 20260710_camada-bronze, 20260728_arquitetura-medalhao.
 
-CREATE TABLE IF NOT EXISTS eventos_raw (
+CREATE TABLE IF NOT EXISTS cru.eventos_raw (
     evento_id  TEXT NOT NULL,   -- eventos.id ("<fonte>:<id_nativo>")
     origem     TEXT NOT NULL,   -- qual payload: 'catalogo' | 'detalhe' | 'tickets'
     payload    TEXT NOT NULL,   -- JSON bruto (json.dumps ensure_ascii=False)

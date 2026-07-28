@@ -9,7 +9,7 @@
 -- Cinema x dia ausente de uma rodada (falha de rede) MANTEM o payload anterior:
 -- buraco nao apaga grade boa. 404 da fonte = dia sem sessao, nao e erro.
 
-CREATE TABLE IF NOT EXISTS cinema_raw (
+CREATE TABLE IF NOT EXISTS cru.cinema (
     cinema_id  TEXT NOT NULL,   -- theaterId da Ingresso.com
     dia        TEXT NOT NULL,   -- dia da grade "YYYY-MM-DD" (data LOCAL de Brasilia, como a API pagina)
     payload    TEXT NOT NULL,   -- JSON bruto (json.dumps ensure_ascii=False)

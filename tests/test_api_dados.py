@@ -76,10 +76,10 @@ store.upsert_eventos(con, [
     evento("sympla:5", "Baile Retrô", "Clube Épsilon", start_date=iso(days=-5)),
     evento("ingresse:6", "Sarau Aberto", "Praça Zeta"),
 ])
-con.execute("UPDATE eventos SET cancelado = 1 WHERE id = 'shotgun:3'")
-con.execute("UPDATE eventos SET sumido = 1 WHERE id = 'zig:4'")
-con.execute("UPDATE eventos SET tem_gratis = 1 WHERE id = 'ingresse:6'")
-con.execute("UPDATE eventos SET preco_min = 50 WHERE id = 'sympla:1'")
+con.execute("UPDATE tratado.eventos SET cancelado = 1 WHERE id = 'shotgun:3'")
+con.execute("UPDATE tratado.eventos SET sumido = 1 WHERE id = 'zig:4'")
+con.execute("UPDATE tratado.eventos SET tem_gratis = 1 WHERE id = 'ingresse:6'")
+con.execute("UPDATE tratado.eventos SET preco_min = 50 WHERE id = 'sympla:1'")
 con.commit()
 enriquecer.aplicar(con)
 

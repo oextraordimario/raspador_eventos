@@ -142,7 +142,7 @@ def upsert_eventos(con, eventos):
         f"{c}=COALESCE(excluded.{c}, eventos.{c})" if c in _COLS_PRESERVAR
         else f"{c}=excluded.{c}"
         for c in cols if c != "id")
-    sql = (f"INSERT INTO eventos ({','.join(cols)}) VALUES ({placeholders}) "
+    sql = (f"INSERT INTO tratado.eventos ({','.join(cols)}) VALUES ({placeholders}) "
            f"ON CONFLICT(id) DO UPDATE SET {updates}")
     con.cursor().executemany(sql, [
         [tempo.norm_ts(e.get(c)) if c in _COLS_DATA else e.get(c) for c in cols]
@@ -161,7 +161,7 @@ def registrar_execucao(con, iniciada_em, duracao_s, modo, fontes, passos, erros)
     fontes/passos/erros são estruturas Python; viram JSON aqui.
     """
     con.execute(
-        "INSERT INTO execucoes (iniciada_em, duracao_s, modo, fontes, passos, "
+        "INSERT INTO operacao.execucoes (iniciada_em, duracao_s, modo, fontes, passos, "
         "erros) VALUES (%s, %s, %s, %s, %s, %s)",
         (iniciada_em, duracao_s, modo,
          *(json.dumps(x, ensure_ascii=False) for x in (fontes, passos, erros))))
@@ -171,7 +171,7 @@ def registrar_execucao(con, iniciada_em, duracao_s, modo, fontes, passos, erros)
 def ultima_execucao(con):
     """Última rodada registrada (dict com fontes/passos/erros já desserializados)
     ou None. É a base da comparação 'vs. rodada anterior' do relatório."""
-    r = con.execute("SELECT * FROM execucoes ORDER BY id DESC LIMIT 1").fetchone()
+    r = con.execute("SELECT * FROM operacao.execucoes ORDER BY id DESC LIMIT 1").fetchone()
     if not r:
         return None
     d = dict(r)
@@ -183,7 +183,7 @@ def ultima_execucao(con):
 def gravar_raw(con, evento_id, origem, payload, raspado_em, commit=True):
     """Guarda o payload bruto de um evento na camada Bronze (último vence)."""
     con.execute(
-        "INSERT INTO eventos_raw (evento_id, origem, payload, raspado_em) "
+        "INSERT INTO cru.eventos_raw (evento_id, origem, payload, raspado_em) "
         "VALUES (%s, %s, %s, %s) "
         "ON CONFLICT(evento_id, origem) DO UPDATE SET "
         "payload = excluded.payload, raspado_em = excluded.raspado_em",
@@ -211,7 +211,7 @@ def gravar_instagram_raw(con, itens, raspado_em, commit=True):
         for perfil, code, origem, payload in itens:
             unicos.setdefault((code, origem), (perfil, code, origem, payload))
         con.cursor().executemany(
-            "INSERT INTO instagram_raw (perfil, code, origem, payload, "
+            "INSERT INTO cru.instagram (perfil, code, origem, payload, "
             "raspado_em) VALUES (%s, %s, %s, %s, %s) "
             "ON CONFLICT(code, origem) DO UPDATE SET "
             "payload = excluded.payload, raspado_em = excluded.raspado_em",
@@ -231,13 +231,13 @@ def gravar_cinema_raw(con, itens, raspado_em):
     """
     if itens:
         con.cursor().executemany(
-            "INSERT INTO cinema_raw (cinema_id, dia, payload, raspado_em) "
+            "INSERT INTO cru.cinema (cinema_id, dia, payload, raspado_em) "
             "VALUES (%s, %s, %s, %s) "
             "ON CONFLICT(cinema_id, dia) DO UPDATE SET "
             "payload = excluded.payload, raspado_em = excluded.raspado_em",
             [(cid, dia, json.dumps(payload, ensure_ascii=False), raspado_em)
              for cid, dia, payload in itens])
-        con.execute("DELETE FROM cinema_raw WHERE dia < %s",
+        con.execute("DELETE FROM cru.cinema WHERE dia < %s",
                     (min(dia for _, dia, _ in itens),))
     con.commit()
     return len(itens)
@@ -249,7 +249,7 @@ def gravar_cinema_extra(con, filme_id, origem, payload, raspado_em):
     propósito — sobrevive à reconstrução de filmes/sessoes. Último vence
     (re-tentativa de match sobrescreve o anterior)."""
     con.execute(
-        "INSERT INTO cinema_extra_raw (filme_id, origem, payload, raspado_em) "
+        "INSERT INTO cru.cinema_extra (filme_id, origem, payload, raspado_em) "
         "VALUES (%s, %s, %s, %s) "
         "ON CONFLICT(filme_id, origem) DO UPDATE SET "
         "payload = excluded.payload, raspado_em = excluded.raspado_em",

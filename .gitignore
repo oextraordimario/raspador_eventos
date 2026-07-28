@@ -15,6 +15,11 @@ diagnostico/
 # mas a extração já persistida na base torna os arquivos regeneráveis-o-bastante)
 midias/
 
+# Dumps do pg_dump (rede de segurança das migrações). NUNCA commitar: contêm
+# uso.usuarios/uso.acessos, que são DADO DE PESSOA. Spec 20260728_arquitetura-
+# medalhao §9.1.
+backups/
+
 # Python
 __pycache__/
 *.py[cod]
