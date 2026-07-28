@@ -593,56 +593,19 @@
 # ─────────────────────────── Feedback do beta (2026-07-27) ───────────────────
 # Rodada de feedback do autor + vários amigos após a abertura do site. A spec
 # docs/specs/20260728_rework-site/ (a pasta se chamava `20260728_rework-eventos`
-# até 28/07) cobre tudo o que é executável SEM raspagem nova: os itens de
-# eventos com dado JÁ EXISTENTE (NI-38, NI-39, NI-41, NI-43, NI-44, NI-45,
-# NI-46, NI-47) e os de usabilidade transversal do site (NI-50, NI-51, NI-52,
-# NI-53). O resto fica aqui até ter vez.
+# até 28/07) foi EXECUTADA em 28/07 e entregou dez dos doze itens, que saíram
+# desta lista: NI-38 (resumo no card), NI-39 (ver no mapa), NI-41 (busca por
+# casa), NI-43 (calendário), NI-46 (perto de mim), NI-47 (coleções sazonais),
+# NI-50 (velocidade), NI-51 (Google Agenda), NI-52 (canal de feedback) e
+# NI-53 (compartilhar). O git e a §14 da spec registram o que cada um virou.
+#
+# Os DOIS que ficaram (NI-44 e NI-45) continuam abaixo com o estado real: os
+# dois tiveram a infraestrutura inteira entregue e esbarraram na COBERTURA DO
+# DADO, que é o que falta — não código.
 #
 # NI-54 (instrumentar o site) NÃO está mais aqui: a revisão da spec em 28/07
 # descobriu que ele já estava em produção havia dois dias — ver o bloco no fim
 # desta seção.
-
-- codigo: NI-38
-  status: pendente
-  prioridade: media
-  rank: 2
-  esforco: P
-  eixo: produto
-  fase: 1
-  titulo: "Resumo do evento no card principal — a descrição existe e o card não a usa"
-  resumo: "a API já manda `descricao` (trecho de 600 chars) na listagem e o card mostra só nome/local/line-up/preço; falta o trecho curto (~2 linhas) que dá contexto sem abrir o detalhe — o card de filme já faz isso com a sinopse"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-33]
-  caso_real: ["beta com amigos (2026-07-27): pediram entender o estilo do evento sem clicar"]
-  detalhe: |
-    Zero backend: `buscar_eventos` já devolve a descrição truncada e a
-    `api/dados.py` já a repassa. É CSS/JSX no Card de `app/festas/page.jsx`
-    (line-clamp de ~2 linhas, como o card de filme do NI-35 fez com a
-    sinopse). Cuidado com densidade: o card já tem line-up + meta; avaliar
-    esconder o resumo quando há `atracoes` (ou vice-versa).
-    Spec: docs/specs/20260728_rework-site/.
-
-- codigo: NI-39
-  status: pendente
-  prioridade: media
-  rank: 2
-  esforco: P
-  eixo: produto
-  fase: 1
-  titulo: "Link 'ver no mapa' (Google Maps) no detalhe do evento"
-  resumo: "endereco/local_nome/lat/lon já existem na base; um link de busca do Maps (sem API key) no detalhe resolve 'como chego lá' — lat/lon quando houver, texto do endereço no resto"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-46]
-  caso_real: ["beta com amigos (2026-07-27): 'adicionar localização Maps'"]
-  detalhe: |
-    `https://www.google.com/maps/search/?api=1&query=...` não precisa de chave
-    nem de embed: com `lat,lon` quando a fonte deu (as 5 fontes mandam), senão
-    `local_nome + endereco + cidade` textual. Entra no bloco "where" do
-    `/evento/[id]`. Embed de mapa (iframe) foi considerado e descartado no v1
-    (peso na página + chave de API para nada — o clique resolve).
-    Spec: docs/specs/20260728_rework-site/.
 
 - codigo: NI-40
   status: nao-iniciado
@@ -665,29 +628,6 @@
     §3.4) e não implementado lá. Se um dia entrar, entra nos dois. Prioridade
     baixa declarada pelo autor; checar UX/UI antes de investir.
 
-- codigo: NI-41
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: P
-  eixo: produto
-  fase: 1
-  titulo: "Busca por casa no site falha — 'Ordinário' não devolve nada"
-  resumo: "o FTS indexa local_nome desde a v1.1 justamente pra 'o que tem no Ordinário?' funcionar, mas no site a busca vem presa ao período default 'hoje' — texto sem evento HOJE volta vazio e parece busca quebrada"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-43]
-  caso_real: ["beta com amigos (2026-07-27): pesquisar 'Ordinário' 'deu erro' (voltou vazio)"]
-  detalhe: |
-    Diagnóstico CONFIRMADO na base real em 2026-07-27 (spec
-    docs/specs/20260728_rework-site/ §3): o FTS está OK —
-    websearch_to_tsquery('pt','Ordinário') → 'ordinari' casa com os ~40
-    eventos da casa, majoritariamente canônicos e visíveis. A causa é o
-    front: `app/festas/page.jsx` usa período default `hoje`; quem digita o
-    nome de uma casa quer a agenda dela, não a agenda dela HOJE. Correção
-    desenhada na spec: com `texto` e sem período explícito na URL, a janela
-    vira "todos os futuros" (+ chip "próximos" pra esse estado ter endereço).
-
 - codigo: NI-42
   status: nao-iniciado
   prioridade: baixa
@@ -707,29 +647,6 @@
     campos (mesmo gênero + mesma faixa de preço + proximidade de data/bairro),
     renderizado no rodapé do /evento/[id]. Embedding/co-clique é fase 2+.
 
-- codigo: NI-43
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: produto
-  fase: 1
-  titulo: "Filtro de data com calendário na página de festas (paridade com o cinema)"
-  resumo: "o cinema ganhou calendário do mês no NI-35 e as festas seguem só com hoje/fds/7d; o componente existe, a API já aceita de/ate — falta a faceta de dias com evento e a UI"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-41]
-  caso_real: ["beta com amigos (2026-07-27): 'adicionar filtro por data ou faixa de data, visual estilo calendário'"]
-  detalhe: |
-    Reusar `app/filmes/Calendario.jsx` (dias sem dado desabilitados). A
-    diferença: a janela de eventos é bem maior que os ~8 dias da grade de
-    cinema, então o calendário fica útil de verdade. Precisa da faceta "dias
-    locais com evento futuro" na consulta (mesmo desenho de
-    `facetas_filmes()["dias"]` — dia LOCAL de Brasília com corte às 6h, o
-    mesmo do `_janela`). Seleção de dia vira `de/ate` na URL; faixa de datas
-    (de–até) é o passo 2 se o dia único não bastar.
-    Spec: docs/specs/20260728_rework-site/.
-
 - codigo: NI-44
   status: pendente
   prioridade: media
@@ -738,8 +655,9 @@
   eixo: enriquecimento
   fase: 1
   titulo: "Separar 'festas & baladas' de 'shows & festivais'"
-  resumo: "hoje /festas mistura tudo; uma classificação derivada (heurística conservadora sobre categoria real + nome/descrição) vira filtro/abas no site — o rótulo definitivo é do classificador LLM (NI-05)"
+  resumo: "PARCIAL desde 28/07: a coluna `tipo`, o enriquecimento, o filtro na consulta/API/MCP e os chips no front estão prontos — mas a heurística só classifica 24% da agenda, e os chips ficam escondidos até 50% (o gate está no código). O que falta é COBERTURA, e ela vem do NI-05, não de mais regra"
   data: 2026-07-27
+  atualizado: 2026-07-28
   depende_de: []
   relacionado: [NI-05, NI-04]
   caso_real: ["beta com amigos (2026-07-27): 'separar festas & baladas em uma categoria, shows & festivais em outra'"]
@@ -754,6 +672,20 @@
     o LLM assume o rótulo e a heurística vira fallback.
     Spec: docs/specs/20260728_rework-site/.
 
+    ESTADO EM 2026-07-28 (implementado, mas escondido):
+    tudo acima existe — `tratado.eventos.tipo`, `enriquecer._classificar`,
+    o parâmetro `tipo` em buscar_eventos/API/MCP e os chips na página. O que
+    não passou foi a MEDIÇÃO: a heurística classifica 91 de 379 futuros (24%).
+    Com 3 de 4 eventos sem rótulo — e a semântica é inclusiva de propósito,
+    `tipo=festa` traz também os NULL — o chip devolveria a lista inteira.
+    Filtro que promete recorte e entrega tudo é pior que filtro nenhum, então
+    os chips só aparecem acima de 50% (`COBERTURA_TIPO` em app/festas/page.jsx,
+    alimentado pela faceta `tipos`, que devolve as contagens). É um gate sobre
+    o DADO: quando o NI-05 subir a cobertura, os chips acendem sozinhos.
+    Por que o sinal é fraco: `categoria` do Sympla é "musica" em 155 dos 187
+    que a têm, e as constantes de Shotgun/Ticket and Go saíram em 28/07 por
+    não distinguirem nada. Sobra a palavra no nome, que carrega tudo sozinha.
+
 - codigo: NI-45
   status: pendente
   prioridade: media
@@ -762,8 +694,9 @@
   eixo: consulta
   fase: 1
   titulo: "Filtro por bairro"
-  resumo: "a coluna bairro existe mas a cobertura é desigual (23% dos futuros em 28/07: Sympla/Zig derivam do payload; o endereco do Shotgun JÁ É o bairro e só falta copiá-lo; Ticket and Go e Instagram não têm endereço nenhum) — melhorar a derivação e expor faceta + filtro"
+  resumo: "PARCIAL desde 28/07: o dicionário de regiões, a canonização de grafia, a faceta e o dropdown estão no ar, e a cobertura foi de 23% para 56% dos futuros visíveis. O teto é estrutural: Ticket and Go e Instagram (112 de 379) não expõem endereço NENHUM, e nenhum dicionário resolve isso — a saída é o NI-16 (bairro canônico da casa)"
   data: 2026-07-27
+  atualizado: 2026-07-28
   depende_de: []
   relacionado: [NI-16, NI-46]
   caso_real: ["beta com amigos (2026-07-27): 'filtro por bairro / proximidade (ex: bairro do amigo)'"]
@@ -787,53 +720,24 @@
     eles só o NI-16 (bairro canônico da casa em `curado.locais`) resolve.
     Spec: docs/specs/20260728_rework-site/.
 
-- codigo: NI-46
-  status: nao-iniciado
-  prioridade: media
-  rank: 2
-  esforco: M
-  eixo: produto
-  fase: 1
-  titulo: "'Eventos perto de mim' — geolocalização do visitante"
-  resumo: "lat/lon cobrem 69% dos futuros (Sympla e Shotgun 100%; Zig, Ticket and Go e Instagram mandam nulo); falta o front pedir a localização (navigator.geolocation) e a consulta ordenar por distância — primeiro recurso do site que exige JS, degradar para o filtro de bairro (NI-45)"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-45, NI-39]
-  caso_real: ["beta com amigos (2026-07-27): 'eventos perto de mim (puxar loc da própria pessoa que acessou)'"]
-  detalhe: |
-    Cobertura REMEDIDA em 2026-07-28 (379 futuros visíveis): lat em 69% —
-    Sympla, Ingresse e Shotgun 100%, mas Ticket and Go (75 futuros, 2ª maior
-    fonte), Instagram (37) e Zig mandam coordenada NULA. Subiu de 65% para 69%
-    porque o Shotgun voltou a funcionar; passa no gate de ~60% da spec com mais
-    folga que antes, mas re-medir na hora de implementar.
-    A alavanca que existia para subir mais FECHOU: o geocoding do endereco do
-    Ticket and Go (CEP → coordenada) dependia do endereço que a API V1 dava, e
-    a V1 foi desligada (NI-57) — a V2 não expõe endereço nenhum. O que sobra é
-    o NI-16 (coordenada canônica da casa em `curado.locais`). Distância por haversine no SQL basta no recorte
-    DF (sem PostGIS). Postura: a localização do visitante desce como parâmetro
-    de query — não gravar, não logar em `acessos`-equivalente; anotar no
-    privacy da página "sobre". Sem JS/permissão negada → o filtro de bairro é
-    o fallback. Ordenar por distância × filtrar por raio: decidir na spec.
-    Spec: docs/specs/20260728_rework-site/ (etapa condicionada à cobertura).
-
-- codigo: NI-47
-  status: nao-iniciado
-  prioridade: baixa
-  rank: 3
-  esforco: P
-  eixo: produto
-  fase: 1
-  titulo: "Coleções sazonais (festa junina, halloween, réveillon...)"
-  resumo: "chip/coleção que é uma busca FTS pré-montada ('junina OR arraiá OR quadrilha') ligada por calendário editorial — zero schema, dado existente"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-44]
-  caso_real: ["beta com amigos (2026-07-27): 'filtro por evento sazonal (ex: festa junina, natal)'"]
-  detalhe: |
-    Mapa curado pequeno em `lib/` ({rótulo, termos FTS, janela do ano}); o
-    chip só aparece na época (junho-julho mostra "festa junina"). É a versão
-    barata; a cara ("temporada" como tag derivada) só se a busca por termos
-    falhar. Spec: docs/specs/20260728_rework-site/ (item menor).
+    ESTADO EM 2026-07-28 (as três partes feitas; o que resta é o teto):
+    (a) feito — e o achado foi maior que a previsão: o normalizador fazia
+        `endereco = addressLocality or streetAddress`, e como a fonte quase
+        sempre preenche o primeiro, o streetAddress (endereço COMPLETO, em 68
+        dos 70 payloads) era descartado. Além disso, 38 dos 70 addressLocality
+        dizem "Brasília" — a cidade, não o bairro. Corrigido: bairro só quando
+        difere da cidade; endereço = streetAddress. Deu +32 bairros, não +68.
+    (b) feito — `tratamento/bairros.py`, dentro de `comum._tratar`. Cobre RAs,
+        setores por extenso e siglas do Plano Piloto (CLS/SHCS/SCES→Asa Sul,
+        SQN/CLN→Asa Norte, SAAN/SIA/SIG como área própria). Ganhou de brinde o
+        `canonizar()`: a base tinha "Asa Norte", "ASA NORTE" e "asa norte" como
+        três bairros, além de "Saan"/"SAAN" e "Samambaia sul"/"Samambaia
+        Norte". Passaram de 44 grafias para 32 regiões.
+    (c) feito — faceta ordenada por QUANTIDADE (numa lista de 32, a região com
+        84 festas tem que estar no topo, não em "Á"), parâmetro `bairro` multi
+        na consulta/API/MCP, dropdown no padrão do cinema.
+    Resultado: 23% → 56% dos futuros visíveis. O que falta é o teto estrutural
+    — e ele é NI-16, não mais dicionário.
 
 - codigo: NI-48
   status: nao-iniciado
@@ -886,143 +790,6 @@
     conservador (na dúvida, sem tag). A casa recorrente (NI-16) reforça o
     sinal (casa declaradamente LGBT → eventos herdam). Aguardar o NI-05;
     não implementar por palavra-chave.
-
-- codigo: NI-50
-  status: pendente
-  prioridade: media
-  rank: 2
-  esforco: M
-  eixo: produto
-  fase: 1
-  titulo: "Velocidade de navegação — trocar filtro parece re-consultar a base inteira"
-  resumo: "cada combinação de filtro é URL própria (decisão: SSR sem JS) e combinação nova paga SSR + possivelmente Neon frio; medir onde dói (TTFB? cold start do banco? falta de prefetch?) antes de otimizar"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-54]
-  caso_real: ["beta com amigos (2026-07-27): 'parece que tá re-puxando da base toda vez que clica um filtro'"]
-  detalhe: |
-    A percepção está tecnicamente certa: filtro = navegação = render novo no
-    servidor. O design (filtros na URL, sem JS) NÃO sai — a Fase 2 depende
-    dele. Alavancas que preservam o design: (a) `revalidate`/cache da API já
-    existem — conferir se a CDN está de fato servindo HIT nas combinações
-    comuns (a matriz período×grátis é pequena e cacheável quente); (b)
-    prefetch do Next nos chips (Link já faz por default no viewport — conferir
-    por que não está colando); (c) `loading.jsx`/transições para a espera não
-    parecer travada; (d) o texto livre é o único cauda-longa — aceitar MISS
-    ali. Medir com o site instrumentado (NI-54) antes e depois.
-
-    ATUALIZAÇÃO 2026-07-28 (revisão da spec): o instrumento já existe (PostHog,
-    ver NI-54 no fim desta seção), então medir deixou de ser bloqueio. E a
-    auditoria do código achou a alavanca (c) INTOCADA: **não existe nenhum
-    loading.jsx no app/** — toda navegação por filtro espera o SSR sem sinal
-    nenhum na tela, que é literalmente a queixa. Entrou na spec
-    docs/specs/20260728_rework-site/ §8, e ANTES dos filtros novos na ordem de
-    implementação: cada filtro novo multiplica a matriz de cache, então medir
-    depois deles seria medir outra coisa.
-
-- codigo: NI-51
-  status: pendente
-  prioridade: media
-  rank: 2
-  esforco: P
-  eixo: produto
-  fase: 1
-  titulo: "Botão 'adicionar ao Google Agenda'"
-  resumo: "link de template do Google Calendar (calendar.google.com/render?action=TEMPLATE) — sem API, sem auth; nome/data/local/url já existem"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-53]
-  caso_real: ["beta com amigos (2026-07-27): 'botão de integrar com o Google Agenda'"]
-  detalhe: |
-    `start_date` é ISO UTC — o formato do template é YYYYMMDDTHHMMSSZ direto.
-    `end_date` às vezes vem inconsistente na origem (armadilha conhecida):
-    default início+4h quando faltar/for absurdo. `details` com o link da
-    página do evento (não o da fonte — a régua de atribuição continua no CTA
-    de compra). Um `.ics` genérico (Apple/Outlook) é o mesmo dado — avaliar
-    junto. Cabe no detalhe do evento, perto do CTA.
-    Spec: docs/specs/20260728_rework-site/ §4.3 — regra do end_date fechada
-    (usa o da fonte só se estiver entre start e start+12h; senão início+4h) e
-    o `.ics` ficou FORA do v1 (exige rota que gera arquivo; reavaliar com o
-    número do clique no PostHog).
-
-- codigo: NI-52
-  status: pendente
-  prioridade: media
-  rank: 2
-  esforco: P
-  eixo: produto
-  fase: 1
-  titulo: "Botão de feedback no site (bug, sugestão, 'adiciona minha casa/evento')"
-  resumo: "o beta provou que o canal renderia: reports de bug e casas querendo entrar na lista — que é exatamente o insumo da watchlist (NI-24) e de fontes novas (NI-27/NI-48)"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-27, NI-48]
-  caso_real: ["beta com amigos (2026-07-27): 'botão de feedback. bugs, sugestões, adicionar minha empresa/evento na lista'"]
-  detalhe: |
-    v1 mais barato que funcione: link/botão no rodapé e na página "sobre"
-    (que já tem canal de remoção — mesmo lugar, papel inverso) apontando para
-    um form simples (Google Forms ou mailto com assunto pré-preenchido).
-    Categoria "quero minha casa no site" separada das outras: essa vira fila
-    de curadoria da watchlist do Instagram e de fontes a raspar. Instrumentar
-    o clique quando o NI-54 existir.
-
-    DESENHADO em 2026-07-28 na spec docs/specs/20260728_rework-site/ §7, e o
-    "v1 mais barato" acima foi DESCARTADO por decisão do autor: form externo
-    faria o dado nascer fora da base, longe do relatório da rodada e da camada
-    `curado`. Fica: tabela `uso.feedback` (schema `uso` porque o contato é
-    opcional mas é dado pessoal — LGPD, nunca se dropa; sem IP e sem
-    user-agent), rota POST /api/dados/feedback (o `do_POST` é a PRIMEIRA
-    escrita do site na base — a api/dados.py era GET-only), formulário nativo
-    com redirect 303 (funciona sem JS, como o resto do site), guardas de abuso
-    sem dado pessoal (honeypot + tetos de tamanho + teto global por janela) e,
-    o que impede o botão de ser decorativo, o caminho de volta: aviso no
-    _relatorio do atualizar.py + src/ferramentas/feedback.py (listar/lido, no
-    molde do curar.py). Instrumentação já resolvida: `feedback_submitted` com
-    o tipo, nunca a mensagem.
-
-- codigo: NI-53
-  status: pendente
-  prioridade: baixa
-  rank: 3
-  esforco: P
-  eixo: produto
-  fase: 1
-  titulo: "Botão de compartilhar (link com UTM)"
-  resumo: "navigator.share no mobile + copiar-link no desktop, com utm_source=share — mede a aquisição boca-a-boca que hoje é invisível"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-54, NI-51]
-  caso_real: ["beta com amigos (2026-07-27): 'botão de compartilhar (mandar link com UTM pra broder)'"]
-  detalhe: |
-    Só faz sentido DEPOIS do NI-54 (sem analytics, UTM não é lido por
-    ninguém). Compartilhar a página do evento no site (não a da fonte) —
-    é o loop de distribuição do produto. `navigator.share` exige JS; o
-    fallback sem JS é o próprio endereço da página, que já é compartilhável
-    por design.
-
-    DESTRAVADO em 2026-07-28: o NI-54 já estava implementado (PostHog em
-    produção desde 26/07, capturando UTM no pageview automático) — a
-    dependência que segurava este item nunca chegou a existir de verdade.
-    Entrou na spec docs/specs/20260728_rework-site/ §4.4.
-
-# NI-54 (instrumentar o site) já estava IMPLEMENTADO quando a revisão da spec
-# do rework do site foi conferir o código, em 2026-07-28 — e o item, escrito em
-# 27/07, afirmava o contrário ("hoje NÃO existe analytics nenhum instalado") e
-# propunha @vercel/analytics. A implementação real é OUTRA e é anterior ao
-# próprio item: **PostHog**, no commit d796a90 (26/07). posthog-js no
-# package.json + instrumentation-client.js (pageview, pageleave, exceptions,
-# person_profiles identified_only), servido pelo PRÓPRIO DOMÍNIO via rewrites
-# /ph/* no next.config.mjs — a defesa contra adblock, que precisa existir desde
-# o início porque retrofitar invalida a série histórica. As envs
-# NEXT_PUBLIC_POSTHOG_KEY/_HOST estão só em Production, o que resolve
-# local × prod de graça. Quatro eventos custom já capturam: ticket_link_clicked,
-# other_platform_link_clicked, film_session_clicked, event_search_performed.
-# Consequências registradas: o NI-53 estava travado por uma dependência que já
-# existia; o NI-50 tem com o que medir; e a spec do rework do site define, na
-# §9, o evento de cada elemento novo — elemento novo nasce instrumentado.
-# A lição fica: item de backlog escrito ANTES da última entrega precisa ser
-# conferido no código antes de virar trabalho. O custo aqui teria sido instalar
-# um segundo analytics em cima do primeiro.
 
 # ────────────── Pipeline de dados (auditoria de 2026-07-27) ──────────────
 # Origem: o autor questionou por que "mudar schema" implicava re-raspar, se a

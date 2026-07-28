@@ -1,10 +1,11 @@
 # Spec — Rework do site pós-beta (NI-38/39/41/43/44/45/46/47 + NI-50/51/52/53)
 
-> **Status:** especificada em 2026-07-27, **revista em 2026-07-28 contra a
-> arquitetura medalhão** (`20260728_arquitetura-medalhao/`) e **revista de novo
-> em 2026-07-28 contra o código do site** — esta última é a que renomeou a pasta
-> (era `20260728_rework-eventos`) e ampliou o escopo para os itens transversais
-> de usabilidade. Aguardando implementação.
+> **Status: IMPLEMENTADA em 2026-07-28.** Especificada em 27/07, revista duas
+> vezes em 28/07 (contra a arquitetura medalhão e contra o código do site — a
+> segunda renomeou a pasta, que era `20260728_rework-eventos`, e ampliou o
+> escopo para os itens transversais de usabilidade), executada nas nove etapas
+> do §11 no mesmo dia. **O que a execução mediu, corrigiu e deixou de fora está
+> na §14** — leia-a antes desta spec, porque ela desmente três previsões daqui.
 >
 > **O quê/por quê:** rodada de feedback do beta (autor + vários amigos, 27/07)
 > rendeu 19 pedidos, todos registrados no backlog (NI-38 a NI-54). Esta spec
@@ -840,3 +841,120 @@ lembrança de que o deploy publica o **diretório local**, não o `main`: confer
   analytics em cima do primeiro. Antes de implementar item de backlog datado de
   antes da última entrega, conferir no código — foi o que esta revisão fez, e é
   o que ela recomenda como hábito.
+
+## 14. O que a execução mudou (2026-07-28)
+
+As nove etapas do §11 foram executadas na ordem, cada uma com commit próprio,
+validadas contra a **base de produção** e no navegador (Playwright). O que
+segue é o registro do que a spec previu errado, do que apareceu no caminho e
+do que ficou de fora — não um relatório de progresso.
+
+### 14.1 O placar
+
+| Item | Entregue |
+|---|---|
+| NI-41 busca por casa | sim — chip "próximos" + default que depende da busca |
+| NI-38 resumo no card | sim |
+| NI-39 ver no mapa | sim — coordenada vence, fallback textual |
+| NI-51 Google Agenda | sim |
+| NI-53 compartilhar | sim — share nativo → clipboard, com UTM |
+| NI-45 bairro | **parcial** — 23% → 56%; o teto restante é NI-16 |
+| NI-52 feedback | sim — tabela, rota POST, página, CLI, alerta na rodada |
+| NI-50 velocidade | sim — e o achado mudou o plano (§14.3) |
+| NI-43 calendário | sim — 3 meses + "+N dias depois de \<mês\>" |
+| NI-44 festa × show | **parcial** — tudo pronto, chips escondidos (§14.4) |
+| NI-47 sazonais | sim — só "festa junina" renderiza em julho |
+| NI-46 perto de mim | sim — gate re-medido em 69%, passou |
+
+### 14.2 Três previsões que a base real desmentiu
+
+**(a) O bairro do Shotgun não eram 68 eventos, eram 32.** A spec dizia que o
+`addressLocality` "É o bairro" e que copiá-lo levaria a cobertura a ~41%. Na
+base: **38 dos 70 payloads dizem "Brasília"** — a cidade. Cidade não é bairro,
+e deixá-la passar encheria a faceta com uma opção que casa tudo. Em
+compensação, o mesmo mergulho achou algo que a spec não previu: o
+`streetAddress` (endereço COMPLETO, presente em 68 dos 70) **estava sendo
+descartado** porque a localidade tinha precedência no `or`. Corrigido, ele
+virou a matéria-prima do dicionário do §5.2.2 — que era exatamente o que a
+spec dava por perdido quando o Ticket and Go parou de expor endereço.
+
+**(b) A canonização de grafia não era um detalhe.** A spec a mencionou de
+passagem ("unaccent + caixa para a faceta não listar duas vezes"). A base
+tinha **44 grafias para 32 regiões**: "Asa Norte"/"ASA NORTE"/"asa norte",
+"Saan"/"SAAN", "Samambaia sul"/"Samambaia Norte", "São Sebastião/DF". Sem o
+`canonizar()`, o dropdown do §5.2.3 nasceria com um terço das opções
+duplicadas — e cada duplicata devolvendo uma fatia dos eventos.
+
+**(c) `categoria` não ajuda em nada no tipo.** A spec contava com ela para
+~187 dos 379 eventos ("só o Sympla preenche desde 28/07"). Preenche, mas com
+`"musica"` em 155 dos 187 — que não distingue festa de show. Na prática o
+passo 1 da heurística **nunca dispara**, e a palavra no nome carrega o item
+sozinha. É a raiz do §14.4.
+
+### 14.3 O que a medição do NI-50 achou
+
+A ordem "medir, depois mexer" do §8 se pagou duas vezes:
+
+- **`loading.jsx` não cobre troca de filtro.** Ele só entra quando o SEGMENTO
+  de rota muda, e `/festas?periodo=hoje` → `?periodo=7d` é a mesma rota. Ou
+  seja: a alavanca que a spec chamou de "a mais barata, e hoje inexistente"
+  não tocava no gesto de que o beta reclamou. O que resolve é
+  `<Suspense key={filtros}>` em volta da parte que depende da base.
+- **O handshake com o Neon custa mais que a query** (147 ms contra ~80 ms
+  deste lado da rede). A rota de cinema fazia duas consultas e pagava dois
+  handshakes por render: 423 ms → 269 ms passando UMA conexão por requisição.
+  Isso responde, por antecipação, o risco que o §13 levantava sobre a
+  `facetas_eventos()` ser "mais uma query por render" — ela não abre conexão
+  nova.
+- O **prefetch dos `<Link>` já funcionava** (item 4 do §8): com ele quente a
+  navegação é instantânea e o esqueleto nem aparece. Ele cobre o cache frio.
+
+### 14.4 O NI-44 está pronto e escondido, de propósito
+
+Coluna `tipo`, enriquecimento idempotente, parâmetro na consulta/API/MCP e os
+chips no front: tudo existe e tem teste. **Os chips não aparecem** porque a
+heurística classifica **24% da agenda** (91 de 379), e a semântica é inclusiva
+por princípio — `tipo=festa` traz também os sem rótulo, porque errar para o
+lado de esconder festa real é o pior erro possível aqui. Com 3 de 4 eventos
+sem rótulo, o chip devolveria a lista inteira: um filtro que promete um
+recorte e entrega tudo é pior que filtro nenhum.
+
+O gate é sobre o DADO, não sobre a UI: `facetas_eventos()` devolve as
+CONTAGENS por tipo e o front acende os chips ao passar de 50%
+(`COBERTURA_TIPO`). Quando o NI-05 (LLM) assumir a coluna, ninguém precisa
+mexer em código. É o mesmo desenho do gate de cobertura do §6 — que, aliás,
+foi re-medido na hora e **passou** (69%).
+
+### 14.5 Dois bugs que só a execução revelaria
+
+- **`least(1, NULL)` no Postgres devolve 1**, porque `least` ignora nulos ao
+  contrário de quase todo operador. Na haversine, isso fazia todo evento sem
+  coordenada — 30% da base — sair com `acos(1) = 0`, ou seja **"0,0 km"**:
+  exatamente onde a pessoa está. Mentira com cara de precisão, que é o pior
+  modo de falha deste recurso.
+- **Função não atravessa a fronteira server → client.** Passar `href={(x) =>
+  …}` para o `<PertoDeMim>` fez o React descartar o componente: a página
+  renderizou sem o botão, **sem erro na tela**. O padrão do projeto (o mesmo
+  do `DropFiltro`) é passar `base` + `estado` como strings.
+
+### 14.6 O que ficou de fora, e por quê
+
+- **Os chips de tipo** (§14.4) — esperando cobertura, não código.
+- **112 eventos sem bairro** (Ticket and Go e Instagram, que não expõem
+  endereço nenhum). O caminho é o NI-16, como a spec já dizia.
+- **Prova em ambiente serverless.** Por decisão registrada na §12.3, a
+  validação foi só local. O que isso deixa sem cobertura é a rota POST do
+  feedback rodando como função na Vercel — o cenário do NI-61. Teste de um
+  minuto depois do `--prod`: enviar um feedback pelo site e conferir a linha
+  com `python src/ferramentas/feedback.py listar`.
+- **Os eventos do PostHog.** As envs existem só em Production; em local a
+  instrumentação não emite. O que se validou é que os handlers estão ligados
+  e não quebram a interação.
+
+### 14.7 Um achado que não é desta spec
+
+O chip "festa junina" traz eventos que não são juninos — por exemplo um show
+de pop rock. A causa não é o chip: **eventos derivados de carrossel-agenda do
+Instagram carregam a legenda INTEIRA como descrição** (a semana toda, não só o
+item), e o FTS indexa descrição. Afeta qualquer busca textual do site, não só
+este chip. É matéria da derivação do Instagram.

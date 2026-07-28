@@ -132,11 +132,12 @@ src/
   tratamento/  sympla ingresse shotgun zig ticketandgo   # uma trilha por fonte
                comum.py     # o motor: cru -> tratado.eventos + lotes
                cinema.py  instagram.py                   # domínios de contrato próprio
+               bairros.py   # dicionário de regiões do DF (roda DENTRO do comum)
                sumido.py  enriquecer.py  curadoria.py  busca.py
                ciclo.py     # o ciclo inteiro numa transação só
-  servico/     consulta.py  mcp_server.py  auth.py
+  servico/     consulta.py  mcp_server.py  auth.py  feedback.py
   pipeline/    atualizar.py  execucoes.py            # orquestração
-  ferramentas/ curar.py  discover_sympla.py          # fora do pipeline
+  ferramentas/ curar.py  feedback.py  discover_sympla.py   # fora do pipeline
 api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
   index.py     #   MCP remoto (ASGI do FastMCP)
   dados.py     #   API de leitura do site — traduz querystring p/ consulta.py
@@ -298,21 +299,35 @@ aqui + `--so-derivar`, **sem re-raspar**.
   último em `_PREF_FONTE` (quem vende o ingresso é o canônico; o post entra em
   `outras_urls`) e `preco_min` conta na completude.
 - `src/servico/consulta.py` — **camada canônica**. `buscar_eventos(texto, cidade, data_inicio,
-  data_fim, limite, incluir_ruido)`, tudo opcional, retorno JSON-serializável. Por
+  data_fim, limite, incluir_ruido, bairro, tipo, gratis, perto_lat/lon)`, tudo
+  opcional, retorno JSON-serializável. Por
   padrão esconde ruído, não-canônicos de dedupe, cancelados e **sumidos**; esgotado NÃO
-  some (é resposta útil). O canônico traz `outras_urls`. `detalhar_evento(url)`
+  some (é resposta útil). O canônico traz `outras_urls`. `tipo` traz TAMBÉM os
+  sem rótulo (a classificação é heurística, e esconder o que ela não soube
+  classificar viraria ausência na tela); `perto_lat/lon` **ordenam, não filtram**
+  (raio esconderia evento) e acrescentam `distancia_km`. `facetas_eventos()`
+  devolve dias, bairros e as CONTAGENS por tipo — é com elas que o site decide
+  se um filtro tem cobertura para existir. Toda função aceita `con=` opcional:
+  uma requisição HTTP abre UMA conexão e a repassa (o handshake com o Neon custa
+  mais que a query). `detalhar_evento(url)`
   aprofunda UM evento: descrição INTEIRA (a busca corta em `DESCRICAO_MAX`) + lotes — a
   condição do lote ("CORTESIA FEMININA ATÉ 00H") fica no nome cru de propósito: quem
   interpreta é o agente, não regex. No cinema, `buscar_filmes(...)` agrega por filme e
   `sessoes_filme(...)` detalha horários/salas/tipos/preço de UM filme.
+- `src/servico/feedback.py` — o canal de feedback do site (NI-52): tipos fechados,
+  tetos de tamanho, honeypot e teto por janela GLOBAL (sem IP, sem user-agent —
+  a tabela mora em `uso` porque o contato é opcional e é dado pessoal). É a
+  **primeira escrita** que o site faz na base; quem lê é
+  `src/ferramentas/feedback.py`, e o relatório da rodada avisa os não lidos.
 - `api/dados.py` — **API de leitura do site**. Ponte entre o front (JS) e a camada
   canônica (Python), **sem lógica própria**: as duas únicas transformações são de
   POSTURA — `descricao` sai em TRECHO (600 chars; a tool MCP segue integral, porque
   serve agente em contexto privado, não página indexada) e `organizador` NUNCA é
   exposto (às vezes é pessoa física → LGPD). Rotas sob `/api/dados/*`.
 - `app/` + `lib/` — **site público** (Next.js App Router). Rotas: `/` (home),
-  `/festas`, `/filmes`, `/evento/[id]`, `/sobre`. Os filtros vivem na URL
-  (`?periodo=&texto=&gratis=`), não em estado de cliente: funciona sem JS, cada
+  `/festas`, `/filmes`, `/evento/[id]`, `/sobre`, `/feedback`. Os filtros vivem
+  na URL (`?periodo=&texto=&gratis=&dia=&bairro=&tipo=&perto=`), não em estado
+  de cliente: funciona sem JS, cada
   combinação é endereço compartilhável e o SSR entrega HTML pronto — que é o que a
   Fase 2 precisa que o buscador leia. Visual pelo **ZeroUm Design System**; nome do
   produto isolado em `lib/config.js` (é PROVISÓRIO, não espalhar). Imagens passam pelo
@@ -410,6 +425,21 @@ filmes, título/gêneros.
   SÓ na coleta, de propósito: repeti-la na leitura do payload foi medido contra a base
   real e descartava descrição boa toda vez que o produtor renomeava o evento entre uma
   raspagem e outra (o nome do catálogo se move; a comparação só vale fresca).
+- **`loading.jsx` NÃO cobre troca de filtro.** Ele só entra quando o SEGMENTO
+  de rota muda, e `/festas?periodo=hoje` → `?periodo=7d` é a mesma rota — ou
+  seja, justamente o gesto de que o beta reclamou ficava sem sinal de vida. O
+  que resolve é `<Suspense key={filtros}>` em volta da parte que depende da
+  base: cada combinação vira uma fronteira nova, que suspende. Ao acrescentar
+  filtro na página, acrescente-o à `key` também.
+- **`least(1, NULL)` no Postgres devolve 1**, não NULL — ele ignora nulos,
+  diferente de quase todo operador. Na haversine do "perto de mim" isso fazia
+  todo evento sem coordenada (30% da base) sair com `acos(1) = 0`, ou seja
+  "0,0 km": exatamente onde a pessoa está. Guarda explícita com `CASE WHEN`.
+- **Função não atravessa a fronteira server → client.** Passar `href={(x) =>
+  ...}` para um client component faz o React DESCARTAR o componente — a página
+  renderiza sem ele, sem erro na tela. O padrão do projeto é passar `base` +
+  `estado` (strings) e montar a URL do lado do cliente (ver `DropFiltro`,
+  `PertoDeMim`).
 - **Ruído conhecido:** o filtro `themes=99` do Sympla deixa passar anúncios/cursos —
   tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra NÃO marca: falso
   positivo esconde festa real; termos já descartados em `docs/backlogs/rejeitado.yaml`).
@@ -463,8 +493,10 @@ Não faça commit sem pedido. Mensagens em português.
   (**implementada** — as camadas viraram schemas e a prata se reconstrói do cru;
   a §13.1 registra os três achados que a reconstrução contra a base real
   produziu, e é a leitura mais curta sobre por que o desenho é esse) e
-  `20260728_rework-site/` (**especificada, aguardando implementação** — o rework
-  do site pós-beta: eventos + usabilidade transversal. A §0 dela registra as
-  duas revisões que a spec sofreu antes de executar, e vale por si: a §0.2 é o
-  que a leitura do código do site desmentiu do plano escrito um dia antes).
+  `20260728_rework-site/` (**implementada** — o rework do site pós-beta:
+  eventos + usabilidade transversal. Tem duas seções que valem por si: a §0.2 é
+  o que a leitura do código desmentiu do plano escrito um dia antes, e a **§14 é
+  o que a base real desmentiu do plano na hora de executar** — inclusive dois
+  bugs que só apareceram rodando, e os dois itens que ficaram parciais por
+  cobertura de dado, não por código).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.
