@@ -1,6 +1,6 @@
 # Dependências do PoC. Instale com:  pip install -r requirements.txt
 mcp>=1.28          # MCP server que expõe a base para agentes de IA (Frente B)
-pyjwt[crypto]>=2.10   # valida o token OAuth do MCP remoto contra o JWKS (src/auth.py)
+pyjwt[crypto]>=2.10   # valida o token OAuth do MCP remoto contra o JWKS (src/servico/auth.py)
 psycopg[binary]>=3.2  # driver Postgres — a base vive no Neon desde a Fase 0b
 playwright>=1.57   # descoberta de API interna e raspagem do Shotgun
 pyyaml>=6.0        # dado curado em dados/: watchlist do Instagram e locais_df.yaml

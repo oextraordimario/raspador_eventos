@@ -176,7 +176,7 @@ def raspar(city="brasilia", state="DF", location="Brasília",
           Passe None para trazer todas as categorias.
 
 
-    Retorna lista de dicts prontos para store.upsert_eventos.
+    Retorna lista de dicts prontos para comum.upsert_eventos.
     """
     vistos = {}
     for page in range(1, max_paginas + 1):

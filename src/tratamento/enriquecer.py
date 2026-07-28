@@ -16,7 +16,7 @@ import unicodedata
 from datetime import timedelta, timezone
 from difflib import SequenceMatcher
 
-import tempo
+from base import tempo
 
 # O "mesmo dia" do dedupe é o dia LOCAL de Brasília (UTC-3 fixo, escopo do
 # PRD), não o dia UTC: festa das 21h local cai no dia UTC seguinte, e o par

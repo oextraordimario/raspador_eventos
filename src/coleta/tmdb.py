@@ -3,7 +3,7 @@
 Contrato próprio (não é fonte de catálogo — enriquece o que a grade da
 Ingresso.com já trouxe): `raspar_filme(titulo, titulo_original)` devolve UM
 payload com a consulta, os candidatos crus e o `escolhido` (ou None). Quem
-grava é `store.gravar_cinema_extra` (Bronze acumulativa `cinema_extra_raw`,
+grava é `gravar.gravar_cinema_extra` (Bronze acumulativa `cinema_extra_raw`,
 fora do snapshot); quem aplica é `derivar.aplicar_cinema`.
 
 Matching CONSERVADOR de propósito (spec 20260727_rework-pagina-cinema §4.3):

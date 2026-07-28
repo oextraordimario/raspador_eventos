@@ -19,12 +19,15 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-import store  # noqa: E402
-import derivar  # noqa: E402
-import enriquecer  # noqa: E402
-import consulta  # noqa: E402
-import atualizar  # noqa: E402
-from scrapers import instagram  # noqa: E402
+from base import conexao
+from coleta import gravar
+from tratamento import busca
+from tratamento import comum
+from tratamento import derivar  # noqa: E402
+from tratamento import enriquecer  # noqa: E402
+from servico import consulta  # noqa: E402
+from pipeline import atualizar  # noqa: E402
+from coleta import instagram  # noqa: E402
 
 import base_teste  # noqa: E402
 
@@ -140,7 +143,7 @@ def test_contrato_e_fila():
 
 
 def test_derivacao_e_consulta():
-    con = store.conectar()
+    con = conexao.conectar()
     raspado = AGORA.isoformat()
     start_10d = instagram.montar_start_date(_item(), TAKEN_AT)
 
@@ -168,7 +171,7 @@ def test_derivacao_e_consulta():
         _ev_plataforma("sympla:301", "Feijuca do Ordi", "Ordinário Bar"),
         _ev_plataforma("sympla:302", "Noite do Rock Pesado", "Ordinário Bar"),
     ]
-    store.upsert_eventos(con, plataforma)
+    comum.upsert_eventos(con, plataforma)
 
     itens = [
         # post único que vira evento (conciliável com o sympla:111 acima)
@@ -233,7 +236,7 @@ def test_derivacao_e_consulta():
          {"code": "III999", "taken_at": TAKEN_AT,
           "expiring_at": TAKEN_AT + 86400}),
     ]
-    store.gravar_instagram_raw(con, itens, raspado)
+    gravar.gravar_instagram_raw(con, itens, raspado)
 
     derivar.aplicar(con)
     r = derivar.aplicar_instagram(con)
@@ -342,7 +345,7 @@ def test_derivacao_e_consulta():
 
     # consulta: canônico responde com o post em outras_urls; só-Instagram
     # aparece; detalhar mostra o lote do flyer; FTS acha texto do flyer
-    store.reconstruir_fts(con)
+    busca.reconstruir_fts(con)
     achados = consulta.buscar_eventos(texto="alquimia")
     assert [e["url"] for e in achados] == ["https://sympla.com/alquimia"]
     assert "instagram.com/p/AAA111" in (achados[0]["outras_urls"] or "")

@@ -12,5 +12,5 @@ dependencies = [
     # piso menor o OAuth do NI-11 sobe torto, sem erro visível.
     "mcp>=1.28",
     "psycopg[binary]>=3.2",
-    "pyjwt[crypto]>=2.10",  # verifica o JWT do AuthKit contra o JWKS (src/auth.py)
+    "pyjwt[crypto]>=2.10",  # verifica o JWT do AuthKit contra o JWKS (src/servico/auth.py)
 ]

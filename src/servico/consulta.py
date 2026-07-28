@@ -4,15 +4,22 @@ Contrato pensado para virar uma tool MCP: uma unica funcao parametrizada,
 todos os argumentos opcionais, retorno em lista de dicts (JSON-serializavel).
 
 Pegadinha das datas em formatos mistos (Sympla/Ingresse "+00:00", Shotgun
-".000Z"): desde a Fase 0b quem resolve e o store.upsert_eventos, que normaliza
+".000Z"): desde a Fase 0b quem resolve e o comum.upsert_eventos, que normaliza
 tudo para ISO UTC na escrita (invariante do schema). Aqui basta normalizar os
 PARAMETROS (tempo.norm_ts) — a comparacao no SQL volta a ser lexical, segura.
 """
 
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
-import store
-import tempo
+# Também é entrypoint (`python src/servico/consulta.py` roda os exemplos), então
+# põe src/ no sys.path. Quem já importou este módulo por pacote não paga nada.
+_SRC = str(Path(__file__).resolve().parents[1])
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
+from base import conexao, tempo  # noqa: E402
 
 # Campos uteis expostos ao agente (subconjunto enxuto da tabela).
 # `id` (<fonte>:<id_nativo>) entrou em 2026-07-26: o site publico precisa de
@@ -60,7 +67,7 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     Returns:
         Lista de dicts (nunca sqlite3.Row), ordenada por start_date.
     """
-    con = store.conectar()
+    con = conexao.conectar()
 
     where, params = [], []
     if not incluir_ruido:
@@ -116,7 +123,7 @@ def detalhar_evento(url):
     identificador de rota. A tool MCP continua passando url; quem chama com
     id e a API do site.
     """
-    con = store.conectar()
+    con = conexao.conectar()
     alvo = (url or "").strip()
     coluna = "url" if alvo.startswith("http") else "id"
     row = con.execute(f"SELECT id, dedupe_grupo, dedupe_canonico FROM public.eventos "
@@ -227,7 +234,7 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
         Lista de dicts: campos do filme + sessoes (contagem na janela),
         cinemas (nomes, ordenados), primeira_sessao/ultima_sessao (ISO UTC).
     """
-    con = store.conectar()
+    con = conexao.conectar()
     where = ["s.inicio >= %s"]
     params = [tempo.norm_ts(data_inicio)
               or datetime.now(timezone.utc).isoformat()]
@@ -270,7 +277,7 @@ def facetas_filmes():
         gêneros desmembrados do CSV da fonte, classificações no texto exato
         (ordenadas Livre→18), cinemas pelos apelidos canônicos.
     """
-    con = store.conectar()
+    con = conexao.conectar()
     agora = datetime.now(timezone.utc).isoformat()
     rows = con.execute(
         "SELECT DISTINCT f.generos, f.classificacao "
@@ -316,7 +323,7 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     filme passa SEM o filtro aplicado (são as opções do filtro, não o
     resultado dele).
     """
-    con = store.conectar()
+    con = conexao.conectar()
     alvo = (filme or "").strip()
     agora = datetime.now(timezone.utc).isoformat()
     row = con.execute("SELECT id FROM public.filmes WHERE id = %s",
@@ -373,7 +380,7 @@ def procedencia():
         Lista de dicts {fonte, ultima_coleta (ISO UTC), eventos, futuros},
         da fonte mais recente para a mais velha.
     """
-    con = store.conectar()
+    con = conexao.conectar()
     agora = datetime.now(timezone.utc).isoformat()
     rows = con.execute(
         "SELECT fonte, MAX(raspado_em) AS ultima_coleta, "

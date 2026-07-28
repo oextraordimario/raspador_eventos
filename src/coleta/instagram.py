@@ -11,7 +11,7 @@ chamado via subprocess em vez de HTTP direto.
 
 Contrato próprio (como o cinema — devolve o bruto, não lista de eventos):
 raspar(perfis) → {"raw": [(perfil, code, origem, payload)], "erros": [...]}.
-Quem grava é store.gravar_instagram_raw; quem transforma post em evento
+Quem grava é gravar.gravar_instagram_raw; quem transforma post em evento
 (fonte='instagram') é derivar.aplicar_instagram, a partir do post + da
 extração do flyer (extrair(), abaixo — visão multimodal via `claude -p`,
 decisão do PRD §7: subagente na assinatura, não API paga).

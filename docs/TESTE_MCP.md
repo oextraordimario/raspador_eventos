@@ -1,6 +1,6 @@
 # Como testar a Frente B (MCP) com um agente de IA
 
-O `src/mcp_server.py` expõe a base de eventos (Postgres no Neon desde a Fase 0b)
+O `src/servico/mcp_server.py` expõe a base de eventos (Postgres no Neon desde a Fase 0b)
 como tools, em dois transportes: **stdio** (clientes locais: Claude Code, Claude
 Desktop, Codex) e **streamable HTTP** (`--http`, o MCP remoto usado como
 connector no celular — seção 5).
@@ -20,7 +20,7 @@ Tools disponíveis:
 pip install -r requirements.txt
 python -m playwright install chromium   # se ainda não fez
 # .env na raiz com EVENTOS_DB_URL (connection string do banco eventos no Neon)
-python src/atualizar.py                 # popula a base remota
+python src/pipeline/atualizar.py                 # popula a base remota
 ```
 
 > O `store.py` resolve `EVENTOS_DB_URL` do ambiente ou do `.env` da raiz do
@@ -65,7 +65,7 @@ Adicione o bloco `mcpServers`:
   "mcpServers": {
     "eventos-brasilia": {
       "command": "C:/Python313/python.exe",
-      "args": ["C:/Users/<seu-usuario>/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
+      "args": ["C:/Users/<seu-usuario>/Documents/GitHub/raspador_eventos/src/servico/mcp_server.py"]
     }
   }
 }
@@ -83,7 +83,7 @@ Edite (crie se não existir) `C:\Users\<seu-usuario>\.codex\config.toml` e adici
 ```toml
 [mcp_servers.eventos-brasilia]
 command = "C:/Python313/python.exe"
-args = ["C:/Users/<seu-usuario>/Documents/GitHub/raspador_eventos/src/mcp_server.py"]
+args = ["C:/Users/<seu-usuario>/Documents/GitHub/raspador_eventos/src/servico/mcp_server.py"]
 ```
 
 Salve e reinicie o Codex.
@@ -105,7 +105,7 @@ e depois `/mcp` para autenticar.
 
 ### Como funciona
 
-O server é **resource server**, nunca authorization server (`src/auth.py`).
+O server é **resource server**, nunca authorization server (`src/servico/auth.py`).
 O cliente faz o caminho inteiro sem configuração:
 
 1. chama `/mcp` sem token → **401** com `WWW-Authenticate` apontando para
@@ -125,7 +125,7 @@ Testar local (o mesmo modo de produção, com o issuer de verdade):
 
 ```bash
 AUTHKIT_ISSUER=https://prompt-color-48-staging.authkit.app \
-  MCP_RECURSO=http://localhost:8765/mcp PORT=8765 python src/mcp_server.py --http
+  MCP_RECURSO=http://localhost:8765/mcp PORT=8765 python src/servico/mcp_server.py --http
 ```
 
 ### Produção
@@ -169,7 +169,7 @@ O agente deve chamar `data_atual` (quando o período for relativo) e
   (`pip install -r requirements.txt` nesse interpretador).
 - **"EVENTOS_DB_URL nao definida":** falta o `.env` na raiz (ou a variável de
   ambiente) com a connection string do Neon.
-- **Respostas vazias:** a base pode estar vazia — rode `python src/atualizar.py`.
+- **Respostas vazias:** a base pode estar vazia — rode `python src/pipeline/atualizar.py`.
 - **Primeira resposta lenta da noite:** o Neon free hiberna após inatividade;
   o wake custa alguns segundos e só afeta a primeira consulta.
 - **Datas erradas ("fim de semana"):** o agente deve chamar `data_atual` primeiro;

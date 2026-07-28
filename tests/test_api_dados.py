@@ -22,9 +22,12 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 sys.path.insert(0, str(RAIZ / "api"))
 
-import derivar  # noqa: E402
-import enriquecer  # noqa: E402
-import store  # noqa: E402
+from tratamento import derivar  # noqa: E402
+from tratamento import enriquecer  # noqa: E402
+from base import conexao
+from coleta import gravar
+from tratamento import busca
+from tratamento import comum
 
 import base_teste  # noqa: E402
 
@@ -66,8 +69,8 @@ def evento(id_, nome, local, **kw):
 
 DESCRICAO_LONGA = ("Line-up completo da noite. " * 60).strip()  # ~1560 chars
 
-con = store.conectar()
-store.upsert_eventos(con, [
+con = conexao.conectar()
+comum.upsert_eventos(con, [
     evento("sympla:1", "Pagode do Teste", "Casa Alfa",
            descricao=DESCRICAO_LONGA, organizador="Fernando Chaves"),
     evento("sympla:2", "Curso de Excel Avançado", "Auditório Beta"),  # ruído
@@ -97,13 +100,13 @@ def _filme(id_, titulo, generos, classe):
                  "types": [{"name": "Dublado", "display": True}],
                  "date": {"localDate": _daqui.isoformat()},
                  "siteURL": "https://checkout.ingresso.com/?sessionId=1"}]}]}
-store.gravar_cinema_raw(con, [("128", _daqui.date().isoformat(),
+gravar.gravar_cinema_raw(con, [("128", _daqui.date().isoformat(),
                                [{"movies": [
                                    _filme("900", "Sustão", ["Terror"], "16 anos"),
                                    _filme("901", "Bonequinhos", ["Animação"], "Livre"),
                                ]}])], AGORA.isoformat())
 derivar.aplicar_cinema(con)
-store.reconstruir_fts(con)
+busca.reconstruir_fts(con)
 con.close()
 
 

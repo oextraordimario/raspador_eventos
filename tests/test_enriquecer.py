@@ -11,9 +11,11 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-import store  # noqa: E402
-import enriquecer  # noqa: E402
-import consulta  # noqa: E402
+from base import conexao
+from tratamento import busca
+from tratamento import comum
+from tratamento import enriquecer  # noqa: E402
+from servico import consulta  # noqa: E402
 
 import base_teste  # noqa: E402
 
@@ -86,10 +88,10 @@ def linha(con, ev_id):
 
 
 def main():
-    con = store.conectar()
-    store.upsert_eventos(con, EVENTOS)
+    con = conexao.conectar()
+    comum.upsert_eventos(con, EVENTOS)
     resultado = enriquecer.aplicar(con)
-    store.reconstruir_fts(con)
+    busca.reconstruir_fts(con)
 
     # --- ruído ---
     marcados = {r["id"] for r in con.execute(
@@ -149,11 +151,11 @@ def main():
     print("campos ricos: FTS acha pelo texto da descrição, retorno traz trecho — ok")
 
     # --- campos ricos: re-upsert do catálogo (sem descrição) não zera a colhida ---
-    store.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
+    comum.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
                                       descricao="texto original")])
-    store.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito")])
+    comum.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito")])
     assert linha(con, "sympla:desc2")["descricao"] == "texto original"
-    store.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
+    comum.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
                                       descricao="texto novo")])
     assert linha(con, "sympla:desc2")["descricao"] == "texto novo"
     print("campos ricos: upsert preserva descrição já colhida (COALESCE) — ok")

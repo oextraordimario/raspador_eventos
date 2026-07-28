@@ -95,12 +95,12 @@ Aplique o schema rodando [`sql/schema.sql`](sql/schema.sql) na base (DBeaver,
 psql, o console do Neon — tanto faz). Depois:
 
 ```bash
-python src/atualizar.py                  # raspa tudo e popula a base
-python src/consulta.py                   # confere que a busca responde
+python src/pipeline/atualizar.py                  # raspa tudo e popula a base
+python src/servico/consulta.py                   # confere que a busca responde
 ```
 
 A primeira rodada demora ~10 min, a maior parte esperando o Shotgun, que exige
-navegador. Pra pular: `python src/atualizar.py --sem-shotgun`.
+navegador. Pra pular: `python src/pipeline/atualizar.py --sem-shotgun`.
 
 ### Opcional: Instagram
 

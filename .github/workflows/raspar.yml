@@ -13,7 +13,7 @@
 #
 # ATENÇÃO — duas coisas NÃO rodam aqui, as duas por limite do ambiente de CI,
 # e as duas são feitas pela rodada LOCAL:
-#     python src/atualizar.py --rodada-local
+#     python src/pipeline/atualizar.py --rodada-local
 #
 #   1. extração de flyer do Instagram (--sem-extracao-flyer): usa `claude -p`
 #      na ASSINATURA, e não existe login de assinatura em CI ("caminho 1" da
@@ -85,4 +85,4 @@ jobs:
           # Ausentes, os passos são pulados com aviso — não derrubam a rodada.
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: python src/atualizar.py --sem-extracao-flyer --sem-shotgun
+        run: python src/pipeline/atualizar.py --sem-extracao-flyer --sem-shotgun

@@ -14,10 +14,13 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-import store  # noqa: E402
-import derivar  # noqa: E402
-import consulta  # noqa: E402
-from scrapers import ticketandgo, zig  # noqa: E402
+from base import conexao
+from coleta import gravar
+from tratamento import busca
+from tratamento import comum
+from tratamento import derivar  # noqa: E402
+from servico import consulta  # noqa: E402
+from coleta import ticketandgo, zig  # noqa: E402
 
 import base_teste  # noqa: E402
 
@@ -149,8 +152,8 @@ def main():
     print("normalização: zig e ticketandgo no schema unificado — ok")
 
     # --- escrita: datas locais viram ISO UTC comparável (invariante) ---
-    con = store.conectar()
-    store.upsert_eventos(con, [dict(z, _raw=ZIG_CATALOGO),
+    con = conexao.conectar()
+    comum.upsert_eventos(con, [dict(z, _raw=ZIG_CATALOGO),
                                dict(t, _raw=TNG_CATALOGO)])
     r = con.execute("SELECT start_date FROM tratado.eventos "
                     "WHERE id = 'ticketandgo:36999'").fetchone()
@@ -161,9 +164,9 @@ def main():
     print("escrita: -03:00 das duas fontes normalizado p/ UTC no upsert — ok")
 
     # --- derivação: bairro do Zig; lotes do Ticket and Go com taxa 10% ---
-    store.gravar_raw(con, "ticketandgo:36999", "tickets", TNG_TICKETS,
+    gravar.gravar_raw(con, "ticketandgo:36999", "tickets", TNG_TICKETS,
                      "2026-07-12T00:00:00+00:00")
-    store.gravar_raw(con, "zig:22670", "tickets", ZIG_TICKETS,
+    gravar.gravar_raw(con, "zig:22670", "tickets", ZIG_TICKETS,
                      "2026-07-12T00:00:00+00:00")
     derivar.aplicar(con)
     r = con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'zig:22670'").fetchone()
@@ -202,7 +205,7 @@ def main():
     print("derivação: bairro (zig) e lotes c/ taxa fracionária (ticketandgo) — ok")
 
     # --- consulta: fontes novas aparecem; detalhar traz os lotes ---
-    store.reconstruir_fts(con)
+    busca.reconstruir_fts(con)
     achados = consulta.buscar_eventos(texto="pagode", limite=10)
     assert any(e["url"] == t["url"] for e in achados), achados
     todos = consulta.buscar_eventos(limite=50)

@@ -14,10 +14,10 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 RAIZ = Path(__file__).resolve().parent.parent
-SERVER = RAIZ / "src" / "mcp_server.py"
+SERVER = RAIZ / "src" / "servico" / "mcp_server.py"
 
 sys.path.insert(0, str(RAIZ / "src"))
-import enriquecer  # noqa: E402  (p/ conferir que ruído não vaza pela tool)
+from tratamento import enriquecer  # noqa: E402  (p/ conferir que ruído não vaza pela tool)
 
 
 def dados(result):

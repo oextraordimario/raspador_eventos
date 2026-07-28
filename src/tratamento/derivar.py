@@ -40,7 +40,7 @@ DEPOIS de aplicar() (que trunca lotes e zera as colunas derivadas de todos).
 
 import json
 
-import tempo
+from base import tempo
 
 # Colunas de eventos preenchidas por este módulo (resetadas a cada aplicar()).
 # preco_min também é gravada pelo scraper do Shotgun no upsert; a derivação
@@ -302,7 +302,7 @@ def aplicar_cinema(con):
 
     Retorna {"filmes": n, "sessoes": n} para o relatório.
     """
-    from scrapers.cinema import CINEMAS  # dict puro (apelido por theaterId)
+    from coleta.cinema import CINEMAS  # dict puro (apelido por theaterId)
 
     con.execute("DELETE FROM tratado.sessoes")
     con.execute("DELETE FROM tratado.filmes")
@@ -382,7 +382,7 @@ def _evento_instagram(perfil_info, code, post, item, n=None):
     do Instagram — abre o carrossel perto da página certa e dá a URL única
     que o detalhar_evento exige). Post de item único mantém id/URL do v1.
     """
-    from scrapers import instagram
+    from coleta import instagram
 
     nome = (item.get("nome") or "").strip()
     if item.get("confianca") != "alta" or not nome:
@@ -447,8 +447,8 @@ def aplicar_instagram(con):
 
     Retorna {"eventos": n, "lotes": n, "descartados": n} para o relatório.
     """
-    import store
-    from scrapers import instagram
+    from coleta import instagram
+    from tratamento import comum
 
     perfis = {p["usuario"]: p for p in instagram.carregar_watchlist()}
     # flyer re-hospedado no storage próprio (origem='midia', NI-34/NI-37):
@@ -494,7 +494,7 @@ def aplicar_instagram(con):
     con.execute("DELETE FROM tratado.lotes WHERE evento_id LIKE 'instagram:%'")
     con.execute("DELETE FROM tratado.eventos WHERE fonte = 'instagram'")
     if eventos:
-        store.upsert_eventos(con, eventos)
+        comum.upsert_eventos(con, eventos)
     for lt in lotes:
         con.execute(
             "INSERT INTO tratado.lotes (evento_id, ordem, nome, preco, taxa, gratis, "

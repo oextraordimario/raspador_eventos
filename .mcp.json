@@ -2,7 +2,7 @@
   "mcpServers": {
     "eventos-brasilia": {
       "command": "C:/Python313/python.exe",
-      "args": ["src/mcp_server.py"]
+      "args": ["src/servico/mcp_server.py"]
     }
   }
 }

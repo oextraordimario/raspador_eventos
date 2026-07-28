@@ -39,7 +39,7 @@ from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import consulta  # noqa: E402  (precisa do sys.path acima)
+from servico import consulta  # noqa: E402  (precisa do sys.path acima)
 
 # Trecho da descrição na página pública. Bem acima do corte da busca (300, que
 # serve ao contexto do agente) e bem abaixo de "a descrição inteira": o

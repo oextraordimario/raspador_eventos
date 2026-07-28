@@ -14,7 +14,7 @@ fecha alguns dias), não erro.
 
 Contrato próprio (difere dos scrapers de eventos — devolve a grade bruta, não
 lista normalizada): raspar() → {"raw": [(cinema_id, dia, payload)], "erros"}.
-Quem grava é store.gravar_cinema_raw; quem normaliza é derivar.aplicar_cinema
+Quem grava é gravar.gravar_cinema_raw; quem normaliza é derivar.aplicar_cinema
 (snapshot: trunca e reconstrói filmes/sessoes). Fallbacks por rede, se esta
 API quebrar: spikes/cinema/README.md. Spec: docs/specs/20260711_raspagem-cinema/.
 """

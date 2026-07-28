@@ -14,10 +14,13 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-import store  # noqa: E402
-import atualizar  # noqa: E402
-import consulta  # noqa: E402
-from scrapers import ingresse, sympla  # noqa: E402
+from base import conexao
+from pipeline import execucoes
+from tratamento import busca
+from tratamento import comum
+from pipeline import atualizar  # noqa: E402
+from servico import consulta  # noqa: E402
+from coleta import ingresse, sympla  # noqa: E402
 
 import base_teste  # noqa: E402
 
@@ -46,20 +49,20 @@ def evento(id_, **kw):
 
 
 def main():
-    con = store.conectar()
+    con = conexao.conectar()
 
     # ── execucoes: registro + última + coleta anterior por fonte ──
-    store.registrar_execucao(
+    execucoes.registrar_execucao(
         con, iso(AGORA - timedelta(days=2)), 100.0, "completo",
         {"sympla": {"coletados": 200, "total_site": 210},
          "ingresse": {"coletados": 30, "total_site": 30}},
         {"ruido": 5}, [])
-    store.registrar_execucao(
+    execucoes.registrar_execucao(
         con, iso(AGORA - timedelta(days=1)), 90.0, "sem-shotgun",
         {"sympla": {"erro": "HTTPError: 500"}},  # falhou: não vale como coleta
         {"ruido": 5}, [{"passo": "descrever", "evento_id": "sympla:9",
                         "erro": "timeout"}])
-    ult = store.ultima_execucao(con)
+    ult = execucoes.ultima_execucao(con)
     assert ult["modo"] == "sem-shotgun" and ult["fontes"]["sympla"]["erro"]
     assert ult["erros"][0]["evento_id"] == "sympla:9", "erros não round-tripam"
     ant = atualizar._coleta_anterior(con)
@@ -73,7 +76,7 @@ def main():
     print(f"execucoes: limiar de alerta em {atualizar.QUEDA_ALERTA:.0%} — ok")
 
     # ── sumido: futuro não revisto marca; passado e revisto não marcam ──
-    store.upsert_eventos(con, [
+    comum.upsert_eventos(con, [
         # raspado_em default (3 dias atrás) = NÃO reapareceu nesta rodada
         evento("sympla:velho"),
         evento("sympla:passado", start_date=iso(AGORA - timedelta(days=2))),
@@ -93,7 +96,7 @@ def main():
     print("sumido: marca futuro não revisto; poupa passado, revisto e fonte com erro — ok")
 
     # ── sumido some da consulta por padrão; incluir_ruido mostra ──
-    store.reconstruir_fts(con)
+    busca.reconstruir_fts(con)
     urls = {e["url"] for e in consulta.buscar_eventos(limite=50)}
     assert "https://x/sympla:velho" not in urls, "sumido vazou na consulta"
     assert "https://x/sympla:revisto" in urls
@@ -103,7 +106,7 @@ def main():
     print("consulta: esconde sumido por padrão, incluir_ruido mostra — ok")
 
     # ── idempotência: reaparecer no upsert desmarca na rodada seguinte ──
-    store.upsert_eventos(con, [
+    comum.upsert_eventos(con, [
         evento("sympla:velho", raspado_em=iso(AGORA + timedelta(minutes=1)))])
     atualizar._marcar_sumidos(con, {"sympla": {"coletados": 1}}, iso(AGORA))
     assert con.execute("SELECT sumido FROM tratado.eventos WHERE id = 'sympla:velho'"
@@ -128,7 +131,7 @@ def main():
     print("sumido: coleta zerada é pulada; coleta real continua marcando — ok")
 
     # ── janela do precificar: 7 dias entra, 60 fica fora, --tudo cobre ──
-    store.upsert_eventos(con, [
+    comum.upsert_eventos(con, [
         evento("ingresse:perto", start_date=iso(AGORA + timedelta(days=7)),
                raspado_em=iso(AGORA)),
         evento("ingresse:longe", start_date=iso(AGORA + timedelta(days=60)),

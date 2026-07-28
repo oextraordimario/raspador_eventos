@@ -17,7 +17,7 @@ hotlink da fonte, o fallback declarado da spec §5).
 import json
 import urllib.request
 
-from store import env_var
+from base.conexao import env_var
 
 API = "https://blob.vercel-storage.com"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

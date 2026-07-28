@@ -34,29 +34,29 @@ python -m playwright install chromium          # necessário só p/ o Shotgun
 # Atualização sob demanda — raspa as 5 fontes → marca sumidos → descreve/precifica
 # → cinema → Instagram → deriva → enriquece → FTS → relatório de saúde → grava a
 # rodada em `execucoes`. Rodar antes de usar o agente.
-python src/atualizar.py
-python src/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
-python src/atualizar.py --sem-cinema            # pula a grade de cinema
-python src/atualizar.py --sem-tmdb              # pula o enriquecimento TMDB dos filmes
-python src/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
-python src/atualizar.py --sem-extracao-flyer    # Instagram só até a Bronze, sem a visão
-python src/atualizar.py --rodada-local          # o que o CI não faz: Shotgun + fila de
+python src/pipeline/atualizar.py
+python src/pipeline/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
+python src/pipeline/atualizar.py --sem-cinema            # pula a grade de cinema
+python src/pipeline/atualizar.py --sem-tmdb              # pula o enriquecimento TMDB dos filmes
+python src/pipeline/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
+python src/pipeline/atualizar.py --sem-extracao-flyer    # Instagram só até a Bronze, sem a visão
+python src/pipeline/atualizar.py --rodada-local          # o que o CI não faz: Shotgun + fila de
                                                 #   extração de flyer (--so-instagram é
                                                 #   o nome antigo, continua valendo)
-python src/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: 30 dias)
-python src/atualizar.py --so-derivar            # não raspa; re-deriva do bruto + regras + FTS
-python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
+python src/pipeline/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: 30 dias)
+python src/pipeline/atualizar.py --so-derivar            # não raspa; re-deriva do bruto + regras + FTS
+python src/pipeline/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
 
 # Camada de consulta isolada (roda exemplos de buscar_eventos)
-python src/consulta.py
+python src/servico/consulta.py
 
 # MCP server (normalmente quem executa é o cliente de IA; assim é só p/ depurar)
-python src/mcp_server.py                        # stdio (clientes locais)
+python src/servico/mcp_server.py                        # stdio (clientes locais)
 # MCP remoto local com OAuth (o modo de produção): serve /mcp + a rota de
 # metadados, e recusa chamada sem token do AuthKit.
 AUTHKIT_ISSUER=https://prompt-color-48-staging.authkit.app \
-  MCP_RECURSO=http://localhost:8765/mcp PORT=8765 python src/mcp_server.py --http
-python src/mcp_server.py --http                 # sem as duas envs: modo antigo, exige MCP_SEGREDO
+  MCP_RECURSO=http://localhost:8765/mcp PORT=8765 python src/servico/mcp_server.py --http
+python src/servico/mcp_server.py --http                 # sem as duas envs: modo antigo, exige MCP_SEGREDO
 
 # Site público — front Next.js + API de leitura em Python
 npm install                                     # 1ª vez
@@ -84,7 +84,7 @@ python tests/test_api_dados.py                  # API do site: filtros + postura
 python tests/test_mcp_server.py                 # age como cliente MCP real (stdio); exige base já populada
 
 # Redescobrir a API interna do Sympla, se ela mudar
-python src/scrapers/discover_sympla.py          # gera capturas_sympla.json (na raiz)
+python src/ferramentas/discover_sympla.py          # gera capturas_sympla.json (na raiz)
 ```
 
 Não há suíte de testes formal nem linter. O interpretador do ambiente é
@@ -131,13 +131,13 @@ root" no dashboard — configuração invisível no repo, que quebra em silênci
 `store.conectar()`. Ao mudar o schema, edite o `.sql`. O SQL dinâmico (upsert,
 updates de derivação/enriquecimento) segue no código, porque não roda standalone.
 
-**Rodar entrypoints a partir da raiz** do repo (ex.: `python src/atualizar.py`); o
+**Rodar entrypoints a partir da raiz** do repo (ex.: `python src/pipeline/atualizar.py`); o
 `sys.path[0]` vira `src/`, então `import store`/`import consulta` resolvem como
 irmãos, e os entrypoints importam scrapers via `from scrapers import ...`.
 
 ### Frente A — Raspagem
 
-Um módulo por fonte em `src/scrapers/`, cada um com `raspar(...)` devolvendo lista de
+Um módulo por fonte em `src/coleta/`, cada um com `raspar(...)` devolvendo lista de
 dicts já normalizados para o schema unificado (exceções: cinema e instagram têm
 contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
 `total_site` — é daí que o `atualizar.py` mede cobertura.
@@ -202,7 +202,7 @@ contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
   (config `pt`: unaccent + stemming). Depois de raspar, `reconstruir_fts(con)`. A chave
   reservada `_raw` do dict normalizado vai para a **Bronze** (`eventos_raw`, PK
   `evento_id+origem` — Sympla tem 2 payloads: catálogo e detalhe).
-- `src/derivar.py` — derivação a seco (**camada Prata**): recalcula colunas de
+- `src/tratamento/derivar.py` — derivação a seco (**camada Prata**): recalcula colunas de
   `eventos` e a tabela `lotes` a partir de `eventos_raw`, sem rede. Campo novo do bruto
   = função aqui + `--so-derivar`, **sem re-raspar**; idempotente. Lote guarda o nome CRU
   da fonte e `preco` = total com taxa; `preco_min` é o menor lote **PAGO** (cortesia não
@@ -220,7 +220,7 @@ contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
   de NÃO criar). Preço do flyer vira lote sintético. Roda DEPOIS de `aplicar()`, que
   trunca `lotes`. Specs: `20260710_camada-bronze/`, `-camada-prata/`,
   `-lotes-ingressos/`.
-- `src/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
+- `src/tratamento/enriquecer.py` — enriquecimento v1 (regras, sem LLM): marca ruído
   (anúncio/curso, por palavra-chave no nome) e agrupa duplicatas — cross-fonte (mesmo
   dia + nome/local similares) e intra-fonte (regra mais apertada: mesmo local
   OBRIGATÓRIO + nome ≥ `SIM_NOME_INTRA`). "Mesmo dia" é o dia LOCAL de Brasília (bucket
@@ -230,7 +230,7 @@ contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
   canonizam o local ("Culto" ↔ "Culto Rock Bar") via `aliases_local`; `instagram` é o
   último em `_PREF_FONTE` (quem vende o ingresso é o canônico; o post entra em
   `outras_urls`) e `preco_min` conta na completude.
-- `src/consulta.py` — **camada canônica**. `buscar_eventos(texto, cidade, data_inicio,
+- `src/servico/consulta.py` — **camada canônica**. `buscar_eventos(texto, cidade, data_inicio,
   data_fim, limite, incluir_ruido)`, tudo opcional, retorno JSON-serializável. Por
   padrão esconde ruído, não-canônicos de dedupe, cancelados e **sumidos**; esgotado NÃO
   some (é resposta útil). O canônico traz `outras_urls`. `detalhar_evento(url)`
@@ -252,12 +252,12 @@ contrato próprio). Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/
   `<Flyer>`/`<Cartaz>`, que só renderizam host de `HOSTS_IMAGEM`. `app/sitemap.js`,
   `app/robots.js` e `app/llms.txt/route.js` são a Porta B da Fase 2, e cada página de
   evento carrega JSON-LD `schema.org/Event`.
-- `src/mcp_server.py` — FastMCP expondo tools finas que delegam para `consulta.py`:
+- `src/servico/mcp_server.py` — FastMCP expondo tools finas que delegam para `consulta.py`:
   `buscar_eventos`, `detalhar_evento`, `buscar_filmes`, `sessoes_filme` e `data_atual`
   (data/hora UTC + janela do fim de semana, p/ o agente montar "hoje"/"neste fim de
   semana"). Transporte stdio por default; `--http` sobe o MCP remoto (streamable HTTP
   stateless, porta da env `PORT`) — é o connector do celular.
-- `src/auth.py` — **OAuth do MCP remoto**. Este servidor é *resource server*: quem
+- `src/servico/auth.py` — **OAuth do MCP remoto**. Este servidor é *resource server*: quem
   emite token é o **AuthKit (WorkOS)**; aqui só se verifica o JWT contra o JWKS do
   issuer, e o cliente descobre tudo sozinho (401 → RFC 9728 → DCR/CIMD → Bearer).
   Ligado por **env, não por flag**: `AUTHKIT_ISSUER` + `MCP_RECURSO` presentes = auth
@@ -286,7 +286,7 @@ filmes, título/gêneros.
   `sql/schema.sql` antes de gravar. Fonte nova segue o mesmo `_normalizar(...)` → dict.
 - **Datas em formatos mistos** (Sympla/Ingresse `+00:00`, Shotgun `.000Z`, Zig
   `.000-03:00`, Ticket and Go manda data e hora locais SEPARADAS e sem fuso). O parse
-  mora em UM lugar: `src/tempo.py` (`instante` → datetime UTC; `norm_ts` → texto ISO
+  mora em UM lugar: `src/base/tempo.py` (`instante` → datetime UTC; `norm_ts` → texto ISO
   comparável). Quem resolve é a **escrita**: `upsert_eventos` normaliza
   `start_date`/`end_date`/`raspado_em` (invariante: ISO UTC `+00:00`) e a `consulta.py`
   normaliza os parâmetros — a comparação no SQL é lexical e segura. Não grave data

@@ -35,13 +35,18 @@ import time
 import traceback
 from datetime import datetime, timedelta, timezone
 
-import derivar
-import enriquecer
-import midia
-import store
-import tempo
-from scrapers import (cinema, ingresse, instagram, shotgun, sympla,
-                      ticketandgo, tmdb, zig)
+from pathlib import Path
+
+# Entrypoint: põe src/ no sys.path para os pacotes de estágio resolverem
+# (namespace packages, sem __init__.py). Rodar da raiz do repo:
+#     python src/pipeline/atualizar.py
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from base import conexao, tempo                                   # noqa: E402
+from coleta import (cinema, gravar, ingresse, instagram, midias,  # noqa: E402
+                    shotgun, sympla, ticketandgo, tmdb, zig)
+from pipeline import execucoes                                    # noqa: E402
+from tratamento import busca, comum, derivar, enriquecer          # noqa: E402
 
 # Rede com IPv6 quebrado (opt-in, FORCAR_IPV4=1 no env): urllib e psycopg
 # tentam os endereços IPv6 em SEQUÊNCIA (sem happy eyeballs do navegador/curl)
@@ -49,7 +54,7 @@ from scrapers import (cinema, ingresse, instagram, shotgun, sympla,
 # 200 descrições viraria horas. O filtro no getaddrinfo derruba cada request
 # de ~50s para ~0.2s na rede afetada; fora dela, nada muda (por isso opt-in).
 # Visto na máquina do autor em 2026-07-27 (Neon e BFF do Sympla).
-if store.env_var("FORCAR_IPV4"):
+if conexao.env_var("FORCAR_IPV4"):
     _getaddrinfo = socket.getaddrinfo
 
     def _so_ipv4(host, port, family=0, type=0, proto=0, flags=0):
@@ -115,9 +120,9 @@ def _raspar(incluir_shotgun=True, apenas=None):
         print(f"\n[{nome}] raspando...")
         try:
             eventos = chamada()
-            con = store.conectar()
+            con = conexao.conectar()
             try:
-                store.upsert_eventos(con, eventos)
+                comum.upsert_eventos(con, eventos)
             finally:
                 con.close()
             resultados[nome] = dict(modulo.ULTIMA_RASPAGEM)
@@ -247,7 +252,7 @@ def _descrever(con, erros, pausa=0.4):
                 d = ingresse.raspar_descricao(slug)
                 con.execute("UPDATE tratado.eventos SET descricao = %s WHERE id = %s",
                             (d["descricao"], r["id"]))
-            store.gravar_raw(con, r["id"], "detalhe", d["payload"],
+            gravar.gravar_raw(con, r["id"], "detalhe", d["payload"],
                              datetime.now(timezone.utc).isoformat(),
                              commit=False)
             buscadas += 1 if d["descricao"] else 0
@@ -321,7 +326,7 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
                     r["url"].rstrip("/").rsplit("/", 1)[-1])
             else:
                 t = ingresse.raspar_tickets(r["id_nativo"])
-            store.gravar_raw(con, r["id"], "tickets", t["payload"],
+            gravar.gravar_raw(con, r["id"], "tickets", t["payload"],
                              datetime.now(timezone.utc).isoformat(),
                              commit=False)
             buscados += 1
@@ -353,9 +358,9 @@ def _raspar_cinema(erros):
         traceback.print_exc()
         print("[cinema] FALHOU — grade anterior mantida.")
         return {"erro": f"{type(e).__name__}: {e}"}
-    con = store.conectar()
+    con = conexao.conectar()
     try:
-        store.gravar_cinema_raw(con, r["raw"],
+        gravar.gravar_cinema_raw(con, r["raw"],
                                 datetime.now(timezone.utc).isoformat())
     finally:
         con.close()
@@ -401,9 +406,9 @@ def _raspar_instagram(erros, extrair=True):
         traceback.print_exc()
         print("[instagram] FALHOU — dados anteriores mantidos.")
         return {"erro": f"{type(e).__name__}: {e}"}
-    con = store.conectar()
+    con = conexao.conectar()
     try:
-        store.gravar_instagram_raw(con, r["raw"],
+        gravar.gravar_instagram_raw(con, r["raw"],
                                    datetime.now(timezone.utc).isoformat())
         for f in r["erros"]:
             erros.append({"passo": "instagram", "evento_id": f"@{f['perfil']}",
@@ -458,9 +463,9 @@ def _raspar_instagram(erros, extrair=True):
                                   f" + legenda): {type(e).__name__}: {e}"})
         try:
             ext = instagram.extrair(instagram.legenda_do_post(post), caminhos)
-            con = store.conectar()
+            con = conexao.conectar()
             try:
-                store.gravar_instagram_raw(
+                gravar.gravar_instagram_raw(
                     con, [(row["perfil"], row["code"], "extracao", ext)],
                     datetime.now(timezone.utc).isoformat())
             finally:
@@ -633,7 +638,7 @@ def _enriquecer_cinema(con, erros):
     algo foi buscado. Falha por filme não grava nada e re-tenta na próxima
     rodada. Sem TMDB_API_KEY o passo é pulado com aviso (não é erro).
     """
-    chave = store.env_var("TMDB_API_KEY")
+    chave = conexao.env_var("TMDB_API_KEY")
     if not chave:
         print("\n[tmdb] TMDB_API_KEY ausente — filmes seguem sem sinopse/nota.")
         return None
@@ -655,7 +660,7 @@ def _enriquecer_cinema(con, erros):
             erros.append({"passo": "tmdb", "evento_id": f["id"],
                           "erro": f"{type(e).__name__}: {e}"})
             continue
-        store.gravar_cinema_extra(con, f["id"], "tmdb", payload, agora)
+        gravar.gravar_cinema_extra(con, f["id"], "tmdb", payload, agora)
         buscados += 1
         if payload.get("escolhido"):
             com_match += 1
@@ -671,7 +676,7 @@ def _copiar_posters(con, erros):
     CDN da fonte e re-hospedado no Blob com pathname estável. O front prefere
     `poster_proprio` e cai no hotlink enquanto a cópia não existe.
     """
-    if not midia.token():
+    if not midias.token():
         print("\n[poster] BLOB_READ_WRITE_TOKEN ausente — hotlink mantido.")
         return None
     pendentes = con.execute(
@@ -687,14 +692,14 @@ def _copiar_posters(con, erros):
     n = 0
     for f in pendentes:
         try:
-            dados, ctype = midia.baixar(f["poster"])
-            ext = midia.EXTENSOES.get(ctype, "jpg")
-            url = midia.subir(dados, f"posters/{f['id']}.{ext}", ctype)
+            dados, ctype = midias.baixar(f["poster"])
+            ext = midias.EXTENSOES.get(ctype, "jpg")
+            url = midias.subir(dados, f"posters/{f['id']}.{ext}", ctype)
         except Exception as e:
             erros.append({"passo": "poster", "evento_id": f["id"],
                           "erro": f"{type(e).__name__}: {e}"})
             continue
-        store.gravar_cinema_extra(con, f["id"], "poster", {"url": url}, agora)
+        gravar.gravar_cinema_extra(con, f["id"], "poster", {"url": url}, agora)
         n += 1
         time.sleep(0.2)
     print(f"  {n} copiados")
@@ -707,7 +712,7 @@ def _subir_midias_instagram(con, erros):
     horas); aqui o arquivo local de post que ainda não tem origem='midia' na
     Bronze sobe para o Blob, e a derivação grava a URL em eventos.imagem.
     """
-    if not midia.token():
+    if not midias.token():
         return None
     pendentes = con.execute(
         "SELECT p.perfil, p.code FROM cru.instagram p "
@@ -725,13 +730,13 @@ def _subir_midias_instagram(con, erros):
         ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg",
                  "png": "image/png", "webp": "image/webp"}[arq.suffix[1:].lower()]
         try:
-            url = midia.subir(arq.read_bytes(),
+            url = midias.subir(arq.read_bytes(),
                               f"instagram/{r['code']}{arq.suffix.lower()}", ctype)
         except Exception as e:
             erros.append({"passo": "midia-instagram", "evento_id": r["code"],
                           "erro": f"{type(e).__name__}: {e}"})
             continue
-        store.gravar_instagram_raw(
+        gravar.gravar_instagram_raw(
             con, [(r["perfil"], r["code"], "midia", {"url": url})], agora)
         n += 1
     if n:
@@ -767,7 +772,7 @@ def main():
     # Único ponto do pipeline que aplica DDL (conectar() não aplica por padrão
     # desde 2026-07-28 — spec 20260728_arquitetura-medalhao, D9). As conexões
     # seguintes só leem e escrevem dado.
-    con = store.conectar(aplicar_schema=True)
+    con = conexao.conectar(aplicar_schema=True)
     _checar_schema(con)
     con.close()
 
@@ -785,7 +790,7 @@ def main():
         if rodada_local:
             if not sem_shotgun:
                 resultados = _raspar(apenas=["shotgun"])
-                con = store.conectar()
+                con = conexao.conectar()
                 sumidos = _marcar_sumidos(con, resultados, iniciada_em)
                 con.close()
         else:
@@ -796,7 +801,7 @@ def main():
             # tem sumido — sessão que sai simplesmente não volta no snapshot).
             # descrever/precificar tocam a base a cada evento — os gaps são
             # curtos, uma conexão para o bloco basta.
-            con = store.conectar()
+            con = conexao.conectar()
             sumidos = _marcar_sumidos(con, resultados, iniciada_em)
             desc = _descrever(con, erros)
             prec = _precificar(con, erros,
@@ -814,7 +819,7 @@ def main():
 
     # daqui em diante é derivação/enriquecimento/relatório: conexão nova —
     # a raspagem acima pode ter levado muitos minutos.
-    con = store.conectar()
+    con = conexao.conectar()
 
     # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
     # o fluxo normal e o --so-derivar recalculam as derivadas a partir da
@@ -839,12 +844,12 @@ def main():
             insta = derivar.aplicar_instagram(con)
 
     enriq = enriquecer.aplicar(con, aliases_local=instagram.aliases_local())
-    store.reconstruir_fts(con)
+    busca.reconstruir_fts(con)
     duracao = time.monotonic() - inicio
     # O relatório lê execucoes ANTES do registro: a comparação é com a rodada
     # anterior de verdade, não com esta.
     _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos, duracao)
-    store.registrar_execucao(
+    execucoes.registrar_execucao(
         con, iniciada_em, round(duracao, 1), modo, resultados,
         {"descrever": desc, "precificar": prec, "derivado": derivado,
          "cinema": cine, "instagram": insta, "ruido": len(enriq["ruido"]),

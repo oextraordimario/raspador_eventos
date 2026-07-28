@@ -14,10 +14,12 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-import consulta  # noqa: E402
-import derivar  # noqa: E402
-import store  # noqa: E402
-from scrapers import cinema  # noqa: E402
+from servico import consulta  # noqa: E402
+from tratamento import derivar  # noqa: E402
+from base import conexao
+from coleta import gravar
+from tratamento import busca
+from coleta import cinema  # noqa: E402
 
 import base_teste  # noqa: E402
 
@@ -55,7 +57,7 @@ def grade(dia, filmes):
 
 
 def main():
-    con = store.conectar()
+    con = conexao.conectar()
 
     # ── derivação: payload no formato da API vira filmes + sessoes ──
     toy = filme("100", "Toy Story 5", ["Animação", "Aventura"],
@@ -70,7 +72,7 @@ def main():
                   [sessao("s3", 6, ())])
     passado = filme("300", "Filme De Ontem", ["Terror"],
                     [sessao("s4", -30)])  # única sessão já passou
-    store.gravar_cinema_raw(con,
+    gravar.gravar_cinema_raw(con,
                             [("128", HOJE, grade(HOJE, [toy, drama])),
                              ("124", HOJE, grade(HOJE, [toy_no_park, passado]))],
                             "2026-01-01T00:00:00+00:00")
@@ -87,7 +89,7 @@ def main():
     print("derivação: filmes/sessoes do payload cru, tipos crus, UTC — ok")
 
     # ── busca textual: gêneros entram no tsvector (sem acento acha) ──
-    store.reconstruir_fts(con)
+    busca.reconstruir_fts(con)
     achados = consulta.buscar_filmes(texto="animacao")
     assert [f["titulo"] for f in achados] == ["Toy Story 5"], achados
     assert achados[0]["sessoes"] == 3 and "Pier 21" in achados[0]["cinemas"]
@@ -147,7 +149,7 @@ def main():
     print("sessoes_filme: filtros de cinema/hora; opções não encolhem — ok")
 
     # ── enriquecimento externo (NI-36/NI-37): Bronze fora do snapshot ──
-    store.gravar_cinema_extra(con, "100", "tmdb", {
+    gravar.gravar_cinema_extra(con, "100", "tmdb", {
         "consultas": ["Toy Story 5"],
         "candidatos": [],
         "escolhido": {"id": 552524, "title": "Toy Story 5",
@@ -155,9 +157,9 @@ def main():
                       "release_date": "2026-06-17",
                       "vote_average": 7.4, "vote_count": 120},
     }, "2026-01-01T00:00:00+00:00")
-    store.gravar_cinema_extra(con, "100", "poster", {"url": "http://blob/p.webp"},
+    gravar.gravar_cinema_extra(con, "100", "poster", {"url": "http://blob/p.webp"},
                               "2026-01-01T00:00:00+00:00")
-    store.gravar_cinema_extra(con, "200", "tmdb", {
+    gravar.gravar_cinema_extra(con, "200", "tmdb", {
         "consultas": ["Um Drama Qualquer"], "candidatos": [],
         "escolhido": None,   # matching não confiou: NÃO ganha nota
     }, "2026-01-01T00:00:00+00:00")
@@ -175,7 +177,7 @@ def main():
     print("extra: TMDB/pôster aplicados na derivação; sem match, sem nota — ok")
 
     # ── matching do TMDB é conservador (unit, sem rede) ──
-    from scrapers import tmdb
+    from coleta import tmdb
     certo = {"title": "Toy Story 5", "original_title": "Toy Story 5",
              "release_date": "2026-06-19", "id": 1}
     antigo = {"title": "Toy Story", "original_title": "Toy Story",
@@ -194,9 +196,9 @@ def main():
     print("tmdb: match exato normalizado, sem chute — ok")
 
     # ── snapshot: regravar cinema×dia substitui; dia passado é podado ──
-    store.gravar_cinema_raw(con, [("999", ONTEM, grade(ONTEM, [drama]))],
+    gravar.gravar_cinema_raw(con, [("999", ONTEM, grade(ONTEM, [drama]))],
                             "2026-01-01T00:00:00+00:00")
-    store.gravar_cinema_raw(
+    gravar.gravar_cinema_raw(
         con, [("128", HOJE, grade(HOJE, [filme("100", "Toy Story 5",
                                                ["Animação"],
                                                [sessao("s9", 4)])])),

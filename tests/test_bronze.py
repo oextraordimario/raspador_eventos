@@ -15,9 +15,11 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-import store  # noqa: E402
-import derivar  # noqa: E402
-import consulta  # noqa: E402
+from base import conexao
+from coleta import gravar
+from tratamento import comum
+from tratamento import derivar  # noqa: E402
+from servico import consulta  # noqa: E402
 
 import base_teste  # noqa: E402
 
@@ -46,12 +48,12 @@ def raw_linhas(con, evento_id):
 
 
 def main():
-    con = store.conectar()
+    con = conexao.conectar()
 
     # --- upsert com _raw grava a Bronze; sem _raw segue funcionando ---
     payload = {"id": 1, "name": "Festa", "location": {"neighborhood": "Asa Norte "},
                "descrição com separador unicode": "a b"}
-    store.upsert_eventos(con, [
+    comum.upsert_eventos(con, [
         evento("sympla:1", nome="Festa", _raw=payload),
         evento("sympla:2", nome="Sem raw"),
     ])
@@ -66,21 +68,21 @@ def main():
     print("bronze: upsert grava eventos_raw, payload round-tripa, _raw não vaza — ok")
 
     # --- upsert repetido não duplica; último payload vence ---
-    store.upsert_eventos(con, [evento("sympla:1", nome="Festa",
+    comum.upsert_eventos(con, [evento("sympla:1", nome="Festa",
                                       _raw={"id": 1, "v": 2})])
     linhas = raw_linhas(con, "sympla:1")
     assert len(linhas) == 1 and json.loads(linhas[0]["payload"]) == {"id": 1, "v": 2}
     print("bronze: upsert repetido não duplica, último payload vence — ok")
 
     # --- payload de detalhe convive com o de catálogo (PK composta) ---
-    store.gravar_raw(con, "sympla:1", "detalhe", {"detail": "<p>oi</p>"},
+    gravar.gravar_raw(con, "sympla:1", "detalhe", {"detail": "<p>oi</p>"},
                      "2026-07-10T01:00:00+00:00")
     origens = [r["origem"] for r in raw_linhas(con, "sympla:1")]
     assert origens == ["catalogo", "detalhe"], origens
     print("bronze: catálogo e detalhe coexistem por evento — ok")
 
     # --- derivação a seco: bairro vem do bruto do Sympla, com trim ---
-    store.upsert_eventos(con, [
+    comum.upsert_eventos(con, [
         evento("sympla:3", _raw={"location": {"neighborhood": "Ceilândia"}}),
         evento("sympla:4", _raw={"location": {}}),           # sem bairro
         evento("shotgun:5", _raw={"location": {"neighborhood": "não é sympla"}}),
@@ -107,7 +109,7 @@ def main():
     print("bronze: derivação idempotente — ok")
 
     # --- reset: bruto que perde o campo derruba a coluna na próxima aplicação ---
-    store.gravar_raw(con, "sympla:3", "catalogo", {"location": {}},
+    gravar.gravar_raw(con, "sympla:3", "catalogo", {"location": {}},
                      "2026-07-10T02:00:00+00:00")
     derivar.aplicar(con)
     assert con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'sympla:3'"
@@ -115,7 +117,7 @@ def main():
     print("bronze: recalcula do zero (não eterniza valor de payload antigo) — ok")
 
     # --- Prata: lotes + preço/esgotado/cancelado/popularidade ---
-    store.upsert_eventos(con, [
+    comum.upsert_eventos(con, [
         evento("sympla:p1", nome="Festa Com Cortesia Esgotada",
                _raw={"global_score": 777, "location": {}}),
         evento("ingresse:p4", nome="Passaporte Esgotado"),
@@ -128,13 +130,13 @@ def main():
             "eventStatus": "https://schema.org/EventCancelled"}),
     ])
     ts = "2026-07-10T03:00:00+00:00"
-    store.gravar_raw(con, "sympla:p1", "detalhe", {"cancelled": False}, ts)
-    store.gravar_raw(con, "sympla:p1", "tickets", {"tickets": [
+    gravar.gravar_raw(con, "sympla:p1", "detalhe", {"cancelled": False}, ts)
+    gravar.gravar_raw(con, "sympla:p1", "tickets", {"tickets": [
         {"show": True, "isFree": False, "currentAvailableQty": 5,
          "salePriceWithDiscountMonetary": {"decimal": 44.0}},
         {"show": True, "isFree": True, "currentAvailableQty": 0},
     ]}, ts)
-    store.gravar_raw(con, "ingresse:p4", "tickets", {"detail": {"responseData": [
+    gravar.gravar_raw(con, "ingresse:p4", "tickets", {"detail": {"responseData": [
         {"name": "Passaporte PISTA",
          "type": [{"name": "Inteira", "price": 400, "tax": 40, "status": "finished"},
                   {"name": "Meia", "price": 200, "tax": 20, "status": "finished"},
@@ -168,13 +170,13 @@ def main():
     print("prata: preço pago mín./tem_gratis/esgotado/cancelado derivados — ok")
 
     # --- NI-18: o caso HOUSE CLUB — cortesia não mascara o preço pago ---
-    store.upsert_eventos(con, [
+    comum.upsert_eventos(con, [
         evento("sympla:hc", nome="HOUSE CLUB 13 ANOS",
                descricao="Aniversário de 13 anos da HOUSE CLUB, line-up "
                          "completo de DJs a noite toda. " + "Detalhes. " * 50),
         evento("sympla:sc", nome="Evento Só Cortesia"),
     ])
-    store.gravar_raw(con, "sympla:hc", "tickets", {"tickets": [
+    gravar.gravar_raw(con, "sympla:hc", "tickets", {"tickets": [
         {"show": True, "isFree": True, "currentAvailableQty": 2,
          "name": "CORTESIA FEMININA DA COPA ATÉ 00H"},
         {"show": True, "isFree": False, "currentAvailableQty": 5,
@@ -190,7 +192,7 @@ def main():
          "salePriceWithDiscountMonetary": {"decimal": 418.0},
          "feeMonetary": {"decimal": 38.0}},
     ]}, ts)
-    store.gravar_raw(con, "sympla:sc", "tickets", {"tickets": [
+    gravar.gravar_raw(con, "sympla:sc", "tickets", {"tickets": [
         {"show": True, "isFree": True, "currentAvailableQty": 10,
          "name": "Entrada franca"},
     ]}, ts)
@@ -241,7 +243,7 @@ def main():
     print("prata: consulta esconde cancelado, expõe esgotado/preço — ok")
 
     # --- NI-17: guarda de nome do _descrever rejeita evento trocado ---
-    import atualizar  # noqa: E402  (importa playwright via scrapers; só p/ _mesmo_nome)
+    from pipeline import atualizar  # noqa: E402  (só p/ _mesmo_nome)
     assert atualizar._mesmo_nome(
         "The Beatles Abbey Road - Ultimate Tribute",
         "Polvo Na Cozinha - Manu Zappa") is False

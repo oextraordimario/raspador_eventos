@@ -20,19 +20,25 @@ import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
-from mcp.server.fastmcp import FastMCP
+from pathlib import Path
 
-import consulta
-import store
+# Entrypoint (stdio e --http) e também módulo importado por api/index.py: põe
+# src/ no sys.path para os pacotes de estágio resolverem.
+_SRC = str(Path(__file__).resolve().parents[1])
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
-# ── OAuth (NI-11) ─────────────────────────────────────────────────────────
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+
+from base import conexao  # noqa: E402
+from servico import consulta  # noqa: E402
 # Ligado por ENV, não por flag de linha de comando: o MESMO módulo serve o
 # stdio local (sem auth — a identidade é o dono da máquina) e o remoto na
 # Vercel (com auth). Faltando qualquer uma das duas envs, o servidor sobe sem
 # auth e o transporte HTTP volta ao prefixo secreto — que é também o caminho
 # de rollback, sem tocar em código.
-AUTHKIT_ISSUER = store.env_var("AUTHKIT_ISSUER")   # https://<sub>.authkit.app
-MCP_RECURSO = store.env_var("MCP_RECURSO")         # https://<host>/mcp
+AUTHKIT_ISSUER = conexao.env_var("AUTHKIT_ISSUER")   # https://<sub>.authkit.app
+MCP_RECURSO = conexao.env_var("MCP_RECURSO")         # https://<host>/mcp
 
 
 def _servidor():
@@ -98,7 +104,7 @@ def _identidade():
 def _registrar(sub, tool, args, resultados, ms, erro):
     con = None
     try:
-        con = store.conectar()
+        con = conexao.conectar()
         con.execute(
             "INSERT INTO uso.acessos (sub, em, tool, args, resultados, ms, erro) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s)",
@@ -128,7 +134,7 @@ def registrado(fn):
 
         if sub:
             try:
-                con = store.conectar()
+                con = conexao.conectar()
                 u = con.execute(
                     "SELECT bloqueado FROM uso.usuarios WHERE sub = %s",
                     (sub,)).fetchone()
@@ -342,7 +348,7 @@ if __name__ == "__main__":
             # metadado anunciado apontaria para uma rota que não existe.
             caminho = urlparse(MCP_RECURSO).path or "/mcp"
         else:
-            segredo = store.env_var("MCP_SEGREDO")
+            segredo = conexao.env_var("MCP_SEGREDO")
             if not segredo:
                 sys.exit("Defina AUTHKIT_ISSUER + MCP_RECURSO (OAuth) ou "
                          "MCP_SEGREDO (prefixo secreto) para subir o HTTP.")

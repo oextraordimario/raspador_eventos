@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from mcp.server.transport_security import TransportSecuritySettings  # noqa: E402
 
-from mcp_server import mcp  # noqa: E402  (precisa do sys.path acima)
+from servico.mcp_server import mcp  # noqa: E402  (precisa do sys.path acima)
 
 _recurso = os.environ.get("MCP_RECURSO")
 _segredo = os.environ.get("MCP_SEGREDO")

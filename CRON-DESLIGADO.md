@@ -25,7 +25,7 @@ também não se atualiza: cada dia parado é um dia de agenda desatualizada no
 site e no MCP. Rodadas manuais continuam funcionando normalmente:
 
 ```bash
-python src/atualizar.py --rodada-local
+python src/pipeline/atualizar.py --rodada-local
 ```
 
 ## Para religar (a sequência combinada, nesta ordem)

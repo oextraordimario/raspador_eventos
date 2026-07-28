@@ -3,7 +3,7 @@
 # POR QUE ISTO EXISTE (NI-57, 2026-07-28): a API do Ticket and Go parou de
 # expor endereço (`endereco` vem sempre vazio, cidade/estado nulos), e o site
 # público também não mostra mais. Sem endereço, o recorte DF passou a sair de
-# três sinais, nesta ordem (src/scrapers/ticketandgo.py:_do_df):
+# três sinais, nesta ordem (src/coleta/ticketandgo.py:_do_df):
 #   1. o `local` do evento está NESTA lista            → é DF
 #   2. termo geográfico inequívoco no local/nome        → é DF
 #   3. CEP 70–73 ou "DF" na descrição do evento         → é DF
