@@ -128,5 +128,6 @@ def aplicar(con):
         if r["chave"] in filmes:
             con.execute("UPDATE tratado.filmes SET poster_proprio = %s "
                         "WHERE id = %s", (r["url"], r["chave"]))
-    con.commit()
+    # Sem commit: o ciclo inteiro do tratamento roda numa transação só
+    # (tratamento/ciclo.py) — ver o cabeçalho de lá.
     return {"filmes": len(filmes), "sessoes": len(sessoes), "tmdb": tmdb_ok}

@@ -35,7 +35,6 @@ Particularidades da fonte:
 Spec: docs/specs/20260728_fontes-quebradas/spec.md.
 """
 
-import html
 import re
 import time
 import json
@@ -45,6 +44,14 @@ import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
+from base import texto
+from coleta import gravar
+# O parse de data/hora da fonte mora no TRATAMENTO (e la que se le payload);
+# a coleta o importa para o filtro de futuros. A direcao proibida e a coleta
+# ESCREVER em `tratado`, nao ler uma funcao pura de la — duas copias
+# divergiriam, e o formato desta fonte ja mudou duas vezes em 20 dias.
+from tratamento.ticketandgo import quando as _quando
+
 API_V1 = "https://production-api-v1-service.ticketandgo.com.br"
 API_V2 = "https://production-api-v2-service.ticketandgo.com.br"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -53,9 +60,6 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 # As casas de Brasília curadas à mão vivem em `curado.locais` desde 2026-07-28
 # (eram dados/locais_df.yaml). Quem lê a base é o pipeline, que passa a lista
 # pronta para raspar(locais_df=...) — este módulo não conhece o banco.
-
-# Brasília é UTC-3 o ano inteiro (o DF não tem horário de verão desde 2019).
-FUSO_BRASILIA = "-03:00"
 
 # CEPs do DF começam em 70–73 (Brasília e cidades-satélites).
 _CEP_DF = re.compile(r"\b7[0-3]\d{3}-?\d{3}\b")
@@ -90,12 +94,6 @@ def _requisitar(url):
         return json.load(r)
 
 
-def _limpar_html(texto):
-    """HTML -> texto puro (tags viram espaco, entidades resolvidas, espacos colapsados)."""
-    if not texto:
-        return None
-    texto = html.unescape(re.sub(r"<[^>]+>", " ", texto))
-    return re.sub(r"\s+", " ", texto).strip() or None
 
 
 def _norm(texto):
@@ -130,22 +128,8 @@ def _do_df(local, nome=None, descricao=None, conhecidos=frozenset()):
     if _CEP_DF.search(campo) or _UF_DF.search(campo) or _RE_TERMOS_DF.search(campo):
         return True
     # limpa o HTML antes: "\bdf\b" casaria dentro de href/atributo de tag
-    desc = _norm(_limpar_html(descricao))
+    desc = _norm(texto.limpar_html(descricao))
     return bool(_CEP_DF.search(desc) or _UF_DF.search(desc))
-
-
-def _quando(data, hora):
-    """Compõe data + hora locais da fonte em ISO com o fuso de Brasília.
-
-    Aceita data já com hora embutida ("2026-08-29 19:00:00") por robustez;
-    sem hora, assume 00:00 (a data já serve ao filtro por dia).
-    """
-    if not data:
-        return None
-    data = data.strip()
-    base = data.replace(" ", "T") if (" " in data or "T" in data) \
-        else f"{data}T{(hora or '00:00:00').strip()}"
-    return f"{base}{FUSO_BRASILIA}"
 
 
 def raspar_tickets(slug):
@@ -186,44 +170,6 @@ def _catalogo(max_paginas=45, por_pagina=100):
     return itens
 
 
-def _normalizar(det, slug, cidade_label, estado_label):
-    """Detalhe da fonte -> schema unificado. `endereco`/`lat`/`lon` ficam
-    NULOS de propósito: a API parou de expor endereço (não é bug a consertar,
-    ver docstring do módulo). O `local` continua vindo e é o que alimenta FTS,
-    dedupe e front."""
-    id_nativo = str(det.get("id") or "").strip()
-    return {
-        "id": f"ticketandgo:{id_nativo}",
-        "fonte": "ticketandgo",
-        "id_nativo": id_nativo,
-        "nome": det.get("nome"),
-        "start_date": _quando(det.get("inicio"), det.get("hora_incio")),
-        "end_date": _quando(det.get("fim"), det.get("hora_fim")),
-        # rotulados pelo filtro _do_df (a fonte não manda cidade/estado)
-        "cidade": cidade_label,
-        "estado": estado_label,
-        "local_nome": (det.get("local") or "").strip() or None,
-        "endereco": None,
-        "lat": None,
-        "lon": None,
-        "categoria": (det.get("nome_tipo_evento") or "").strip() or None,
-        "organizador": None,  # produtora é razão social (pessoa jurídica/física)
-        "url": f"https://www.ticketandgo.com.br/evento/{slug}",
-        "imagem": det.get("banner") or det.get("imagem") or None,
-        "raspado_em": datetime.now(timezone.utc).isoformat(),
-        # descrição já vem no detalhe — sem passo "descrever" p/ esta fonte
-        "descricao": _limpar_html(det.get("descricao")),
-        "_raw": det,  # payload bruto -> cru.ticketandgo (append-only)
-        # Colunas proprias de cru.ticketandgo: a fonte NAO expoe mais endereco
-        # (a V1 foi desligada), entao cidade/estado vem do _do_df da coleta; e
-        # o `slug` nao e derivavel do id numerico e mudou de chave entre as
-        # eras (`slug_evento` na V2, `slug` na V1). Gravar o que a coleta de
-        # fato usou torna a reconstrucao independente de adivinhar a forma.
-        "_cru": {"slug": slug or None, "cidade_label": cidade_label,
-                 "estado_label": estado_label},
-    }
-
-
 def _futuro_por_dia(ev):
     """Corte grosso sobre o catálogo (que só tem DIA, sem hora): mantém o que
     termina de ontem em diante. A margem de 1 dia evita perder o evento que
@@ -256,6 +202,8 @@ ULTIMA_RASPAGEM = {}
 def raspar(cidade_label="Brasília", estado_label="DF", pausa=0.15,
            apenas_futuros=True, locais_df=None):
     """Varre o catálogo nacional, busca o detalhe dos futuros e filtra DF.
+
+    Retorna registros de gravar.bruto() — payload cru, sem interpretacao.
 
     `locais_df` é a referência canônica de casas do DF (nomes e apelidos), que
     o pipeline lê de `curado.locais` e passa pronta — a coleta não conhece a
@@ -305,16 +253,23 @@ def raspar(cidade_label="Brasília", estado_label="DF", pausa=0.15,
             novos_locais[(det.get("local") or "?").strip()] += 1
         if apenas_futuros and not _futuro(det):
             continue
-        norm = _normalizar(det, slug, cidade_label, estado_label)
-        if norm["id_nativo"]:
-            vistos.setdefault(norm["id"], norm)
+        # Colunas proprias de cru.ticketandgo: a fonte NAO expoe mais
+        # endereco (a V1 foi desligada), entao cidade/estado vem do _do_df
+        # daqui; e o `slug` nao e derivavel do id numerico e mudou de chave
+        # entre as eras (`slug_evento` na V2, `slug` na V1). Gravar o que a
+        # coleta de fato usou torna a reconstrucao independente de adivinhar.
+        id_nativo = str(det.get("id") or "").strip()
+        if id_nativo:
+            vistos.setdefault(id_nativo, gravar.bruto(
+                id_nativo, det, slug=slug or None,
+                cidade_label=cidade_label, estado_label=estado_label))
 
     if candidatos and falhas > len(candidatos) // 2:
         # Metade dos detalhes falhando é a rota tendo mudado de novo, não azar
         # de rede — mesma lógica do catálogo vazio: falhar alto (NI-58/NI-59).
         raise RuntimeError(f"{falhas}/{len(candidatos)} detalhes falharam — "
                            f"a rota /eventos/{{slug}}/evento mudou?")
-    print(f"  DF: {df} | futuros normalizados: {len(vistos)}"
+    print(f"  DF: {df} | futuros coletados: {len(vistos)}"
           + (f" | {falhas} detalhes falharam" if falhas else ""))
     if novos_locais:
         # Fila de curadoria: estes entraram só por sinal textual. Casa

@@ -1,13 +1,23 @@
-"""Teste executável das camadas Bronze (eventos_raw + derivação a seco) e
-Prata (lotes de ingresso, preço/tem_gratis/esgotado/cancelado/popularidade e
-detalhar_evento), mais a guarda de nome do NI-17. Usa o banco descartável
-eventos_teste no Neon (não toca a base de produção — ver tests/base_teste.py).
-Specs: docs/specs/20260710_camada-bronze, 20260710_camada-prata e
-20260710_lotes-ingressos.
+"""Teste executável da fronteira cru → tratado: é o `cru` que produz a prata.
+
+Este arquivo mudou de natureza na fatia 7 (spec 20260728_arquitetura-medalhao).
+Antes ele testava que o upsert da coleta gravava o payload na Bronze de
+brinde — ou seja, testava a violação de camada do NI-55. Agora ele testa o
+contrário: **nada além do `cru` entra em `tratado.eventos`**, e o teste de
+FRONTEIRA no fim (§10) apaga a prata inteira e confere que o tratamento a
+reproduz.
+
+Cobre também: append-only (versão nova só quando o payload muda, `visto_em`
+avançando mesmo quando não muda), a guarda de era do §6.3, os lotes de
+ingresso, o NI-18 (cortesia não mascara preço) e a guarda de nome do NI-17.
+
+Usa o banco descartável eventos_teste no Neon (não toca a base de produção —
+ver tests/base_teste.py).
 
 Uso: python tests/test_bronze.py
 """
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -15,8 +25,12 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-from base import conexao
+from base import conexao, texto
 from coleta import gravar
+from coleta import ingresse as ingresse_coleta  # noqa: E402
+from coleta import sympla as sympla_coleta  # noqa: E402
+from coleta import zig as zig_coleta  # noqa: E402
+from pipeline import atualizar  # noqa: E402
 from tratamento import comum
 from servico import consulta  # noqa: E402
 
@@ -25,19 +39,31 @@ import base_teste  # noqa: E402
 # Redireciona a base para o banco descartável antes de qualquer conectar().
 base_teste.preparar()
 
+TS = "2026-07-10T00:00:00+00:00"
 
-def evento(id_, **kw):
-    fonte = id_.split(":")[0]
-    e = {
-        "id": id_, "fonte": fonte, "id_nativo": id_.split(":")[1],
-        "nome": f"Evento {id_}", "start_date": "2026-07-11T22:00:00+00:00",
-        "end_date": None, "cidade": "Brasília", "estado": "DF",
-        "local_nome": None, "endereco": None, "lat": None, "lon": None,
-        "categoria": None, "organizador": None, "url": f"https://x/{id_}",
-        "imagem": None, "raspado_em": "2026-07-10T00:00:00+00:00",
-    }
-    e.update(kw)
-    return e
+
+def sympla(id_, **kw):
+    """Payload de catálogo do Sympla com o mínimo que a normalização exige."""
+    p = {"id": int(id_) if id_.isdigit() else id_,
+         "name": f"Evento sympla:{id_}",
+         "start_date": "2026-07-11T22:00:00+00:00", "end_date": None,
+         "url": f"https://x/sympla:{id_}", "location": {"city": "Brasília",
+                                                        "state": "DF"}}
+    p.update(kw)
+    return p
+
+
+def shotgun(slug, **kw):
+    p = {"name": f"Evento shotgun:{slug}",
+         "startDate": "2026-07-11T22:00:00+00:00",
+         "url": f"https://x/shotgun:{slug}", "location": {}}
+    p.update(kw)
+    return p
+
+
+def gravar_catalogo(con, fonte, id_nativo, payload, ts=TS, **extras):
+    return gravar.gravar(con, fonte, id_nativo, "catalogo", payload, ts,
+                         **extras)
 
 
 def raw_linhas(con, evento_id):
@@ -48,7 +74,7 @@ def raw_linhas(con, evento_id):
     """
     fonte, _, id_nativo = evento_id.partition(":")
     return con.execute(
-        f"SELECT origem, payload, raspado_em FROM cru.{fonte}_atual "
+        f"SELECT origem, payload, raspado_em, visto_em FROM cru.{fonte}_atual "
         "WHERE id_nativo = %s ORDER BY origem", (id_nativo,)).fetchall()
 
 
@@ -60,110 +86,149 @@ def versoes(con, fonte, id_nativo, origem):
         (id_nativo, origem)).fetchone()["n"]
 
 
+def impressao(con):
+    """Impressão digital do conteúdo de `tratado` que o tratamento produz.
+
+    Só as colunas que saem do cru: `sumido`, `ruido` e `dedupe_*` são de outras
+    camadas e não entram na comparação do teste de fronteira.
+    """
+    cols = ",".join(comum.COLS_EVENTO)
+    ev = con.execute(f"SELECT {cols} FROM tratado.eventos ORDER BY id").fetchall()
+    lt = con.execute("SELECT evento_id, ordem, nome, preco, taxa, gratis, "
+                     "esgotado FROM tratado.lotes "
+                     "ORDER BY evento_id, ordem").fetchall()
+    bruto = json.dumps([[dict(r) for r in ev], [dict(r) for r in lt]],
+                       sort_keys=True, default=str)
+    return hashlib.md5(bruto.encode()).hexdigest(), len(ev), len(lt)
+
+
 def main():
     con = conexao.conectar()
 
-    # --- upsert com _raw grava a Bronze; sem _raw segue funcionando ---
-    payload = {"id": 1, "name": "Festa", "location": {"neighborhood": "Asa Norte "},
-               "descrição com separador unicode": "a b"}
-    comum.upsert_eventos(con, [
-        evento("sympla:1", nome="Festa", _raw=payload),
-        evento("sympla:2", nome="Sem raw"),
-    ])
+    # --- o evento nasce do cru, e só dele ---
+    payload = sympla("1", name="Festa",
+                     location={"neighborhood": "Asa Norte ", "city": "Brasília"},
+                     **{"descrição com separador unicode": "a b"})
+    gravar_catalogo(con, "sympla", "1", payload)
     linhas = raw_linhas(con, "sympla:1")
     assert len(linhas) == 1 and linhas[0]["origem"] == "catalogo"
     assert json.loads(linhas[0]["payload"]) == payload, "payload não round-tripa"
-    assert raw_linhas(con, "sympla:2") == []
-    cols = {r["column_name"] for r in con.execute(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = 'tratado' AND table_name = 'eventos'")}
-    assert "_raw" not in cols, "_raw vazou como coluna de eventos"
-    print("bronze: upsert grava eventos_raw, payload round-tripa, _raw não vaza — ok")
+    comum.aplicar(con)
+    ev = dict(con.execute("SELECT nome, url, bairro, raspado_em FROM "
+                          "tratado.eventos WHERE id = 'sympla:1'").fetchone())
+    assert ev["nome"] == "Festa" and ev["url"] == "https://x/sympla:1", ev
+    assert ev["bairro"] == "Asa Norte", ev  # com trim
+    assert ev["raspado_em"] == TS, "raspado_em tem que vir do cru, não de now()"
+    print("cru→prata: o evento inteiro (nome, url, bairro, raspado_em) sai do "
+          "payload guardado — ok")
 
     # --- APPEND-ONLY: payload novo acrescenta versão; igual NÃO acrescenta ---
     # Cada rodada tem seu raspado_em (é componente da PK): duas rodadas com o
     # mesmo conteúdo não podem gerar duas versões, e é isso que o hash resolve.
     assert versoes(con, "sympla", "1", "catalogo") == 1
-    comum.upsert_eventos(con, [evento("sympla:1", nome="Festa",
-                                      raspado_em="2026-07-11T00:00:00+00:00",
-                                      _raw={"id": 1, "v": 2})])
+    p2 = sympla("1", name="Festa")
+    gravar_catalogo(con, "sympla", "1", p2, ts="2026-07-11T00:00:00+00:00")
     assert versoes(con, "sympla", "1", "catalogo") == 2, "payload novo não virou versão"
     linhas = raw_linhas(con, "sympla:1")
-    assert len(linhas) == 1 and json.loads(linhas[0]["payload"]) == {"id": 1, "v": 2}, \
+    assert len(linhas) == 1 and json.loads(linhas[0]["payload"]) == p2, \
         "a view _atual tem que devolver só a versão mais recente"
     # o MESMO payload numa rodada nova NÃO gera versão — e nem se as chaves
     # vierem em outra ordem, porque o hash é da forma canônica (sort_keys)
-    comum.upsert_eventos(con, [evento("sympla:1", nome="Festa",
-                                      raspado_em="2026-07-12T00:00:00+00:00",
-                                      _raw={"v": 2, "id": 1})])
+    gravar_catalogo(con, "sympla", "1", dict(reversed(list(p2.items()))),
+                    ts="2026-07-12T00:00:00+00:00")
     assert versoes(con, "sympla", "1", "catalogo") == 2, \
         "payload igual (ou só reordenado) não pode gerar versão nova"
+    # ...mas o AVISTAMENTO conta: sem isto, `sumido` marcaria como "saiu do
+    # catálogo" todo evento que simplesmente não mudou desde a rodada passada.
+    assert raw_linhas(con, "sympla:1")[0]["visto_em"] == \
+        "2026-07-12T00:00:00+00:00", "visto_em não avançou com o payload igual"
     # e o histórico responde por data, que é o que o append-only compra
     antigo = con.execute(
         "SELECT payload FROM cru.sympla WHERE id_nativo = '1' "
         "AND origem = 'catalogo' ORDER BY raspado_em LIMIT 1").fetchone()
     assert json.loads(antigo["payload"]) == payload, \
         "a versão original tem que continuar consultável"
-    print("bronze: append-only — payload novo vira versão, igual não; _atual "
-          "devolve a última e o histórico continua lá — ok")
+    print("cru: append-only — payload novo vira versão, igual não (mas avança "
+          "visto_em); _atual devolve a última e o histórico continua lá — ok")
 
     # --- payload de detalhe convive com o de catálogo (PK composta) ---
-    gravar.gravar(con, "sympla", "1", "detalhe", {"detail": "<p>oi</p>"},
-                     "2026-07-10T01:00:00+00:00")
+    gravar.gravar(con, "sympla", "1", "detalhe",
+                  {"name": "Festa", "detail": "<p>oi</p>"},
+                  "2026-07-10T01:00:00+00:00")
     origens = [r["origem"] for r in raw_linhas(con, "sympla:1")]
     assert origens == ["catalogo", "detalhe"], origens
-    print("bronze: catálogo e detalhe coexistem por evento — ok")
+    comum.aplicar(con)
+    assert con.execute("SELECT descricao FROM tratado.eventos WHERE id = "
+                       "'sympla:1'").fetchone()["descricao"] == "oi", \
+        "a descrição tem que sair do payload de detalhe, sem rede"
+    print("cru: catálogo e detalhe coexistem; a descrição deriva do detalhe — ok")
+
+    # --- GUARDA DO §6.3: payload que não é deste evento não vira evento ---
+    # É o caso da era de API antiga: o parser novo acha campos homônimos por
+    # coincidência e degradaria em silêncio. Errar para o lado de NÃO gravar.
+    gravar_catalogo(con, "sympla", "999", sympla("111"))       # id não bate
+    gravar_catalogo(con, "sympla", "998", sympla("998", url=None))  # sem url
+    contagem = comum.aplicar(con)
+    reprovados = {r["evento_id"] for r in contagem["rejeitados"]}
+    assert reprovados == {"sympla:999", "sympla:998"}, contagem["rejeitados"]
+    assert con.execute("SELECT count(*) AS n FROM tratado.eventos WHERE id IN "
+                       "('sympla:999', 'sympla:998')").fetchone()["n"] == 0
+    print("guarda §6.3: payload de outro id / sem url é reprovado e reportado, "
+          "não vira evento — ok")
 
     # --- derivação a seco: bairro vem do bruto do Sympla, com trim ---
-    comum.upsert_eventos(con, [
-        evento("sympla:3", _raw={"location": {"neighborhood": "Ceilândia"}}),
-        evento("sympla:4", _raw={"location": {}}),           # sem bairro
-        evento("shotgun:5", _raw={"location": {"neighborhood": "não é sympla"}}),
-    ])
+    gravar_catalogo(con, "sympla", "3",
+                    sympla("3", location={"neighborhood": "Ceilândia"}))
+    gravar_catalogo(con, "sympla", "4", sympla("4", location={}))
+    gravar_catalogo(con, "shotgun", "5",
+                    shotgun("5", location={"neighborhood": "não é sympla"}),
+                    cidade_label="Brasília", estado_label="DF")
     contagem = comum.aplicar(con)
     bairros = {r["id"]: r["bairro"]
                for r in con.execute("SELECT id, bairro FROM tratado.eventos")}
     assert bairros["sympla:3"] == "Ceilândia"
     assert bairros["sympla:4"] is None
-    assert bairros["sympla:2"] is None, "evento sem raw não deriva"
     assert bairros["shotgun:5"] is None, "derivação do sympla não vale p/ shotgun"
     assert contagem["bairro"] == 1, contagem
-    # sympla:1 tinha 'Asa Norte' no 1º payload, mas o raw foi substituído por
-    # {"id":1,"v":2}: a derivação segue o ÚLTIMO payload, não o histórico.
+    # sympla:1 tinha 'Asa Norte' no 1º payload, mas o cru atual é o 2º: a
+    # derivação segue a versão CORRENTE, não o histórico.
     assert bairros["sympla:1"] is None
-    print("bronze: derivação preenche bairro só de (sympla, catalogo) — ok")
+    print("prata: derivação preenche bairro só de (sympla, catalogo) — ok")
 
     # --- idempotência: aplicar 2x = mesmo estado ---
-    antes = sorted(bairros.items())
+    antes = impressao(con)
     comum.aplicar(con)
-    depois = sorted((r["id"], r["bairro"])
-                    for r in con.execute("SELECT id, bairro FROM tratado.eventos"))
-    assert depois == antes
-    print("bronze: derivação idempotente — ok")
+    assert impressao(con) == antes, "aplicar() não é idempotente"
+    print("prata: reconstrução idempotente — ok")
 
     # --- reset: bruto que perde o campo derruba a coluna na próxima aplicação ---
-    gravar.gravar(con, "sympla", "3", "catalogo", {"location": {}},
-                     "2026-07-10T02:00:00+00:00")
+    gravar_catalogo(con, "sympla", "3", sympla("3", location={}),
+                    ts="2026-07-10T02:00:00+00:00")
     comum.aplicar(con)
     assert con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'sympla:3'"
                        ).fetchone()["bairro"] is None
-    print("bronze: recalcula do zero (não eterniza valor de payload antigo) — ok")
+    print("prata: recalcula do zero (não eterniza valor de payload antigo) — ok")
 
     # --- Prata: lotes + preço/esgotado/cancelado/popularidade ---
-    comum.upsert_eventos(con, [
-        evento("sympla:p1", nome="Festa Com Cortesia Esgotada",
-               _raw={"global_score": 777, "location": {}}),
-        evento("ingresse:p4", nome="Passaporte Esgotado"),
-        evento("shotgun:p2", nome="Show Esgotado", _raw={
-            "offers": [{"name": "Pista", "price": "30",
-                        "availability": "https://schema.org/SoldOut"}],
-            "eventStatus": "https://schema.org/EventScheduled"}),
-        evento("shotgun:p3", nome="Show Cancelado", _raw={
-            "offers": {"lowPrice": 25, "availability": "https://schema.org/InStock"},
-            "eventStatus": "https://schema.org/EventCancelled"}),
-    ])
+    gravar_catalogo(con, "sympla", "p1",
+                    sympla("p1", name="Festa Com Cortesia Esgotada",
+                           global_score=777, location={}))
+    gravar_catalogo(con, "ingresse", "p4",
+                    {"id": "p4", "title": "Passaporte Esgotado",
+                     "slug": "ingresse:p4", "place": {},
+                     "event_date": "2026-07-11T22:00:00+00:00"})
+    gravar_catalogo(con, "shotgun", "p2", shotgun("p2", name="Show Esgotado", **{
+        "offers": [{"name": "Pista", "price": "30",
+                    "availability": "https://schema.org/SoldOut"}],
+        "eventStatus": "https://schema.org/EventScheduled"}),
+        cidade_label="Brasília", estado_label="DF")
+    gravar_catalogo(con, "shotgun", "p3", shotgun("p3", name="Show Cancelado", **{
+        "offers": {"lowPrice": 25, "availability": "https://schema.org/InStock"},
+        "eventStatus": "https://schema.org/EventCancelled"}),
+        cidade_label="Brasília", estado_label="DF")
     ts = "2026-07-10T03:00:00+00:00"
-    gravar.gravar(con, "sympla", "p1", "detalhe", {"cancelled": False}, ts)
+    gravar.gravar(con, "sympla", "p1", "detalhe",
+                  {"name": "Festa Com Cortesia Esgotada", "cancelled": False}, ts)
     gravar.gravar(con, "sympla", "p1", "tickets", {"tickets": [
         {"show": True, "isFree": False, "currentAvailableQty": 5,
          "salePriceWithDiscountMonetary": {"decimal": 44.0}},
@@ -203,12 +268,12 @@ def main():
     print("prata: preço pago mín./tem_gratis/esgotado/cancelado derivados — ok")
 
     # --- NI-18: o caso HOUSE CLUB — cortesia não mascara o preço pago ---
-    comum.upsert_eventos(con, [
-        evento("sympla:hc", nome="HOUSE CLUB 13 ANOS",
-               descricao="Aniversário de 13 anos da HOUSE CLUB, line-up "
-                         "completo de DJs a noite toda. " + "Detalhes. " * 50),
-        evento("sympla:sc", nome="Evento Só Cortesia"),
-    ])
+    longa = ("Aniversário de 13 anos da HOUSE CLUB, line-up completo de DJs a "
+             "noite toda. " + "Detalhes. " * 50)
+    gravar_catalogo(con, "sympla", "hc", sympla("hc", name="HOUSE CLUB 13 ANOS"))
+    gravar_catalogo(con, "sympla", "sc", sympla("sc", name="Evento Só Cortesia"))
+    gravar.gravar(con, "sympla", "hc", "detalhe",
+                  {"name": "HOUSE CLUB 13 ANOS", "detail": longa}, ts)
     gravar.gravar(con, "sympla", "hc", "tickets", {"tickets": [
         {"show": True, "isFree": True, "currentAvailableQty": 2,
          "name": "CORTESIA FEMININA DA COPA ATÉ 00H"},
@@ -236,11 +301,24 @@ def main():
     sc = prata("sympla:sc")
     assert sc["preco_min"] is None and sc["tem_gratis"] == 1, \
         sc  # evento grátis: sem lote pago + tem_gratis
-    # derivação idempotente também para lotes (DELETE + reinsert)
-    n_lotes = con.execute("SELECT COUNT(*) AS n FROM tratado.lotes").fetchone()["n"]
-    comum.aplicar(con)
-    assert con.execute("SELECT COUNT(*) AS n FROM tratado.lotes").fetchone()["n"] == n_lotes
     print("NI-18: cortesia não mascara preço pago; só-cortesia = grátis — ok")
+
+    # --- TESTE DE FRONTEIRA (spec §10): a prata é descartável de verdade ---
+    # Apaga `tratado` inteira e confere que o tratamento a reproduz byte a byte
+    # a partir do cru. É o teste que o NI-55 não passava: até a fatia 7 não
+    # existia uma linha de código que lesse o bruto e produzisse o evento.
+    esperado = impressao(con)
+    con.execute("DELETE FROM tratado.lotes")
+    con.execute("DELETE FROM tratado.eventos WHERE fonte <> 'instagram'")
+    assert con.execute("SELECT count(*) AS n FROM tratado.eventos"
+                       ).fetchone()["n"] == 0
+    comum.aplicar(con)
+    obtido = impressao(con)
+    assert obtido == esperado, f"a prata não se reconstrói: {obtido} != {esperado}"
+    print(f"FRONTEIRA: prata apagada e reconstruída do cru — {esperado[1]} "
+          f"eventos e {esperado[2]} lotes idênticos — ok")
+
+    con.commit()
 
     # --- detalhar_evento: descrição inteira + lotes na ordem da fonte ---
     det = consulta.detalhar_evento("https://x/sympla:hc")
@@ -275,21 +353,50 @@ def main():
                                                         incluir_ruido=True)]
     print("prata: consulta esconde cancelado, expõe esgotado/preço — ok")
 
-    # --- NI-17: guarda de nome do _descrever rejeita evento trocado ---
-    from pipeline import atualizar  # noqa: E402  (só p/ _mesmo_nome)
-    assert atualizar._mesmo_nome(
+    # --- NI-17: guarda de nome (usada na coleta E na leitura do payload) ---
+    assert texto.mesmo_nome(
         "The Beatles Abbey Road - Ultimate Tribute",
         "Polvo Na Cozinha - Manu Zappa") is False
-    assert atualizar._mesmo_nome(
+    assert texto.mesmo_nome(
         "Evento Totalmente Grátis Está Esgotado",
         "Sempre Foi Baile @Ephigenia") is False  # troca real em URL comum
-    assert atualizar._mesmo_nome("Arraiá do Brabo", "ARRAIÁ  DO BRABO") is True
-    assert atualizar._mesmo_nome("DOMINGÃO | PARTE 2", "DOMINGÃO") is True
-    assert atualizar._mesmo_nome("Festa", None) is False
-    print("NI-17: nome divergente rejeitado, prefixo/caixa/espaço aceitos — ok")
+    assert texto.mesmo_nome("Arraiá do Brabo", "ARRAIÁ  DO BRABO") is True
+    assert texto.mesmo_nome("DOMINGÃO | PARTE 2", "DOMINGÃO") is True
+    assert texto.mesmo_nome("Festa", None) is False
 
+    # A guarda roda na COLETA, antes de o payload entrar no cru — e SÓ lá, de
+    # propósito. Repeti-la na leitura foi testado contra a base de produção em
+    # 2026-07-28 e reprovado: o catálogo se move (produtor renomeia evento), e
+    # a guarda passaria a descartar descrição boa de evento com o id certo.
+    # Ver o comentário do CONFERIR em src/tratamento/sympla.py.
+    gravar_catalogo(con, "sympla", "77",
+                    sympla("77", name="Festa Legítima",
+                           url="https://www.sympla.com.br/evento/festa/77"))
+    sympla_coleta.raspar_descricao = lambda id_url: {
+        "nome": "Polvo Na Cozinha",  # o BFF devolveu OUTRO evento (NI-17)
+        "payload": {"name": "Polvo Na Cozinha", "detail": "descrição alheia"}}
+    # as outras fontes da fila não podem sair para a rede dentro de um teste
+    def _sem_rede(_):
+        raise RuntimeError("o teste não fala com a rede")
+    ingresse_coleta.raspar_descricao = _sem_rede
+    zig_coleta.raspar_descricao = _sem_rede
+    erros = []
+    r = atualizar._descrever(con, erros, pausa=0)
+    assert r["trocados"] == 1 and r["buscadas"] == 0, r
+    meu = [e for e in erros if e["evento_id"] == "sympla:77"]
+    assert len(meu) == 1 and "NI-17" in meu[0]["erro"], erros
+    assert not [x for x in raw_linhas(con, "sympla:77")
+                if x["origem"] == "detalhe"], \
+        "payload com nome divergente não pode nem entrar no cru"
+    comum.aplicar(con)
+    assert con.execute("SELECT descricao FROM tratado.eventos WHERE id = "
+                       "'sympla:77'").fetchone()["descricao"] is None
+    print("NI-17: nome divergente barrado na COLETA (não chega ao cru) — ok")
+
+    con.commit()
     con.close()
-    print("\nOK — camada Bronze e guarda do NI-17 se comportam como a spec pede.")
+    print("\nOK — a prata se reconstrói do cru e as guardas se comportam como "
+          "a spec pede.")
 
 
 if __name__ == "__main__":

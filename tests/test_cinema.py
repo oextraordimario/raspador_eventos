@@ -90,6 +90,10 @@ def main():
 
     # ── busca textual: gêneros entram no tsvector (sem acento acha) ──
     busca.reconstruir_fts(con)
+    # commit explícito: desde a fatia 7 os passos do tratamento não
+    # comitam sozinhos (o ciclo é uma transação só) e a consulta abre
+    # a própria conexão.
+    con.commit()
     achados = consulta.buscar_filmes(texto="animacao")
     assert [f["titulo"] for f in achados] == ["Toy Story 5"], achados
     assert achados[0]["sessoes"] == 3 and "Pier 21" in achados[0]["cinemas"]

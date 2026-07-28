@@ -16,13 +16,13 @@ O catálogo do Ingresse em Brasília é pequeno e já focado em vida noturna
 categoria como no Sympla.
 """
 
-import html
-import re
 import time
 import json
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+
+from coleta import gravar
 
 API = "https://api-site.ingresse.com/events/search"
 
@@ -58,23 +58,15 @@ def _get(params):
     return _get_url(f"{API}?{qs}")
 
 
-def _limpar_html(texto):
-    """HTML -> texto puro (tags viram espaco, entidades resolvidas, espacos colapsados)."""
-    if not texto:
-        return None
-    texto = html.unescape(re.sub(r"<[^>]+>", " ", texto))
-    return re.sub(r"\s+", " ", texto).strip() or None
-
-
 def raspar_descricao(slug):
-    """Busca a descricao (texto limpo) de um evento pelo slug da URL publica.
+    """Busca o payload do evento pelo slug da URL publica (traz a descricao,
+    que a busca nao retorna).
 
-    Retorna dict {"descricao"} (valor pode ser None); levanta excecao em erro de
-    rede/HTTP — o chamador decide tolerar.
+    Retorna {"nome", "payload"}; levanta excecao em erro de rede/HTTP — o
+    chamador decide tolerar. Quem LE o payload e tratamento/ingresse.py.
     """
     ev = _get_url(f"{API_EVENTO}{urllib.parse.quote(slug)}")
-    return {"descricao": _limpar_html(ev.get("description")),
-            "payload": ev}  # JSON bruto, p/ a camada Bronze
+    return {"nome": ev.get("title"), "payload": ev}
 
 
 def raspar_tickets(id_nativo):
@@ -96,35 +88,6 @@ def raspar_tickets(id_nativo):
     return {"payload": resp}  # vazio mesmo: grava assim (fonte nao informou)
 
 
-def _normalizar(ev):
-    place = ev.get("place") or {}
-    geo = place.get("location") or {}
-    poster = ev.get("poster") or ev.get("images") or {}
-    session = ev.get("session") or {}
-    id_nativo = str(ev.get("id"))
-    quando = session.get("dateTime") or ev.get("event_date")
-    return {
-        "id": f"ingresse:{id_nativo}",
-        "fonte": "ingresse",
-        "id_nativo": id_nativo,
-        "nome": ev.get("title"),
-        "start_date": quando,
-        "end_date": None,  # a busca não retorna término
-        "cidade": place.get("city") or None,
-        "estado": place.get("state") or None,
-        "local_nome": place.get("name") or None,
-        "endereco": place.get("street") or None,
-        "lat": geo.get("lat") or None,
-        "lon": geo.get("lon") or None,
-        "categoria": None,
-        "organizador": None,  # não vem no resultado de busca
-        "url": f"https://www.ingresse.com/{ev.get('slug')}" if ev.get("slug") else None,
-        "imagem": poster.get("large") or poster.get("medium") or None,
-        "raspado_em": datetime.now(timezone.utc).isoformat(),
-        "_raw": ev,  # payload bruto -> eventos_raw (camada Bronze)
-    }
-
-
 def _futuro(ev):
     session = ev.get("session") or {}
     quando = session.get("dateTime") or ev.get("event_date")
@@ -143,7 +106,10 @@ ULTIMA_RASPAGEM = {}
 
 def raspar(iso_code=ISO_BRASILIA, title=None, max_paginas=10, tam=40,
            pausa=1.0, apenas_futuros=True):
-    """Raspa eventos de uma localidade (ou busca por texto) e normaliza."""
+    """Raspa eventos de uma localidade (ou busca por texto).
+
+    Retorna registros de gravar.bruto() — payload cru, sem interpretacao.
+    """
     vistos = {}
     pg = {}
     for page in range(max_paginas):
@@ -159,9 +125,9 @@ def raspar(iso_code=ISO_BRASILIA, title=None, max_paginas=10, tam=40,
         for ev in data:
             if apenas_futuros and not _futuro(ev):
                 continue
-            norm = _normalizar(ev)
-            if norm["id"] not in vistos:
-                vistos[norm["id"]] = norm
+            id_nativo = str(ev.get("id") or "")
+            if id_nativo and id_nativo not in vistos:
+                vistos[id_nativo] = gravar.bruto(id_nativo, ev)
                 novos += 1
         print(f"  offset {page * tam}: +{len(data)} brutos ({novos} futuros "
               f"novos) | total no site: {pg.get('total')} | "

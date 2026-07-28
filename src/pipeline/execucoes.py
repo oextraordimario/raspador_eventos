@@ -24,6 +24,23 @@ def registrar_execucao(con, iniciada_em, duracao_s, modo, fontes, passos, erros)
     con.commit()
 
 
+def registrar_coleta(con, fonte, iniciada_em, terminada_em, resultado):
+    """Grava UMA coleta de UMA fonte em `operacao.coletas`.
+
+    É a mesma informação que vai em `execucoes.fontes`, mas consultável em SQL —
+    e é dela que `tratamento/sumido.py` deriva a coluna `sumido`. O
+    `iniciada_em` é a âncora: o instante em que a raspagem daquela fonte
+    começou, e não o fim (evento raspado no meio da rodada tem raspado_em entre
+    os dois).
+    """
+    con.execute(
+        "INSERT INTO operacao.coletas (fonte, iniciada_em, terminada_em, "
+        "coletados, total_site, erro) VALUES (%s, %s, %s, %s, %s, %s)",
+        (fonte, iniciada_em, terminada_em, resultado.get("coletados"),
+         resultado.get("total_site"), resultado.get("erro")))
+    con.commit()
+
+
 def ultima_execucao(con):
     """Última rodada registrada (dict com fontes/passos/erros já
     desserializados) ou None. É a base da comparação 'vs. rodada anterior'."""

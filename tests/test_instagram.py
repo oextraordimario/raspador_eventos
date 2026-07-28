@@ -24,9 +24,9 @@ from tratamento import instagram as trat_instagram  # noqa: E402
 from coleta import gravar
 from tratamento import busca
 from tratamento import comum
-from tratamento import enriquecer  # noqa: E402
+from tratamento import enriquecer, sumido  # noqa: E402
 from servico import consulta  # noqa: E402
-from pipeline import atualizar  # noqa: E402
+from pipeline import execucoes  # noqa: E402
 from coleta import instagram  # noqa: E402
 
 import base_teste  # noqa: E402
@@ -299,10 +299,17 @@ def test_derivacao_e_consulta():
     assert n == 8
     print("derivação: idempotente (--so-derivar) — ok")
 
-    # sumido: raspagem sem os posts na 1ª página NÃO condena a fonte instagram
-    atualizar._marcar_sumidos(
-        con, {"sympla": {"coletados": 1}, "instagram": {"coletados": 1}},
-        (AGORA + timedelta(hours=1)).isoformat())
+    # sumido: raspagem sem os posts na 1ª página NÃO condena a fonte instagram.
+    # A guarda deixou de ser um `if` no orquestrador e virou estrutura: só tem
+    # `sumido` quem tem linha em `operacao.coletas`, e a coleta do Instagram
+    # não registra uma (spec §8.1). Registramos uma de propósito aqui para
+    # provar que nem assim ela morde — o feed do perfil não é catálogo de
+    # eventos futuros; post que sai da 1ª página não é cancelamento.
+    depois = (AGORA + timedelta(hours=1)).isoformat()
+    execucoes.registrar_coleta(con, "sympla", depois, depois, {"coletados": 1})
+    execucoes.registrar_coleta(con, "instagram", depois, depois,
+                               {"coletados": 1})
+    sumido.aplicar(con)
     marcados = con.execute("SELECT id FROM tratado.eventos WHERE sumido = 1").fetchall()
     assert all(not m["id"].startswith("instagram:") for m in marcados), \
         f"instagram entrou na lógica de sumido: {marcados}"
@@ -346,6 +353,7 @@ def test_derivacao_e_consulta():
     # consulta: canônico responde com o post em outras_urls; só-Instagram
     # aparece; detalhar mostra o lote do flyer; FTS acha texto do flyer
     busca.reconstruir_fts(con)
+    con.commit()
     achados = consulta.buscar_eventos(texto="alquimia")
     assert [e["url"] for e in achados] == ["https://sympla.com/alquimia"]
     assert "instagram.com/p/AAA111" in (achados[0]["outras_urls"] or "")

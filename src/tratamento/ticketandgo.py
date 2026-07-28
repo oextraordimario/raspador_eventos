@@ -14,10 +14,80 @@ A coluna `cru.ticketandgo.api` resolve isso para a frente: a coleta declara qual
 endpoint chamou. Para o passado (`api IS NULL`) vale `tolerar_era()` abaixo.
 
 A tolerância mora aqui porque a diferença é de LEITURA do payload, não de
-coleta. As colunas afetadas (url, endereço, lat/lon) só passam por este módulo
-quando a normalização migrar para cá, na fatia 7 — até lá `tolerar_era` é usada
-pelo modo conferência, que é justamente quem compara as duas leituras.
+coleta — e desde a fatia 7 é `normalizar()` abaixo quem a consome, ao produzir
+endereço e lat/lon.
 """
+
+from base import texto
+
+# Brasília é UTC-3 o ano inteiro (o DF não tem horário de verão desde 2019).
+FUSO_BRASILIA = "-03:00"
+
+
+def quando(data, hora):
+    """Compõe data + hora LOCAIS da fonte em ISO com o fuso de Brasília.
+
+    A fonte manda "2026-08-29" e "19:00:00" separados e sem fuso — este é o
+    único lugar do projeto que sabe disso. Aceita data já com hora embutida por
+    robustez; sem hora, assume 00:00 (a data já serve ao filtro por dia).
+
+    Vive no tratamento e é importada pela coleta (que a usa no filtro de
+    futuros): a direção proibida é a coleta ESCREVER em `tratado`, não ler uma
+    função pura daqui. Duas cópias divergiriam.
+    """
+    if not data:
+        return None
+    data = data.strip()
+    base = data.replace(" ", "T") if (" " in data or "T" in data) \
+        else f"{data}T{(hora or '00:00:00').strip()}"
+    return f"{base}{FUSO_BRASILIA}"
+
+
+# Valor-padrão do `nome_tipo_evento` da fonte: 71 dos 72 eventos categorizados
+# são só "Evento" (medido em 2026-07-28). Guardá-lo é repetir o antipadrão que
+# a §6.2 desmontou no `event_type`='NORMAL' do Sympla — rótulo sem poder de
+# distinção que só polui o FTS. O que NÃO é o padrão continua valendo: a fonte
+# às vezes escreve algo real ali ("Conquistadoras – meninas de 13 a 17 anos").
+_CATEGORIA_GENERICA = "evento"
+
+
+def _categoria(p):
+    cat = (p.get("nome_tipo_evento") or "").strip()
+    return cat or None if cat.casefold() != _CATEGORIA_GENERICA else None
+
+
+def normalizar(p, cru):
+    """Detalhe da fonte → as colunas de IDENTIDADE do evento (era
+    `coleta/ticketandgo._normalizar`). None = payload não reconhecido (§6.3).
+
+    `slug`, `cidade` e `estado` vêm das colunas próprias de `cru.ticketandgo`,
+    não do payload: a fonte não expõe mais endereço (a V1 foi desligada), então
+    quem decidiu que o evento é do DF foi o `_do_df` da coleta, e o slug não é
+    derivável do id numérico. Endereço e lat/lon só existem nos payloads da era
+    V1 — `tolerar_era` os recupera e devolve None para os da V2.
+    """
+    if str(p.get("id") or "").strip() != cru["id_nativo"]:
+        return None
+    era = tolerar_era(p)
+    slug = cru.get("slug") or era["slug"]
+    return {
+        "nome": p.get("nome"),
+        "start_date": quando(p.get("inicio"), p.get("hora_incio")),
+        "end_date": quando(p.get("fim"), p.get("hora_fim")),
+        "cidade": cru.get("cidade_label"),
+        "estado": cru.get("estado_label"),
+        "local_nome": (p.get("local") or "").strip() or None,
+        "endereco": era["endereco"],
+        "lat": era["lat"],
+        "lon": era["lon"],
+        "categoria": _categoria(p),
+        "organizador": None,  # produtora é razão social (pessoa jurídica/física)
+        "url": (f"https://www.ticketandgo.com.br/evento/{slug}" if slug
+                else None),
+        "imagem": p.get("banner") or p.get("imagem") or None,
+        # descrição já vem no detalhe — sem passo "descrever" p/ esta fonte
+        "descricao": texto.limpar_html(p.get("descricao")),
+    }
 
 
 def tolerar_era(p):
@@ -81,3 +151,4 @@ def lotes(p):
 
 DERIVACOES = {}
 LOTES = {"tickets": lotes}
+CONFERIR = {}

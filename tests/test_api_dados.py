@@ -107,6 +107,9 @@ gravar.gravar_cinema_raw(con, [("128", _daqui.date().isoformat(),
                                ]}])], AGORA.isoformat())
 trat_cinema.aplicar(con)
 busca.reconstruir_fts(con)
+# commit explícito: desde a fatia 7 os passos do tratamento não comitam
+# sozinhos (o ciclo é uma transação só) e a API abre a própria conexão.
+con.commit()
 con.close()
 
 

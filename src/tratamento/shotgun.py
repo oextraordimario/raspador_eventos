@@ -10,6 +10,62 @@ organizador e preços, então ele não passa por descrever/precificar.
 """
 
 
+def _atracoes(ld):
+    """Line-up do JSON-LD (performer: dict ou lista de dicts) como texto '; '."""
+    perf = ld.get("performer")
+    if not perf:
+        return None
+    nomes = [p.get("name") for p in (perf if isinstance(perf, list) else [perf])
+             if isinstance(p, dict) and p.get("name")]
+    return "; ".join(nomes) or None
+
+
+def normalizar(p, cru):
+    """JSON-LD → as colunas de IDENTIDADE do evento (era
+    `coleta/shotgun._normalizar`).
+
+    Sem checagem de id: a chave da bronze é o SLUG da URL, que não existe
+    dentro do JSON-LD. O que substitui a checagem é a guarda comum (nome e URL
+    não-nulos) — e a URL sai do próprio slug, então nunca aponta para outro
+    evento.
+
+    `cidade`/`estado` vêm das colunas próprias de `cru.shotgun`, não do
+    payload: o `addressLocality` do JSON-LD é o BAIRRO, e a cidade é o
+    parâmetro de busca que a coleta usou. Gravar o que a coleta CONHECE é o que
+    torna esta reconstrução possível sem adivinhar por convenção.
+    """
+    loc = p.get("location") or {}
+    addr = loc.get("address") or {}
+    org = p.get("organizer") or {}
+    bairro = addr.get("addressLocality") or None
+    slug = cru["id_nativo"]
+    return {
+        "nome": p.get("name"),
+        "start_date": p.get("startDate"),
+        "end_date": p.get("endDate"),
+        "cidade": cru.get("cidade_label"),
+        "estado": cru.get("estado_label"),
+        "local_nome": loc.get("name") or bairro,
+        "endereco": bairro or addr.get("streetAddress") or None,
+        "lat": (loc.get("geo") or {}).get("latitude") or None,
+        "lon": (loc.get("geo") or {}).get("longitude") or None,
+        # `categoria` fica NULA de propósito. O normalizador antigo gravava a
+        # constante "MusicEvent" — que é o @type do JSON-LD em 65 dos 65
+        # eventos coletados (medido em 2026-07-28). É o MESMO antipadrão do
+        # `event_type`='NORMAL' do Sympla que a §6.2 desmontou: rótulo com zero
+        # poder de distinção, que só polui o FTS (indexa `categoria`).
+        "categoria": None,
+        "organizador": (org.get("name") if isinstance(org, dict) else None)
+                       or None,
+        "url": p.get("url") or f"https://shotgun.live/en/events/{slug}",
+        "imagem": p.get("image") if isinstance(p.get("image"), str) else None,
+        # campos ricos que o JSON-LD já entrega de graça — por isso o Shotgun
+        # não passa pelos passos "descrever" e "precificar"
+        "descricao": (p.get("description") or "").strip() or None,
+        "atracoes": _atracoes(p),
+    }
+
+
 def catalogo(p):
     """JSON-LD → colunas derivadas. `eventStatus` ausente não é 'não cancelado':
     é 'a fonte não disse', e por isso devolve {} em vez de 0."""
@@ -42,3 +98,4 @@ def lotes(p):
 
 DERIVACOES = {"catalogo": catalogo}
 LOTES = {"catalogo": lotes}
+CONFERIR = {}

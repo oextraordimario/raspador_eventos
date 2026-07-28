@@ -1,34 +1,37 @@
 """Atualização sob demanda da base de eventos — o comando único da Fase 0.
 
-Fluxo: raspa as 5 fontes (Sympla, Ingresse, Shotgun, Zig, Ticket and Go;
-tolerante a falha por fonte) → upsert (guardando o payload bruto na camada
-Bronze) → marcar sumidos (evento futuro que não reapareceu no catálogo) →
-descrever (busca incremental da descrição p/ eventos sem ela) → precificar
-(tickets/lotes de Sympla, Ingresse, Zig e Ticket and Go, refeito a cada
-rodada porque preço é volátil — dentro de uma janela de 30 dias) →
-cinema (grade dos 8 cinemas via Ingresso.com, snapshot → cinema_raw; depois
-da derivação, o enriquecimento TMDB incremental — sinopse/nota/ano por filme
-NOVO → cinema_extra_raw, NI-36) →
-instagram (posts/stories da watchlist via Monid → instagram_raw + extração
-do flyer por visão, incremental) → derivar (colunas calculadas do bruto, sem
-rede; inclui filmes/sessoes e eventos fonte='instagram') → enriquecimento v1
-(ruído + dedupe, recalculado do zero — o dedupe concilia post ↔ evento de
-plataforma) → reconstrói o FTS → relatório de saúde (com comparação vs.
-rodada anterior) → grava a rodada em `execucoes` (NI-19).
+DOIS TEMPOS, e a fronteira entre eles é o desenho inteiro (spec
+20260728_arquitetura-medalhao §8): **tudo que tem rede é coleta, tudo que é a
+seco é tratamento, e só o tratamento escreve em `tratado`**.
+
+  1. COLETA — raspa as 5 fontes (tolerante a falha por fonte) → grava o payload
+     em `cru.<fonte>` e o registro da coleta em `operacao.coletas` → descrever
+     (payload de detalhe dos que ainda não têm) → precificar (payload de tickets
+     dos futuros na janela de 30 dias; não é incremental, preço é volátil) →
+     cinema (grade dos 8 cinemas) → instagram (posts/stories + extração do flyer
+     por visão) → flyer no storage próprio.
+  2. TRATAMENTO — `tratamento/ciclo.py`, numa transação só: reconstrói
+     `tratado` inteira a partir do cru, deriva `sumido` de `operacao.coletas`,
+     enriquece (ruído + dedupe cross-fonte), reaplica a curadoria humana e
+     reconstrói o FTS.
+
+Depois: TMDB e cópia de pôster (que só sabem o que buscar depois de a grade
+existir, então rodam entre um ciclo e outro), poda do histórico do cru,
+relatório de saúde (com comparação vs. rodada anterior) e o registro da rodada
+em `operacao.execucoes` (NI-19).
 
 Uso (da raiz do repo):
-    python src/atualizar.py                    # pipeline completo
-    python src/atualizar.py --sem-shotgun      # pula o Shotgun (lento, usa navegador)
-    python src/atualizar.py --sem-cinema       # pula a grade de cinema
-    python src/atualizar.py --sem-tmdb         # pula o enriquecimento TMDB dos filmes
-    python src/atualizar.py --sem-instagram    # pula o Instagram (Monid/claude -p)
-    python src/atualizar.py --precificar-tudo  # tickets de TODOS os futuros (ex.: 1ª carga)
-    python src/atualizar.py --so-derivar       # não raspa; re-deriva do bruto + regras + FTS
-    python src/atualizar.py --so-enriquecer    # não raspa; só reaplica regras + FTS
+    python src/pipeline/atualizar.py                    # pipeline completo
+    python src/pipeline/atualizar.py --sem-shotgun      # pula o Shotgun (lento, usa navegador)
+    python src/pipeline/atualizar.py --sem-cinema       # pula a grade de cinema
+    python src/pipeline/atualizar.py --sem-tmdb         # pula o enriquecimento TMDB dos filmes
+    python src/pipeline/atualizar.py --sem-instagram    # pula o Instagram (Monid/claude -p)
+    python src/pipeline/atualizar.py --precificar-tudo  # tickets de TODOS os futuros (ex.: 1ª carga)
+    python src/pipeline/atualizar.py --so-derivar       # não raspa; reconstrói `tratado` do cru
+    python src/pipeline/atualizar.py --so-enriquecer    # não raspa; só reaplica regras + FTS
 """
 
 import json
-import re
 import socket
 import sys
 import time
@@ -42,16 +45,14 @@ from pathlib import Path
 #     python src/pipeline/atualizar.py
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from base import conexao, tempo                                   # noqa: E402
+from base import conexao, tempo, texto                            # noqa: E402
 from coleta import (cinema, gravar, ingresse, instagram, midias,  # noqa: E402
                     shotgun, sympla, ticketandgo, tmdb, zig)
 from pipeline import execucoes                                    # noqa: E402
-from tratamento import busca, comum, curadoria, enriquecer        # noqa: E402
-# Aliases: `cinema` e `instagram` existem nos DOIS estágios — coleta/ sabe
-# falar com a fonte, tratamento/ sabe ler o payload dela. O alias deixa claro
-# em cada linha de qual lado se está falando.
-from tratamento import cinema as trat_cinema                      # noqa: E402
-from tratamento import instagram as trat_instagram                # noqa: E402
+from tratamento import ciclo, comum, curadoria, sumido            # noqa: E402
+# `cinema` e `instagram` existem nos DOIS estágios — coleta/ sabe falar com a
+# fonte, tratamento/ sabe ler o payload dela. Aqui só a coleta é importada: o
+# lado do tratamento roda inteiro dentro de `ciclo.executar`.
 
 # Rede com IPv6 quebrado (opt-in, FORCAR_IPV4=1 no env): urllib e psycopg
 # tentam os endereços IPv6 em SEQUÊNCIA (sem happy eyeballs do navegador/curl)
@@ -111,16 +112,26 @@ def _checar_schema(con):
 def _raspar(incluir_shotgun=True, apenas=None, locais_df=None):
     """Raspa cada fonte isoladamente: uma fonte quebrada não esconde as outras.
 
+    Escreve em `cru.<fonte>` (o payload) e em `operacao.coletas` (o registro da
+    coleta) — **nunca em `tratado`**. Quem transforma payload em evento é
+    `tratamento/comum.aplicar`, depois, a seco. Até 2026-07-28 esta função
+    chamava o upsert da prata e por isso a prata não se reconstruía (NI-55).
+
     `apenas` restringe a nomes de fonte (é como a rodada local pega só o
     Shotgun, que não funciona no CI — ver `--rodada-local` no main).
 
     `locais_df` é a referência canônica de casas (lida de `curado.locais` pelo
     main): quem conhece a base é o pipeline, não o coletor.
 
-    A conexão com a base abre DEPOIS de cada raspagem e fecha logo após o
-    upsert (2026-07-27): raspar um catálogo leva minutos, e conexão parada
-    esse tempo todo é derrubada pela rede em silêncio — foi o Zig quebrando
-    a rodada inteira. Conexão curta é barata; mantê-la viva é cilada.
+    O `raspado_em` de todos os payloads da rodada é o INÍCIO da coleta daquela
+    fonte, o mesmo instante gravado em `operacao.coletas.iniciada_em` — é o que
+    faz a comparação do `sumido` ser exata (quem foi coletado agora tem
+    `visto_em` igual ao início; quem não foi, menor).
+
+    A conexão com a base abre DEPOIS de cada raspagem e fecha logo em seguida
+    (2026-07-27): raspar um catálogo leva minutos, e conexão parada esse tempo
+    todo é derrubada pela rede em silêncio — foi o Zig quebrando a rodada
+    inteira. Conexão curta é barata; mantê-la viva é cilada.
     """
     fontes = [
         ("sympla", sympla, lambda: sympla.raspar(
@@ -139,154 +150,122 @@ def _raspar(incluir_shotgun=True, apenas=None, locais_df=None):
     resultados = {}
     for nome, modulo, chamada in fontes:
         print(f"\n[{nome}] raspando...")
+        iniciada_em = datetime.now(timezone.utc).isoformat()
         try:
-            eventos = chamada()
-            con = conexao.conectar()
-            try:
-                comum.upsert_eventos(con, eventos)
-            finally:
-                con.close()
-            resultados[nome] = dict(modulo.ULTIMA_RASPAGEM)
+            brutos = chamada()
+            res = dict(modulo.ULTIMA_RASPAGEM)
         except Exception as e:
             traceback.print_exc()
-            resultados[nome] = {"erro": f"{type(e).__name__}: {e}"}
+            brutos, res = None, {"erro": f"{type(e).__name__}: {e}"}
             print(f"[{nome}] FALHOU — seguindo com as outras fontes.")
+        con = conexao.conectar()
+        try:
+            for b in (brutos or ()):
+                gravar.gravar(con, nome, b["id_nativo"], "catalogo",
+                              b["payload"], iniciada_em, commit=False,
+                              **b["extras"])
+            con.commit()
+            # A coleta é registrada TAMBÉM quando falha: é a linha ausente que
+            # protege os eventos da fonte de virarem `sumido` (§8.1, NI-59).
+            execucoes.registrar_coleta(
+                con, nome, iniciada_em,
+                datetime.now(timezone.utc).isoformat(), res)
+        finally:
+            con.close()
+        resultados[nome] = res
     return resultados
 
 
-def _mesmo_nome(a, b):
-    """Confere se dois nomes de evento são o mesmo (caixa/espaços à parte).
-
-    Proteção contra id trocado (NI-17): o BFF do Sympla devolve um evento
-    VÁLIDO de outro namespace (Bileto) — e às vezes de URL comum — sem erro
-    HTTP; sem esta checagem, descrição e categoria alheias entram caladas na
-    base. Aceita relação de prefixo (até 20 chars) nos dois sentidos porque a
-    página pode usar um nome mais curto que o catálogo ("DOMINGÃO" vs
-    "DOMINGÃO | PARTE 2" — caso real de 2026-07-10). Calibrada no spike da
-    Bronze (tests/spike_bronze/) + primeira rodada em produção.
-    """
-    na, nb = (re.sub(r"\s+", " ", (s or "").casefold()).strip() for s in (a, b))
-    if not na or not nb:
+def _sumiu(ev, inicio):
+    """O evento deixou de aparecer no catálogo na coleta que começou em
+    `inicio`? Mesma regra do `tratamento/sumido.py`, aplicada aqui só para não
+    gastar requisição de descrição/preço com quem já saiu do ar."""
+    if not inicio:
         return False
-    return na.startswith(nb[:20]) or nb.startswith(na[:20])
+    visto = tempo.instante(ev["visto_em"])
+    return bool(visto and visto < tempo.instante(inicio))
 
 
-def _marcar_sumidos(con, resultados, iniciada_em):
-    """Recalcula `sumido` por fonte raspada SEM erro nesta rodada: evento
-    FUTURO cujo raspado_em ficou para trás não reapareceu no catálogo —
-    provável remoção/cancelamento silencioso, que o payload não avisa.
+def _fila(con, fontes):
+    """A fila dos passos de coleta incremental, lida do `cru`: [(fonte,
+    id_nativo, evento normalizado)], já sem os que sumiram do catálogo.
 
-    Fonte que falhou não condena seus eventos (um 500 do Sympla não pode
-    esconder a agenda inteira). Evento passado nunca é marcado (catálogo só
-    lista futuros; marcá-lo apagaria o histórico da consulta). Idempotente:
-    quem reaparece no upsert é desmarcado aqui. Marcar, não apagar — quem
-    esconde é a consulta. Spec: 20260710_alinhamento-constituicao.
-
-    Instagram fica FORA (guarda explícita, além da ordem dos passos no main):
-    o feed do perfil não é um catálogo de eventos futuros — post que sai da
-    1ª página não significa cancelamento; evento do Instagram morre por data
-    passada. Spec: 20260723_instagram-como-fonte §2.6.
-
-    Fonte que coletou ZERO também fica fora (NI-59, 2026-07-28): coleta vazia
-    não é catálogo vazio. O Shotgun devolveu 0 COM sucesso por três rodadas no
-    CI e escondeu a agenda inteira dele da consulta. Catálogo de plataforma de
-    ingresso não esvazia de um dia para o outro; quando esvazia de verdade, os
-    eventos morrem por data passada — que já não é marcado. O falso negativo
-    (evento cancelado demora um dia a mais para sumir) é ordens de grandeza
-    mais barato que o falso positivo. Spec: 20260728_fontes-quebradas §3.3.
+    Lê `cru` + `operacao`, nunca `tratado`. Não é purismo: é o que permite
+    descrever e precificar rodarem ANTES de qualquer escrita na prata, que é o
+    ponto da fatia 7. E o parser é UM só — o mesmo `tratamento/<fonte>.py` que
+    depois vai montar o evento.
     """
-    inicio = tempo.instante(iniciada_em)
-    sumidos = []
-    for fonte, res in resultados.items():
-        if "erro" in res or fonte in ("instagram", "cinema"):
-            continue
-        if not res.get("coletados"):
-            continue
-        for r in con.execute("SELECT id, nome, start_date, raspado_em "
-                             "FROM tratado.eventos WHERE fonte = %s", (fonte,)).fetchall():
-            dt = tempo.instante(r["start_date"])
-            visto = tempo.instante(r["raspado_em"])
-            sumido = 1 if (dt and dt >= inicio
-                           and (not visto or visto < inicio)) else 0
-            con.execute("UPDATE tratado.eventos SET sumido = %s WHERE id = %s",
-                        (sumido, r["id"]))
-            if sumido:
-                sumidos.append((r["nome"], fonte))
-    con.commit()
-    return sumidos
+    coletas = sumido.ultima_coleta_boa(con)
+    saida = []
+    for fonte in fontes:
+        for id_nativo, ev in comum.normalizados(con, fonte).items():
+            if not _sumiu(ev, coletas.get(fonte)):
+                saida.append((fonte, id_nativo, ev))
+    return saida
 
 
 def _descrever(con, erros, pausa=0.4):
-    """Busca a descrição dos eventos que ainda não têm (incremental: o upsert
-    preserva descrição já colhida, então só os novos custam requisição).
+    """Busca o payload de detalhe dos eventos que ainda não têm e grava na
+    camada cru (origem 'detalhe'); quem transforma em descrição/categoria é
+    `tratamento/<fonte>.py`.
 
-    Shotgun e Ticket and Go já trazem descrição na raspagem (JSON-LD /
-    catálogo); Sympla, Ingresse e Zig têm endpoints de evento individual (ver
-    raspar_descricao de cada scraper). Falha por evento entra em `erros` (vai
-    para execucoes.erros), além do contador — padrão sistemático precisa ser
-    visível.
+    INCREMENTAL PELO CRU (§6.4): a fila é "não existe payload 'detalhe' para
+    este id". O critério antigo era `descricao IS NULL` na prata, e isso
+    re-buscava para sempre os eventos cujo detalhe existe mas veio sem texto —
+    eram 11 no Sympla (215 payloads de detalhe para 204 descrições), uma
+    requisição desperdiçada por rodada, cada rodada, indefinidamente.
+
+    Shotgun e Ticket and Go já trazem descrição no payload de catálogo (JSON-LD
+    / detalhe); Sympla, Ingresse e Zig têm endpoints de evento individual.
+    Falha por evento entra em `erros` (vai para execucoes.erros), além do
+    contador — padrão sistemático precisa ser visível.
     """
     # URLs do Bileto ficam de fora: o id no fim delas é de outro namespace e o
-    # BFF de página devolveria outro evento (NI-17). Sumidos não valem requisição.
-    pendentes = con.execute(
-        "SELECT id, fonte, id_nativo, nome, url FROM tratado.eventos "
-        "WHERE descricao IS NULL AND fonte IN ('sympla', 'ingresse', 'zig') "
-        "AND sumido = 0 AND url IS NOT NULL AND url NOT LIKE %s",
-        (f"%{sympla.BILETO_HOST}%",)).fetchall()
+    # BFF de página devolveria outro evento (NI-17).
+    pendentes = [
+        (f, i, ev) for f, i, ev in _fila(con, ("sympla", "ingresse", "zig"))
+        if "detalhe" not in ev["origens"]
+        and not (f == "sympla" and sympla.BILETO_HOST in (ev["url"] or ""))]
     if not pendentes:
         return {"buscadas": 0, "falhas": 0}
-    print(f"\n[descrever] {len(pendentes)} eventos sem descrição...")
+    print(f"\n[descrever] {len(pendentes)} eventos sem payload de detalhe...")
     buscadas = falhas = trocados = 0
-    for i, r in enumerate(pendentes, 1):
+    for i, (fonte, id_nativo, ev) in enumerate(pendentes, 1):
+        evento_id = f"{fonte}:{id_nativo}"
         try:
-            if r["fonte"] == "sympla":
-                id_url = sympla.id_da_url(r["url"])
+            if fonte == "sympla":
+                id_url = sympla.id_da_url(ev["url"])
                 if not id_url:
                     falhas += 1
-                    erros.append({"passo": "descrever", "evento_id": r["id"],
+                    erros.append({"passo": "descrever", "evento_id": evento_id,
                                   "erro": "URL sem id numérico no fim"})
                     continue
                 d = sympla.raspar_descricao(id_url)
-                if not _mesmo_nome(r["nome"], d["nome"]):
-                    trocados += 1
-                    erros.append({"passo": "descrever", "evento_id": r["id"],
-                                  "erro": "nome divergente do BFF (id trocado? "
-                                          "NI-17) — payload descartado"})
-                    continue  # payload suspeito não entra nem na Bronze
-                con.execute(
-                    "UPDATE tratado.eventos SET descricao = %s, "
-                    "categoria = COALESCE(%s, categoria) WHERE id = %s",
-                    (d["descricao"], d.get("categoria"), r["id"]))
-            elif r["fonte"] == "zig":  # slug no fim da URL pública
-                slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
-                d = zig.raspar_descricao(slug)
-                if not _mesmo_nome(r["nome"], d["nome"]):
-                    trocados += 1
-                    erros.append({"passo": "descrever", "evento_id": r["id"],
-                                  "erro": "nome divergente da API — payload "
-                                          "descartado"})
-                    continue  # payload suspeito não entra nem na Bronze
-                con.execute("UPDATE tratado.eventos SET descricao = %s WHERE id = %s",
-                            (d["descricao"], r["id"]))
-            else:  # ingresse: slug no fim da URL pública
-                slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
-                d = ingresse.raspar_descricao(slug)
-                con.execute("UPDATE tratado.eventos SET descricao = %s WHERE id = %s",
-                            (d["descricao"], r["id"]))
-            gravar.gravar(con, r["fonte"], r["id_nativo"], "detalhe",
-                          d["payload"], datetime.now(timezone.utc).isoformat(),
-                          commit=False)
-            buscadas += 1 if d["descricao"] else 0
+            else:  # ingresse e zig: slug no fim da URL pública
+                slug = ev["url"].rstrip("/").rsplit("/", 1)[-1]
+                d = (zig if fonte == "zig" else ingresse).raspar_descricao(slug)
+            # Guarda de nome ANTES de gravar (NI-17): payload suspeito não
+            # entra nem no cru. O tratamento a repete na leitura (CONFERIR),
+            # para um payload de antes da guarda não voltar a poluir a base.
+            if d.get("nome") and not texto.mesmo_nome(ev["nome"], d["nome"]):
+                trocados += 1
+                erros.append({"passo": "descrever", "evento_id": evento_id,
+                              "erro": "nome divergente da fonte (id trocado? "
+                                      "NI-17) — payload descartado"})
+                continue
+            gravar.gravar(con, fonte, id_nativo, "detalhe", d["payload"],
+                          datetime.now(timezone.utc).isoformat(), commit=False)
+            buscadas += 1
         except Exception as e:
             falhas += 1
-            erros.append({"passo": "descrever", "evento_id": r["id"],
+            erros.append({"passo": "descrever", "evento_id": evento_id,
                           "erro": f"{type(e).__name__}: {e}"})
         if i % 50 == 0:
             print(f"  {i}/{len(pendentes)}...")
         time.sleep(pausa)
     con.commit()
-    print(f"  {buscadas} descrições gravadas | {falhas} falhas/sem descrição"
-          + (f" | {trocados} descartadas por nome divergente (id trocado?)"
+    print(f"  {buscadas} payloads de detalhe gravados | {falhas} falhas"
+          + (f" | {trocados} descartados por nome divergente (id trocado?)"
              if trocados else ""))
     return {"buscadas": buscadas, "falhas": falhas, "trocados": trocados}
 
@@ -298,29 +277,28 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
     os eventos na janela de JANELA_PRECIFICAR_DIAS — quem fica fora mantém o
     último preço derivado até entrar nela (tudo=True cobre todos os futuros).
 
-    Sympla: só eventos com descrição validada — o endpoint de tickets não
-    devolve nome para a guarda do NI-17, então a descrição validada é a âncora
-    de que o id não está trocado. Zig: lê o __NEXT_DATA__ da página pública
-    (NI-23) e valida o nome devolvido. Shotgun não precisa deste passo (as
-    offers já vêm no JSON-LD do catálogo).
+    Sympla: só eventos com payload de detalhe já guardado — o endpoint de
+    tickets não devolve nome para a guarda do NI-17, então o detalhe (que
+    passou pela guarda de nome no `_descrever`) é a âncora de que o id não está
+    trocado. Zig: lê o __NEXT_DATA__ da página pública (NI-23) e valida o nome
+    devolvido. Shotgun não precisa deste passo (as offers já vêm no JSON-LD do
+    catálogo).
     """
     agora = datetime.now(timezone.utc)
     limite = agora + timedelta(days=JANELA_PRECIFICAR_DIAS)
     alvos, fora_janela = [], 0
-    for r in con.execute(
-            "SELECT id, fonte, id_nativo, nome, url, start_date, descricao "
-            "FROM tratado.eventos WHERE fonte IN ('sympla', 'ingresse', 'zig', "
-            "'ticketandgo') AND sumido = 0"):
-        dt = tempo.instante(r["start_date"])
+    for fonte, id_nativo, ev in _fila(
+            con, ("sympla", "ingresse", "zig", "ticketandgo")):
+        dt = tempo.instante(ev["start_date"])
         if not dt or dt < agora:
             continue
-        if r["fonte"] == "sympla" and (
-                not r["descricao"] or not sympla.id_da_url(r["url"])):
+        if fonte == "sympla" and ("detalhe" not in ev["origens"]
+                                  or not sympla.id_da_url(ev["url"])):
             continue  # sem âncora contra id trocado (NI-17) — fica sem preço
         if not tudo and dt > limite:
             fora_janela += 1  # sem teto silencioso: o log diz quantos ficaram fora
             continue
-        alvos.append(r)
+        alvos.append((fonte, id_nativo, ev))
     if not alvos:
         return {"buscados": 0, "falhas": 0, "fora_janela": fora_janela}
     escopo = ("todos os futuros" if tudo
@@ -330,30 +308,31 @@ def _precificar(con, erros, pausa=0.3, tudo=False):
           + (f" — {fora_janela} futuros fora da janela mantêm o último preço"
              if fora_janela else "") + "...")
     buscados = falhas = 0
-    for i, r in enumerate(alvos, 1):
+    for i, (fonte, id_nativo, ev) in enumerate(alvos, 1):
+        evento_id = f"{fonte}:{id_nativo}"
+        slug = (ev["url"] or "").rstrip("/").rsplit("/", 1)[-1]
         try:
-            if r["fonte"] == "sympla":
-                t = sympla.raspar_tickets(sympla.id_da_url(r["url"]))
-            elif r["fonte"] == "zig":  # página pública (slug no fim da URL)
-                t = zig.raspar_tickets(r["url"].rstrip("/").rsplit("/", 1)[-1])
-                if not _mesmo_nome(r["nome"], t.get("nome")):
+            if fonte == "sympla":
+                t = sympla.raspar_tickets(sympla.id_da_url(ev["url"]))
+            elif fonte == "zig":  # página pública (slug no fim da URL)
+                t = zig.raspar_tickets(slug)
+                if not texto.mesmo_nome(ev["nome"], t.get("nome")):
                     falhas += 1
-                    erros.append({"passo": "precificar", "evento_id": r["id"],
+                    erros.append({"passo": "precificar",
+                                  "evento_id": evento_id,
                                   "erro": "nome divergente da página — "
                                           "payload descartado"})
-                    continue  # payload suspeito não entra nem na Bronze
-            elif r["fonte"] == "ticketandgo":  # slug no fim da URL pública
-                t = ticketandgo.raspar_tickets(
-                    r["url"].rstrip("/").rsplit("/", 1)[-1])
+                    continue  # payload suspeito não entra nem no cru
+            elif fonte == "ticketandgo":  # slug no fim da URL pública
+                t = ticketandgo.raspar_tickets(slug)
             else:
-                t = ingresse.raspar_tickets(r["id_nativo"])
-            gravar.gravar(con, r["fonte"], r["id_nativo"], "tickets",
-                          t["payload"], datetime.now(timezone.utc).isoformat(),
-                          commit=False)
+                t = ingresse.raspar_tickets(id_nativo)
+            gravar.gravar(con, fonte, id_nativo, "tickets", t["payload"],
+                          datetime.now(timezone.utc).isoformat(), commit=False)
             buscados += 1
         except Exception as e:
             falhas += 1
-            erros.append({"passo": "precificar", "evento_id": r["id"],
+            erros.append({"passo": "precificar", "evento_id": evento_id,
                           "erro": f"{type(e).__name__}: {e}"})
         if i % 50 == 0:
             print(f"  {i}/{len(alvos)}...")
@@ -605,9 +584,15 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
     if derivado is not None:
         derivado = dict(derivado)
         lotes_n = derivado.pop("lotes", 0)
-        print("  colunas derivadas do bruto: " +
+        rejeitados = derivado.pop("rejeitados", [])
+        print("  colunas reconstruídas do cru: " +
               ", ".join(f"{c}: {n} eventos" for c, n in derivado.items()))
         print(f"  lotes de ingresso (tabela lotes): {lotes_n}")
+        if rejeitados:
+            print(f"  *** {len(rejeitados)} payload(s) REPROVADOS pela guarda "
+                  "(era de API antiga? id trocado?) — não viraram evento:")
+            for r in rejeitados[:10]:
+                print(f"      {r['evento_id']}: {r['erro']}")
 
     # --- instagram: eventos derivados de instagram_raw (post + extração) ---
     if insta is not None:
@@ -807,7 +792,7 @@ def main():
     con.close()
 
     resultados, erros = {}, []
-    sumidos = desc = prec = None
+    desc = prec = None
     if not (so_enriquecer or so_derivar):
         # --rodada-local: rodada curta com o que só a máquina do autor faz.
         # (a) o Shotgun, que devolve 0 no runner do Actions e vai bem aqui
@@ -820,72 +805,52 @@ def main():
         if rodada_local:
             if not sem_shotgun:
                 resultados = _raspar(apenas=["shotgun"])
-                con = conexao.conectar()
-                sumidos = _marcar_sumidos(con, resultados, iniciada_em)
-                con.close()
         else:
             resultados = _raspar(incluir_shotgun=not sem_shotgun,
                                  locais_df=locais_df)
             if resultados and all("erro" in r for r in resultados.values()):
                 sys.exit("Todas as fontes falharam — base não atualizada.")
-            # sumidos primeiro: cinema não entra em resultados ainda (grade não
-            # tem sumido — sessão que sai simplesmente não volta no snapshot).
-            # descrever/precificar tocam a base a cada evento — os gaps são
-            # curtos, uma conexão para o bloco basta.
+            # descrever/precificar leem a fila do cru (não da prata, que ainda
+            # não foi reconstruída nesta rodada) e escrevem no cru. Tocam a base
+            # a cada evento — os gaps são curtos, uma conexão para o bloco basta.
             con = conexao.conectar()
-            sumidos = _marcar_sumidos(con, resultados, iniciada_em)
             desc = _descrever(con, erros)
             prec = _precificar(con, erros,
                                tudo="--precificar-tudo" in sys.argv)
             con.close()
             if not sem_cinema:
                 resultados["cinema"] = _raspar_cinema(erros)
-        # depois do _marcar_sumidos de propósito: a fonte instagram fica FORA
-        # da lógica de sumido (post que sai da 1ª página do perfil não
-        # significa cancelamento — evento do Instagram morre por data passada).
         if not sem_instagram:
             r_insta = _raspar_instagram(erros, extrair=not sem_extracao)
             if r_insta is not None:
                 resultados["instagram"] = r_insta
+            # O flyer sobe para o storage próprio ANTES do tratamento, porque é
+            # a derivação que grava a URL em eventos.imagem. Lê cru+operacao,
+            # escreve em operacao — nada de `tratado`.
+            con = conexao.conectar()
+            _subir_midias_instagram(con, erros)
+            con.close()
 
-    # daqui em diante é derivação/enriquecimento/relatório: conexão nova —
-    # a raspagem acima pode ter levado muitos minutos.
+    # daqui em diante é tratamento/relatório: conexão nova — a raspagem acima
+    # pode ter levado muitos minutos.
     con = conexao.conectar()
 
-    # --so-enriquecer reaplica só as regras (não mexe nas colunas derivadas);
-    # o fluxo normal e o --so-derivar recalculam as derivadas a partir da
-    # Bronze. aplicar_instagram roda DEPOIS de aplicar() (que trunca lotes).
-    derivado = None if so_enriquecer else comum.aplicar(con)
-    insta = None if so_enriquecer else trat_instagram.aplicar(con)
-    cine = None if so_enriquecer else trat_cinema.aplicar(con)
+    # O ciclo inteiro do tratamento, numa transação só: enquanto ele reconstrói
+    # `tratado`, o site e o MCP seguem lendo `public` (§8.1).
+    saida = ciclo.executar(con, so_enriquecer=so_enriquecer)
 
-    # TMDB e cópia de pôster depois da derivação (a lista do que está em
-    # cartaz É a tabela) e só em rodada que raspou; se algo novo chegou à
-    # Bronze, re-deriva para aplicar — aplicar_cinema é idempotente e custa
-    # segundos. O flyer do Instagram sobe antes do aplicar_instagram pelo
-    # mesmo motivo (a derivação é quem grava eventos.imagem).
+    # TMDB e cópia de pôster DEPOIS do tratamento: a lista do que está em cartaz
+    # É a tabela `tratado.filmes`, então não há como montá-la antes. Os dois
+    # escrevem em `cru.tmdb` e `operacao.midias`; se trouxeram algo, o ciclo roda
+    # de novo para aplicar (é idempotente e custa segundos).
     if (not (so_enriquecer or so_derivar or rodada_local)
             and not sem_cinema and "--sem-tmdb" not in sys.argv):
         novos = _enriquecer_cinema(con, erros) or 0
         novos += _copiar_posters(con, erros) or 0
         if novos:
-            cine = trat_cinema.aplicar(con)
-    if not (so_enriquecer or so_derivar):
-        if _subir_midias_instagram(con, erros):
-            insta = trat_instagram.aplicar(con)
+            saida = ciclo.executar(con, so_enriquecer=so_enriquecer)
 
-    # Os aliases de local vêm de DUAS origens que se somam, e a distinção é a
-    # que mantém a camada curado honesta: a watchlist é configuração de ENTRADA
-    # (muda o que se raspa) e continua em YAML versionado; `curado.locais` é
-    # referência sobre entidades do mundo, curada continuamente. Spec §4.3.
-    aliases = {**instagram.aliases_local(), **curadoria.locais_canonicos(con)}
-    enriq = enriquecer.aplicar(con, aliases_local=aliases)
-
-    # A curadoria roda DEPOIS do enriquecer (precisa poder derrubar uma decisão
-    # dele — desfazer um dedupe errado) e ANTES do FTS (para a busca indexar o
-    # texto já corrigido). Sem este passo, correção humana some na rodada
-    # seguinte, porque o tratamento reescreve `tratado` do zero.
-    cur = curadoria.aplicar(con)
+    cur = saida["curadoria"]
     if cur["aplicadas"] or cur["orfas"]:
         print(f"\n[curadoria] {cur['aplicadas']} correções reaplicadas"
               + (f" | {cur['orfas']} órfãs (registro sumiu da prata — "
@@ -898,16 +863,22 @@ def main():
         if podados:
             print(f"\n[cru] histórico podado (> {JANELA_HISTORICO_DIAS} dias): "
                   + ", ".join(f"{f}: {n}" for f, n in podados.items()))
-    busca.reconstruir_fts(con)
     duracao = time.monotonic() - inicio
+    derivado, enriq = saida["derivado"], saida["enriquecimento"]
+    sumidos = saida["sumidos"]
+    if derivado and derivado["rejeitados"]:
+        # Payload que a guarda do §6.3 reprovou. Nunca é silêncio: o evento
+        # simplesmente não estaria na base, e ninguém saberia por quê.
+        erros.extend({"passo": "tratar", **r} for r in derivado["rejeitados"])
     # O relatório lê execucoes ANTES do registro: a comparação é com a rodada
     # anterior de verdade, não com esta.
-    _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos, duracao)
+    _relatorio(con, resultados, derivado, saida["cinema"], saida["instagram"],
+               enriq, sumidos, duracao)
     execucoes.registrar_execucao(
         con, iniciada_em, round(duracao, 1), modo, resultados,
         {"descrever": desc, "precificar": prec, "derivado": derivado,
-         "cinema": cine, "instagram": insta, "ruido": len(enriq["ruido"]),
-         "dedupe_grupos": len(enriq["grupos"]),
+         "cinema": saida["cinema"], "instagram": saida["instagram"],
+         "ruido": len(enriq["ruido"]), "dedupe_grupos": len(enriq["grupos"]),
          "sumidos": len(sumidos) if sumidos is not None else None},
         erros)
     con.close()

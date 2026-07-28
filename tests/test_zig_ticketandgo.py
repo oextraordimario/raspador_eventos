@@ -20,6 +20,9 @@ from tratamento import busca
 from tratamento import comum
 from servico import consulta  # noqa: E402
 from coleta import ticketandgo, zig  # noqa: E402
+# Cada fonte tem DOIS módulos: coleta/ fala com ela, tratamento/ lê o payload.
+from tratamento import ticketandgo as trat_tng  # noqa: E402
+from tratamento import zig as trat_zig  # noqa: E402
 
 import base_teste  # noqa: E402
 
@@ -121,26 +124,32 @@ def main():
     print("ticketandgo: filtro DF por local curado + termo + CEP/UF na descrição — ok")
 
     # --- Ticket and Go: composição de data local (e robustez a variações) ---
-    assert ticketandgo._quando("2026-08-29", "19:00:00") == \
+    # A função mora no TRATAMENTO (é leitura de payload) e a coleta a importa.
+    assert trat_tng.quando("2026-08-29", "19:00:00") == \
         "2026-08-29T19:00:00-03:00"
-    assert ticketandgo._quando("2026-08-29 19:00:00", None) == \
+    assert trat_tng.quando("2026-08-29 19:00:00", None) == \
         "2026-08-29T19:00:00-03:00"  # data já com hora embutida
-    assert ticketandgo._quando("2026-08-29", None) == \
+    assert trat_tng.quando("2026-08-29", None) == \
         "2026-08-29T00:00:00-03:00"
-    assert ticketandgo._quando(None, "19:00:00") is None
+    assert trat_tng.quando(None, "19:00:00") is None
     print("ticketandgo: composição data+hora local -03:00 — ok")
 
-    # --- normalização das duas fontes ---
-    z = zig._normalizar(ZIG_CATALOGO)
-    assert z["id"] == "zig:22670" and z["fonte"] == "zig"
+    # --- normalização das duas fontes (agora no estágio de TRATAMENTO) ---
+    # A assinatura mudou na fatia 7: `normalizar(payload, linha_do_cru)`. Os
+    # rótulos que a coleta conhece (cidade/estado/slug) chegam como colunas do
+    # cru, não como argumentos soltos — é o que torna a prata reconstruível.
+    z = trat_zig.normalizar(ZIG_CATALOGO, {"id_nativo": "22670"})
     assert z["cidade"] == "Brasília", "trim do ' Brasília' da API"
     assert z["url"] == "https://zig.tickets/eventos/turne-xama-2026-brasilia"
     assert z["local_nome"] == "Areninha Mané Garrincha"
     assert zig._futuro(ZIG_CATALOGO)
+    # payload de outro evento não passa pela guarda do §6.3
+    assert trat_zig.normalizar(ZIG_CATALOGO, {"id_nativo": "999"}) is None
 
-    t = ticketandgo._normalizar(TNG_CATALOGO, "pagode-do-quadradinho-arlindinho",
-                                "Brasília", "DF")
-    assert t["id"] == "ticketandgo:36999", "id numérico do detalhe: chave estável"
+    t = trat_tng.normalizar(TNG_CATALOGO,
+                            {"id_nativo": "36999", "cidade_label": "Brasília",
+                             "estado_label": "DF",
+                             "slug": "pagode-do-quadradinho-arlindinho"})
     assert t["start_date"] == "2026-08-29T19:00:00-03:00"
     assert t["cidade"] == "Brasília" and t["estado"] == "DF", "rotulados pelo filtro"
     assert t["endereco"] is None and t["lat"] is None, "a fonte não expõe mais"
@@ -158,8 +167,13 @@ def main():
 
     # --- escrita: datas locais viram ISO UTC comparável (invariante) ---
     con = conexao.conectar()
-    comum.upsert_eventos(con, [dict(z, _raw=ZIG_CATALOGO),
-                               dict(t, _raw=TNG_CATALOGO)])
+    gravar.gravar(con, "zig", "22670", "catalogo", ZIG_CATALOGO,
+                  "2026-07-12T00:00:00+00:00")
+    gravar.gravar(con, "ticketandgo", "36999", "catalogo", TNG_CATALOGO,
+                  "2026-07-12T00:00:00+00:00",
+                  slug="pagode-do-quadradinho-arlindinho",
+                  cidade_label="Brasília", estado_label="DF")
+    comum.aplicar(con)
     r = con.execute("SELECT start_date FROM tratado.eventos "
                     "WHERE id = 'ticketandgo:36999'").fetchone()
     assert r["start_date"] == "2026-08-29T22:00:00+00:00", r["start_date"]
@@ -174,6 +188,7 @@ def main():
     gravar.gravar(con, "zig", "22670", "tickets", ZIG_TICKETS,
                      "2026-07-12T00:00:00+00:00")
     comum.aplicar(con)
+    con.commit()
     r = con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'zig:22670'").fetchone()
     assert r["bairro"] == "Asa Norte", r["bairro"]
 
@@ -210,7 +225,11 @@ def main():
     print("derivação: bairro (zig) e lotes c/ taxa fracionária (ticketandgo) — ok")
 
     # --- consulta: fontes novas aparecem; detalhar traz os lotes ---
+    # commit explícito: desde a fatia 7 os passos do tratamento não comitam
+    # sozinhos (o ciclo inteiro é uma transação só), e a consulta abre a
+    # PRÓPRIA conexão — sem o commit ela não enxergaria nada.
     busca.reconstruir_fts(con)
+    con.commit()
     achados = consulta.buscar_eventos(texto="pagode", limite=10)
     assert any(e["url"] == t["url"] for e in achados), achados
     todos = consulta.buscar_eventos(limite=50)

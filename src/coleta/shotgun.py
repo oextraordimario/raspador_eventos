@@ -25,6 +25,8 @@ import re
 import json
 from datetime import datetime, timezone
 
+from coleta import gravar
+
 # O Playwright e importado DENTRO de raspar(), nao aqui: so a coleta precisa de
 # navegador. Com o import no topo, `import shotgun` para ler o JSON-LD ja
 # gravado (derivacao a seco, testes, CI sem Chromium) exigia a dependencia
@@ -54,72 +56,6 @@ def _extrair_musicevent(html):
                    for t in tipos):
                 return it
     return None
-
-
-def _atracoes(ld):
-    """Line-up do JSON-LD (performer: dict ou lista de dicts) como texto '; '."""
-    perf = ld.get("performer")
-    if not perf:
-        return None
-    nomes = [p.get("name") for p in (perf if isinstance(perf, list) else [perf])
-             if isinstance(p, dict) and p.get("name")]
-    return "; ".join(nomes) or None
-
-
-def _preco_min(ld):
-    """Menor preco anunciado no JSON-LD (offers: dict ou lista)."""
-    offers = ld.get("offers")
-    if not offers:
-        return None
-    precos = []
-    for o in (offers if isinstance(offers, list) else [offers]):
-        if not isinstance(o, dict):
-            continue
-        for chave in ("lowPrice", "price"):
-            try:
-                precos.append(float(o[chave]))
-                break
-            except (KeyError, TypeError, ValueError):
-                continue
-    return min(precos) if precos else None
-
-
-def _normalizar(ld, slug, cidade_label, estado_label):
-    loc = ld.get("location") or {}
-    addr = loc.get("address") or {}
-    org = ld.get("organizer") or {}
-    # addressLocality do Shotgun costuma ser o bairro; guardamos como bairro e
-    # usamos o rotulo da cidade pesquisada para o campo cidade (consultavel).
-    bairro = addr.get("addressLocality") or None
-    return {
-        "id": f"shotgun:{slug}",
-        "fonte": "shotgun",
-        "id_nativo": slug,
-        "nome": ld.get("name"),
-        "start_date": ld.get("startDate"),
-        "end_date": ld.get("endDate"),
-        "cidade": cidade_label,
-        "estado": estado_label,
-        "local_nome": loc.get("name") or bairro,
-        "endereco": bairro or addr.get("streetAddress") or None,
-        "lat": (loc.get("geo") or {}).get("latitude") or None,
-        "lon": (loc.get("geo") or {}).get("longitude") or None,
-        "categoria": "MusicEvent",
-        "organizador": (org.get("name") if isinstance(org, dict) else None) or None,
-        "url": ld.get("url") or f"{BASE}/en/events/{slug}",
-        "imagem": ld.get("image") if isinstance(ld.get("image"), str) else None,
-        "raspado_em": datetime.now(timezone.utc).isoformat(),
-        # campos ricos que o JSON-LD ja entrega de graca (Etapa 5 da spec)
-        "descricao": (ld.get("description") or "").strip() or None,
-        "atracoes": _atracoes(ld),
-        "preco_min": _preco_min(ld),
-        "_raw": ld,  # JSON-LD bruto -> cru.shotgun (append-only)
-        # Colunas proprias de cru.shotgun: cidade/estado NAO vem do payload (o
-        # addressLocality do JSON-LD e o BAIRRO), vem do parametro de busca.
-        # Gravar o que a coleta CONHECE evita que a reconstrucao tenha que
-        # deduzir por convencao — era o ponto de atencao nº 1 do NI-55.
-        "_cru": {"cidade_label": cidade_label, "estado_label": estado_label},
-    }
 
 
 def _futuro(ld):
@@ -159,7 +95,7 @@ def _guardar_evidencia(page, city_slug):
 
 def raspar(city_slug="brasilia", cidade_label="Brasília", estado_label="DF",
            max_paginas=20, max_eventos=200, apenas_futuros=True):
-    """Raspa eventos de uma cidade no Shotgun e normaliza para o schema unificado.
+    """Raspa eventos de uma cidade no Shotgun (lista de gravar.bruto()).
 
     max_paginas/max_eventos são tetos de segurança, bem acima do catálogo
     conhecido (~77 eventos em 5 páginas) — o loop para sozinho quando uma
@@ -214,10 +150,16 @@ def raspar(city_slug="brasilia", cidade_label="Brasília", estado_label="DF",
                 continue
             if apenas_futuros and not _futuro(ld):
                 continue
-            eventos.append(_normalizar(ld, slug, cidade_label, estado_label))
+            # cidade/estado NAO vem do payload (o addressLocality do JSON-LD e
+            # o BAIRRO): vem do parametro de busca, e viram colunas proprias de
+            # cru.shotgun. Gravar o que a coleta CONHECE evita que a
+            # reconstrucao deduza por convencao — o ponto de atencao nº 1 do
+            # NI-55.
+            eventos.append(gravar.bruto(slug, ld, cidade_label=cidade_label,
+                                        estado_label=estado_label))
             page.wait_for_timeout(300)  # ritmo educado (o site já deu 429)
 
         browser.close()
-    print(f"  {len(eventos)} eventos futuros normalizados")
+    print(f"  {len(eventos)} eventos futuros coletados")
     ULTIMA_RASPAGEM.update(total_site=len(vistos), coletados=len(eventos))
     return eventos

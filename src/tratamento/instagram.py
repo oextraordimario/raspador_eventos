@@ -157,6 +157,7 @@ def aplicar(con):
             "esgotado = %s WHERE id = %s",
             (agg["preco_min"], agg["tem_gratis"], agg["esgotado"],
              lt["evento_id"]))
-    con.commit()
+    # Sem commit: o ciclo inteiro do tratamento roda numa transação só
+    # (tratamento/ciclo.py) — ver o cabeçalho de lá.
     return {"eventos": len(eventos), "lotes": len(lotes),
             "descartados": descartados}

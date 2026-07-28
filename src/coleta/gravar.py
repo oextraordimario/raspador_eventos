@@ -39,9 +39,25 @@ ERAS = {
     ("zig", "detalhe"): "superticket-events",
     ("zig", "tickets"): "next-data",          # o endpoint JSON de tickets vem vazio
     ("shotgun", "catalogo"): "json-ld",
-    ("ticketandgo", "catalogo"): "v2-site-list",
-    ("ticketandgo", "tickets"): "v1-evento",  # rota antiga + sufixo /evento
+    # As DUAS origens do Ticket and Go saem da MESMA rota (`/eventos/{slug}/
+    # evento`, a antiga com sufixo): a listagem V2 é magra demais para ser o
+    # catálogo, então o payload guardado como 'catalogo' já é o detalhe. Ficou
+    # rotulado 'v2-site-list' por engano entre 28/07 e a fatia 7 — rótulo errado
+    # em coluna que existe justamente para dizer qual parser aplicar (§6.3).
+    ("ticketandgo", "catalogo"): "v1-evento",
+    ("ticketandgo", "tickets"): "v1-evento",
 }
+
+
+def bruto(id_nativo, payload, **extras):
+    """Um registro de coleta, na forma que `raspar()` devolve e o pipeline grava.
+
+    Desde a fatia 7 é ISTO que sai de um scraper — não mais a linha pronta de
+    `tratado.eventos`. O scraper entrega o que a fonte deu, mais os rótulos que
+    só ele conhece (`extras`: cidade/estado do parâmetro de busca, slug da URL);
+    quem lê o payload é `tratamento/<fonte>.py`.
+    """
+    return {"id_nativo": str(id_nativo), "payload": payload, "extras": extras}
 
 
 def hash_payload(payload):
@@ -64,6 +80,11 @@ def gravar(con, fonte, id_nativo, origem, payload, raspado_em, api=None,
     payload que vai de A para B e volta para A registra as três transições — o
     comportamento certo para um lote que esgotou e voltou a ter estoque.
 
+    Payload IGUAL ao último não vira linha nova, mas ainda assim avança o
+    `visto_em` da linha existente: sem isso `raspado_em` seria a data da última
+    MUDANÇA, e o `sumido` marcaria como "saiu do catálogo" todo evento que só
+    não mudou desde a rodada passada. Ver o cabeçalho de sql/cru/<fonte>.sql.
+
     Devolve True se gravou versão nova, False se o payload era igual ao último.
     """
     if fonte not in FONTES:
@@ -74,9 +95,9 @@ def gravar(con, fonte, id_nativo, origem, payload, raspado_em, api=None,
                          f"{sorted(set(extras) - set(permitidas))}")
 
     h = hash_payload(payload)
-    cols = ["id_nativo", "origem", "raspado_em", "hash", "payload", "api",
-            *permitidas]
-    vals = [id_nativo, origem, raspado_em, h,
+    cols = ["id_nativo", "origem", "raspado_em", "visto_em", "hash", "payload",
+            "api", *permitidas]
+    vals = [id_nativo, origem, raspado_em, raspado_em, h,
             json.dumps(payload, ensure_ascii=False),
             api if api is not None else ERAS.get((fonte, origem)),
             *(extras.get(c) for c in permitidas)]
@@ -93,12 +114,23 @@ def gravar(con, fonte, id_nativo, origem, payload, raspado_em, api=None,
         f"       ORDER BY raspado_em DESC LIMIT 1) IS DISTINCT FROM %s "
         f"ON CONFLICT (id_nativo, origem, raspado_em) DO UPDATE SET "
         f"  hash = excluded.hash, payload = excluded.payload, "
-        f"  api = excluded.api"
+        f"  api = excluded.api, visto_em = excluded.visto_em"
         + "".join(f", {c} = excluded.{c}" for c in permitidas),
         [*vals, id_nativo, origem, h])
+    novo = cur.rowcount > 0
+    if not novo:
+        # Payload idêntico ao último: nada de linha nova, mas o avistamento
+        # conta. Só a versão MAIS RECENTE recebe o carimbo — as antigas guardam
+        # a janela em que cada uma valeu.
+        con.execute(
+            f"UPDATE cru.{fonte} SET visto_em = %s "
+            f"WHERE id_nativo = %s AND origem = %s AND raspado_em = "
+            f"  (SELECT max(raspado_em) FROM cru.{fonte} "
+            f"   WHERE id_nativo = %s AND origem = %s)",
+            (raspado_em, id_nativo, origem, id_nativo, origem))
     if commit:
         con.commit()
-    return cur.rowcount > 0
+    return novo
 
 
 def gravar_instagram_raw(con, itens, raspado_em, commit=True):

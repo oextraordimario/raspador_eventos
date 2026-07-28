@@ -12,4 +12,3 @@ def reconstruir_fts(con):
     """Sincroniza a coluna de busca textual com tratado.eventos e
     tratado.filmes."""
     con.execute(conexao.ler_sql("manutencao/reconstruir_fts.sql"))
-    con.commit()

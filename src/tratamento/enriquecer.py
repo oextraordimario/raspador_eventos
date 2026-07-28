@@ -139,9 +139,17 @@ def _agrupar_duplicatas(con, aliases_local=None):
     """
     canon_local = {_normalizar_texto(a): _normalizar_texto(nome)
                    for a, nome in (aliases_local or {}).items()}
+    # ORDER BY não é enfeite: sem ele o Postgres devolve as linhas na ordem que
+    # quiser, e o resultado deste passo PASSA A DEPENDER DELA. Medido em
+    # 2026-07-28: dois `aplicar()` seguidos sobre a mesma base davam
+    # `dedupe_score` diferente em 27 eventos (o agrupamento em si ficava de pé;
+    # o score da faixa cinzenta, não). Com o score alimentando a fila de
+    # curadoria, isso é ruído entrando na decisão humana. Entrada ordenada =
+    # saída função pura dos dados, que é o que o teste de fronteira exige.
     rows = [dict(r) for r in con.execute(
         "SELECT id, fonte, nome, start_date, local_nome, endereco, organizador,"
-        "       imagem, end_date, lat, preco_min FROM tratado.eventos WHERE ruido = 0")]
+        "       imagem, end_date, lat, preco_min FROM tratado.eventos "
+        "WHERE ruido = 0 ORDER BY id")]
 
     por_dia = {}
     for r in rows:
@@ -234,5 +242,6 @@ def aplicar(con, aliases_local=None):
                 "dedupe_grupo = NULL, dedupe_canonico = 1, dedupe_score = NULL")
     ruido = _marcar_ruido(con)
     grupos = _agrupar_duplicatas(con, aliases_local)
-    con.commit()
+    # Sem commit: o ciclo inteiro do tratamento roda numa transação só
+    # (tratamento/ciclo.py) — ver o cabeçalho de lá.
     return {"ruido": ruido, "grupos": grupos}

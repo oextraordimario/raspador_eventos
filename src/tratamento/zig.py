@@ -8,10 +8,43 @@ json_ld (preços errados): vem do `__NEXT_DATA__` da página pública — daí a
 'next-data' na origem 'tickets' (NI-23).
 """
 
+from base import texto
+
+
+def normalizar(p, cru):
+    """Payload do catálogo → as colunas de IDENTIDADE do evento (era
+    `coleta/zig._normalizar`). None = payload não reconhecido (§6.3)."""
+    if str(p.get("id") or "") != cru["id_nativo"]:
+        return None
+    loc = p.get("event_location") or {}
+    slug = p.get("slug")
+    return {
+        "nome": p.get("name"),
+        "start_date": p.get("start_date"),
+        "end_date": p.get("end_date"),
+        # a API manda " Brasília" com espaço na frente às vezes — trim
+        "cidade": (loc.get("city") or "").strip() or None,
+        "estado": (loc.get("state") or "").strip() or None,
+        "local_nome": (loc.get("name") or "").strip() or None,
+        "endereco": loc.get("formatted_address") or None,
+        "lat": loc.get("lat") or None,
+        "lon": loc.get("lng") or None,
+        "organizador": None,  # só no detalhe (producer); não vale a requisição
+        "url": f"https://zig.tickets/eventos/{slug}" if slug else None,
+        "imagem": p.get("banner") or p.get("thumb")
+                  or p.get("vertical_banner") or None,
+    }
+
 
 def catalogo(p):
     bairro = ((p.get("event_location") or {}).get("neighborhood") or "").strip()
     return {"bairro": bairro or None}
+
+
+def detalhe(p):
+    """Payload de /events/{slug} → a descrição. Muitos eventos do Zig têm
+    `description` vazia tipo "<p><br></p>" — limpar_html devolve None."""
+    return {"descricao": texto.limpar_html(p.get("description"))}
 
 
 def lotes(p):
@@ -45,5 +78,10 @@ def lotes(p):
     return saida
 
 
-DERIVACOES = {"catalogo": catalogo}
+DERIVACOES = {"catalogo": catalogo, "detalhe": detalhe}
 LOTES = {"tickets": lotes}
+
+# Vazia pelo mesmo motivo do Sympla: a guarda de nome vale na COLETA, onde os
+# dois nomes são contemporâneos. Na leitura ela vira falso positivo toda vez
+# que a fonte renomeia um evento. Ver o comentário em tratamento/sympla.py.
+CONFERIR = {}

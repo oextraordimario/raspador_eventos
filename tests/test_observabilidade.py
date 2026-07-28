@@ -1,8 +1,8 @@
 """Teste executável do NI-19 (alinhamento à Constituição): tabela execucoes +
-comparação de coleta, marcação de eventos sumidos do catálogo (e efeito na
-consulta) e janela temporal do precificar. Usa o banco descartável
+comparação de coleta, derivação de `sumido` a partir de `operacao.coletas` (e
+efeito na consulta) e janela temporal do precificar. Usa o banco descartável
 eventos_teste no Neon (não toca a base de produção — ver tests/base_teste.py).
-Spec: docs/specs/20260710_alinhamento-constituicao.
+Specs: 20260710_alinhamento-constituicao, 20260728_arquitetura-medalhao §8.1.
 
 Uso: python tests/test_observabilidade.py
 """
@@ -15,9 +15,9 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
 from base import conexao
+from coleta import gravar
 from pipeline import execucoes
-from tratamento import busca
-from tratamento import comum
+from tratamento import busca, comum, sumido
 from pipeline import atualizar  # noqa: E402
 from servico import consulta  # noqa: E402
 from coleta import ingresse, sympla  # noqa: E402
@@ -34,18 +34,43 @@ def iso(dt):
     return dt.isoformat()
 
 
-def evento(id_, **kw):
-    fonte = id_.split(":")[0]
-    e = {
-        "id": id_, "fonte": fonte, "id_nativo": id_.split(":")[1],
-        "nome": f"Evento {id_}", "start_date": iso(AGORA + timedelta(days=5)),
-        "end_date": None, "cidade": "Brasília", "estado": "DF",
-        "local_nome": None, "endereco": None, "lat": None, "lon": None,
-        "categoria": None, "organizador": None, "url": f"https://x/{id_}",
-        "imagem": None, "raspado_em": iso(AGORA - timedelta(days=3)),
-    }
-    e.update(kw)
-    return e
+def catalogo(con, id_, visto=None, **kw):
+    """Grava um payload de catálogo no cru e devolve o id do evento.
+
+    O teste escreve no CRU, não na prata: desde a fatia 7 é o tratamento que
+    produz `tratado.eventos`, e escrever direto lá testaria um caminho que o
+    pipeline não usa mais.
+    """
+    fonte, _, id_nativo = id_.partition(":")
+    ts = iso(visto or (AGORA - timedelta(days=3)))
+    if fonte == "sympla":
+        p = {"id": id_nativo, "name": f"Evento {id_}", "location": {},
+             "start_date": iso(AGORA + timedelta(days=5)),
+             "url": f"https://x/{id_}"}
+    elif fonte == "ingresse":
+        p = {"id": id_nativo, "title": f"Evento {id_}", "place": {},
+             "event_date": iso(AGORA + timedelta(days=5)),
+             "slug": id_.replace(":", "-")}
+    else:  # shotgun: a chave é o slug e cidade/estado são colunas do cru
+        p = {"name": f"Evento {id_}", "location": {},
+             "startDate": iso(AGORA + timedelta(days=5)),
+             "url": f"https://x/{id_}"}
+    p.update(kw)
+    extras = ({"cidade_label": "Brasília", "estado_label": "DF"}
+              if fonte == "shotgun" else {})
+    gravar.gravar(con, fonte, id_nativo, "catalogo", p, ts, **extras)
+    return id_
+
+
+def coleta(con, fonte, quando, **kw):
+    """Registra uma coleta em operacao.coletas (a âncora do `sumido`)."""
+    execucoes.registrar_coleta(con, fonte, iso(quando), iso(quando),
+                               {"coletados": 1, "total_site": 1, **kw})
+
+
+def marcas(con):
+    return {r["id"]: r["sumido"]
+            for r in con.execute("SELECT id, sumido FROM tratado.eventos")}
 
 
 def main():
@@ -76,27 +101,26 @@ def main():
     print(f"execucoes: limiar de alerta em {atualizar.QUEDA_ALERTA:.0%} — ok")
 
     # ── sumido: futuro não revisto marca; passado e revisto não marcam ──
-    comum.upsert_eventos(con, [
-        # raspado_em default (3 dias atrás) = NÃO reapareceu nesta rodada
-        evento("sympla:velho"),
-        evento("sympla:passado", start_date=iso(AGORA - timedelta(days=2))),
-        evento("shotgun:fora"),  # fonte não raspada nesta rodada: intocado
-        # reapareceu agora (raspado_em novo)
-        evento("sympla:revisto", raspado_em=iso(AGORA + timedelta(seconds=5))),
-    ])
-    sumidos = atualizar._marcar_sumidos(
-        con, {"sympla": {"coletados": 1}, "shotgun": {"erro": "x"}}, iso(AGORA))
-    marcas = {r["id"]: r["sumido"]
-              for r in con.execute("SELECT id, sumido FROM tratado.eventos")}
-    assert marcas["sympla:velho"] == 1, "futuro não revisto tinha que sumir"
-    assert marcas["sympla:passado"] == 0, "evento passado nunca é marcado"
-    assert marcas["sympla:revisto"] == 0, "quem reapareceu não pode sumir"
-    assert marcas["shotgun:fora"] == 0, "fonte com erro não condena seus eventos"
+    # visto_em default (3 dias atrás) = NÃO reapareceu nesta rodada
+    catalogo(con, "sympla:velho")
+    catalogo(con, "sympla:passado", start_date=iso(AGORA - timedelta(days=2)))
+    catalogo(con, "shotgun:fora")   # fonte que FALHOU nesta rodada: intocado
+    catalogo(con, "sympla:revisto", visto=AGORA + timedelta(seconds=5))
+    comum.aplicar(con)
+    coleta(con, "sympla", AGORA)
+    coleta(con, "shotgun", AGORA, erro="HTTPError: 500")
+    sumidos = sumido.aplicar(con)
+    m = marcas(con)
+    assert m["sympla:velho"] == 1, "futuro não revisto tinha que sumir"
+    assert m["sympla:passado"] == 0, "evento passado nunca é marcado"
+    assert m["sympla:revisto"] == 0, "quem reapareceu não pode sumir"
+    assert m["shotgun:fora"] == 0, "fonte com erro não condena seus eventos"
     assert sumidos == [("Evento sympla:velho", "sympla")], sumidos
     print("sumido: marca futuro não revisto; poupa passado, revisto e fonte com erro — ok")
 
     # ── sumido some da consulta por padrão; incluir_ruido mostra ──
     busca.reconstruir_fts(con)
+    con.commit()
     urls = {e["url"] for e in consulta.buscar_eventos(limite=50)}
     assert "https://x/sympla:velho" not in urls, "sumido vazou na consulta"
     assert "https://x/sympla:revisto" in urls
@@ -105,44 +129,52 @@ def main():
     assert "https://x/sympla:velho" in urls_debug
     print("consulta: esconde sumido por padrão, incluir_ruido mostra — ok")
 
-    # ── idempotência: reaparecer no upsert desmarca na rodada seguinte ──
-    comum.upsert_eventos(con, [
-        evento("sympla:velho", raspado_em=iso(AGORA + timedelta(minutes=1)))])
-    atualizar._marcar_sumidos(con, {"sympla": {"coletados": 1}}, iso(AGORA))
-    assert con.execute("SELECT sumido FROM tratado.eventos WHERE id = 'sympla:velho'"
-                       ).fetchone()["sumido"] == 0
+    # ── idempotência: reaparecer no cru desmarca na rodada seguinte ──
+    catalogo(con, "sympla:velho", visto=AGORA + timedelta(minutes=1))
+    comum.aplicar(con)
+    sumido.aplicar(con)
+    assert marcas(con)["sympla:velho"] == 0, "quem reaparece tem que desmarcar"
     print("sumido: evento que reaparece é desmarcado — ok")
 
     # ── NI-59: coleta ZERADA não condena a fonte (o caso Shotgun no CI) ──
     # shotgun:fora é futuro e não foi revisto — sem a guarda, uma rodada que
     # devolve 0 COM sucesso marcaria ele (e toda a agenda da fonte).
-    atualizar._marcar_sumidos(
-        con, {"shotgun": {"coletados": 0, "total_site": 0}}, iso(AGORA))
-    assert con.execute("SELECT sumido FROM tratado.eventos WHERE id = 'shotgun:fora'"
-                       ).fetchone()["sumido"] == 0, \
+    coleta(con, "shotgun", AGORA + timedelta(minutes=2), coletados=0,
+           total_site=0)
+    sumido.aplicar(con)
+    assert marcas(con)["shotgun:fora"] == 0, \
         "coleta zerada não pode marcar sumido (NI-59)"
     # e a fonte que coletou de verdade continua marcando
-    sumidos = atualizar._marcar_sumidos(
-        con, {"shotgun": {"coletados": 3, "total_site": 3}}, iso(AGORA))
-    assert con.execute("SELECT sumido FROM tratado.eventos WHERE id = 'shotgun:fora'"
-                       ).fetchone()["sumido"] == 1, \
+    coleta(con, "shotgun", AGORA + timedelta(minutes=3), coletados=3,
+           total_site=3)
+    sumidos = sumido.aplicar(con)
+    assert marcas(con)["shotgun:fora"] == 1, \
         "fonte que coletou tem que continuar marcando o que não reapareceu"
-    assert sumidos == [("Evento shotgun:fora", "shotgun")], sumidos
+    assert ("Evento shotgun:fora", "shotgun") in sumidos, sumidos
     print("sumido: coleta zerada é pulada; coleta real continua marcando — ok")
 
     # ── janela do precificar: 7 dias entra, 60 fica fora, --tudo cobre ──
-    comum.upsert_eventos(con, [
-        evento("ingresse:perto", start_date=iso(AGORA + timedelta(days=7)),
-               raspado_em=iso(AGORA)),
-        evento("ingresse:longe", start_date=iso(AGORA + timedelta(days=60)),
-               raspado_em=iso(AGORA)),
-        evento("sympla:perto", start_date=iso(AGORA + timedelta(days=7)),
-               raspado_em=iso(AGORA), url="https://www.sympla.com.br/e/111",
-               descricao="tem descrição validada"),
-        # sem descrição = sem âncora NI-17: nunca é alvo, nem com --tudo
-        evento("sympla:sem-descricao", start_date=iso(AGORA + timedelta(days=7)),
-               raspado_em=iso(AGORA), url="https://www.sympla.com.br/e/222"),
-    ])
+    # Tudo com visto_em DEPOIS da última coleta boa de cada fonte, senão o
+    # próprio filtro de sumido tiraria da fila (é o mesmo critério).
+    agora_prec = AGORA + timedelta(minutes=10)
+    catalogo(con, "ingresse:perto", visto=agora_prec,
+             event_date=iso(AGORA + timedelta(days=7)))
+    catalogo(con, "ingresse:longe", visto=agora_prec,
+             event_date=iso(AGORA + timedelta(days=60)))
+    catalogo(con, "sympla:perto", visto=agora_prec,
+             start_date=iso(AGORA + timedelta(days=7)),
+             url="https://www.sympla.com.br/e/111")
+    # sem payload de detalhe = sem âncora NI-17: nunca é alvo, nem com --tudo
+    catalogo(con, "sympla:sem-detalhe", visto=agora_prec,
+             start_date=iso(AGORA + timedelta(days=7)),
+             url="https://www.sympla.com.br/e/222")
+    gravar.gravar(con, "sympla", "perto", "detalhe",
+                  {"name": "Evento sympla:perto", "detail": "<p>tem</p>"},
+                  iso(agora_prec))
+    coleta(con, "sympla", agora_prec)
+    coleta(con, "ingresse", agora_prec)
+    comum.aplicar(con)
+
     chamados = []
     sympla.raspar_tickets = lambda id_url: (chamados.append(f"sympla:{id_url}"),
                                             {"payload": {"tickets": []}})[1]
@@ -153,7 +185,7 @@ def main():
     r = atualizar._precificar(con, erros, pausa=0)
     assert "ingresse:perto" in chamados and "sympla:111" in chamados, chamados
     assert "ingresse:longe" not in chamados, "60 dias tinha que ficar fora da janela"
-    assert not any("222" in c for c in chamados), "sympla sem descrição não é alvo"
+    assert not any("222" in c for c in chamados), "sympla sem detalhe não é alvo"
     assert r["fora_janela"] == 1 and r["falhas"] == 0 and not erros, r
     print(f"precificar: janela de {atualizar.JANELA_PRECIFICAR_DIAS} dias "
           "poupa evento distante e reporta fora_janela — ok")
@@ -175,6 +207,7 @@ def main():
                         "erro": "ValueError: boom"}, erros
     print("precificar: falha registra QUAL evento e por quê — ok")
 
+    con.commit()
     con.close()
     print("\nTudo certo.")
 

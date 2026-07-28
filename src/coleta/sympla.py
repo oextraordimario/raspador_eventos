@@ -18,13 +18,14 @@ campos como location.neighborhood e global_score — ver
 docs/specs/20260710_camada-bronze/spec.md.
 """
 
-import html
 import re
 import time
 import json
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+
+from coleta import gravar
 
 API = "https://www.sympla.com.br/api/discovery-bff/search/category-type"
 
@@ -36,9 +37,10 @@ BFF_EVENTO = "https://event-page.svc.sympla.com.br/api/event-bff/purchase/event/
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 
-# Registro dos campos que _normalizar consome do catalogo. Ja foi o valor do
-# parametro `only` da API; hoje a chamada vem sem `only` (payload completo, p/
-# a camada Bronze) e a lista fica como documentacao do subconjunto mapeado.
+# Registro dos campos que tratamento/sympla.py consome do catalogo. Ja foi o
+# valor do parametro `only` da API; hoje a chamada vem sem `only` (payload
+# completo, p/ a camada cru) e a lista fica como documentacao do subconjunto
+# mapeado.
 CAMPOS = ("name,start_date,end_date,images,event_type,location,id,url,"
           "organizer,type")
 
@@ -76,36 +78,20 @@ def _get(params):
     return _get_url(f"{API}?{qs}")
 
 
-def _limpar_html(texto):
-    """HTML -> texto puro (tags viram espaco, entidades resolvidas, espacos colapsados)."""
-    if not texto:
-        return None
-    texto = html.unescape(re.sub(r"<[^>]+>", " ", texto))
-    return re.sub(r"\s+", " ", texto).strip() or None
-
-
 def raspar_descricao(id_url):
-    """Busca descricao (texto limpo) e categoria real de um evento no BFF da pagina.
+    """Busca o payload da pagina de um evento no BFF (descricao, categoria etc.).
 
-    id_url: id numerico no fim da URL publica (ex.: 3488482). Retorna dict
-    {"descricao", "categoria", "nome", "payload"} (descricao/categoria podem ser
-    None); levanta excecao em erro de rede/HTTP — o chamador decide tolerar.
+    id_url: id numerico no fim da URL publica (ex.: 3488482). Retorna
+    {"nome", "payload"}; levanta excecao em erro de rede/HTTP — o chamador
+    decide tolerar. Quem LE o payload (descricao, categoria, cancelado) e
+    tratamento/sympla.py; aqui so se fala com a fonte.
+
     "nome" e o nome que o BFF devolveu: o chamador DEVE conferi-lo contra o nome
-    que ja tem, porque um id de outro namespace (ex.: Bileto) devolve outro
-    evento valido sem erro HTTP (bug NI-17). "payload" e o JSON bruto, para a
-    camada Bronze.
+    que ja tem ANTES de gravar, porque um id de outro namespace (ex.: Bileto)
+    devolve outro evento valido sem erro HTTP (bug NI-17).
     """
     ev = _get_url(f"{BFF_EVENTO}{id_url}")
-    cat = ev.get("eventsCategory")
-    if isinstance(cat, dict):
-        cat = cat.get("name")
-    return {
-        "descricao": _limpar_html(ev.get("detail")) or
-                     _limpar_html(ev.get("strippedDetail")),
-        "categoria": cat if isinstance(cat, str) and cat.strip() else None,
-        "nome": ev.get("name"),
-        "payload": ev,
-    }
+    return {"nome": ev.get("name"), "payload": ev}
 
 
 def raspar_tickets(id_url):
@@ -118,37 +104,6 @@ def raspar_tickets(id_url):
     cuja descricao ja passou na guarda de nome do _descrever.
     """
     return {"payload": _get_url(f"{BFF_EVENTO}{id_url}/tickets")}
-
-
-def _normalizar(ev):
-    loc = ev.get("location") or {}
-    org = ev.get("organizer") or {}
-    imgs = ev.get("images") or {}
-    id_nativo = str(ev.get("id"))
-    return {
-        "id": f"sympla:{id_nativo}",
-        "fonte": "sympla",
-        "id_nativo": id_nativo,
-        "nome": ev.get("name"),
-        "start_date": ev.get("start_date"),
-        "end_date": ev.get("end_date"),
-        "cidade": loc.get("city") or None,
-        "estado": loc.get("state") or None,
-        "local_nome": loc.get("name") or None,
-        "endereco": loc.get("address") or None,
-        "lat": loc.get("lat") or None,
-        "lon": loc.get("lon") or None,
-        # NAO usar event_type aqui: e 'NORMAL' em 100% do catalogo (224/224 em
-        # 2026-07-28) — flag de modalidade, nao categoria. Mapea-lo destruia a
-        # categoria boa (eventsCategory do BFF de pagina) a cada raspagem, e
-        # poluia o FTS. A categoria do Sympla vem do "descrever", so.
-        "categoria": None,
-        "organizador": org.get("name") or None,
-        "url": ev.get("url"),
-        "imagem": imgs.get("lg") or imgs.get("original") or None,
-        "raspado_em": datetime.now(timezone.utc).isoformat(),
-        "_raw": ev,  # payload bruto -> eventos_raw (camada Bronze)
-    }
 
 
 def _futuro(ev):
@@ -170,13 +125,13 @@ ULTIMA_RASPAGEM = {}
 def raspar(city="brasilia", state="DF", location="Brasília",
            tema=TEMA_FESTAS_SHOWS, q=None, max_paginas=10, pausa=1.0,
            apenas_futuros=True):
-    """Raspa eventos de uma cidade (ou busca por texto) e devolve normalizados.
+    """Raspa eventos de uma cidade (ou busca por texto).
 
     tema: ID de tema do Sympla para filtrar categoria (default: festas/shows).
           Passe None para trazer todas as categorias.
 
-
-    Retorna lista de dicts prontos para comum.upsert_eventos.
+    Retorna lista de registros de gravar.bruto() — payload cru, sem
+    interpretacao. Quem le e tratamento/sympla.py.
     """
     vistos = {}
     for page in range(1, max_paginas + 1):
@@ -198,11 +153,11 @@ def raspar(city="brasilia", state="DF", location="Brasília",
             break
         novos = 0
         for ev in data:
-            norm = _normalizar(ev)
             if apenas_futuros and not _futuro(ev):
                 continue
-            if norm["id"] not in vistos:
-                vistos[norm["id"]] = norm
+            id_nativo = str(ev.get("id") or "")
+            if id_nativo and id_nativo not in vistos:
+                vistos[id_nativo] = gravar.bruto(id_nativo, ev)
                 novos += 1
         print(f"  pagina {page}/{max_paginas}: +{len(data)} brutos "
               f"({novos} futuros novos) | total no site: {total} | "

@@ -70,7 +70,8 @@ def aplicar(con):
             aplicadas += 1
         else:
             orfas += 1
-    con.commit()
+    # Sem commit: o ciclo inteiro do tratamento roda numa transação só
+    # (tratamento/ciclo.py) — ver o cabeçalho de lá.
     return {"aplicadas": aplicadas, "orfas": orfas}
 
 

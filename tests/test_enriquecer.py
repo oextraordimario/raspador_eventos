@@ -125,6 +125,9 @@ def main():
     print("idempotência: aplicar 2x = mesmo estado — ok")
 
     # --- consulta: ruído e não-canônicos somem; outras_urls aparece ---
+    # commit explícito: desde a fatia 7 os passos do tratamento não comitam
+    # sozinhos (o ciclo é uma transação só) e a consulta abre a própria conexão.
+    con.commit()
     todos = consulta.buscar_eventos(limite=100)
     ids = {e["url"] for e in todos}
     nomes = [e["nome"] for e in todos]
@@ -150,16 +153,30 @@ def main():
     assert trecho["descricao"].startswith("Noite de música eletrônica")
     print("campos ricos: FTS acha pelo texto da descrição, retorno traz trecho — ok")
 
-    # --- campos ricos: re-upsert do catálogo (sem descrição) não zera a colhida ---
+    # --- o upsert escreve o que recebe, inclusive NULL (sem COALESCE) ---
+    # Isto MUDOU na fatia 7, e é o ponto do desenho novo. Antes o upsert usava
+    # COALESCE em descricao/atracoes/preco_min/categoria, porque a escrita da
+    # prata era PARCIAL: o catálogo escrevia umas colunas e o "descrever"
+    # outras, e sem o COALESCE a raspagem seguinte zerava o que já tinha sido
+    # colhido. Só que COALESCE protege contra valor novo NULL e não contra
+    # valor novo genérico — foi exatamente assim que o `event_type` = 'NORMAL'
+    # do Sympla destruiu a categoria boa de 206 eventos a cada rodada (§6.2).
+    #
+    # Hoje a escrita é INTEIRA e vem toda do cru: quem preserva a descrição já
+    # colhida é a camada cru, que guarda o payload de detalhe para sempre
+    # (tests/test_bronze.py cobre isso). Preservar por COALESCE aqui esconderia
+    # bug de reconstrução em vez de evitá-lo.
     comum.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
                                       descricao="texto original")])
     comum.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito")])
-    assert linha(con, "sympla:desc2")["descricao"] == "texto original"
+    assert linha(con, "sympla:desc2")["descricao"] is None, \
+        "o upsert não pode mais preservar valor antigo: a verdade é o cru"
     comum.upsert_eventos(con, [evento(id="sympla:desc2", nome="Evento Descrito",
                                       descricao="texto novo")])
     assert linha(con, "sympla:desc2")["descricao"] == "texto novo"
-    print("campos ricos: upsert preserva descrição já colhida (COALESCE) — ok")
+    print("upsert: escreve a linha INTEIRA, sem COALESCE (a verdade é o cru) — ok")
 
+    con.commit()
     con.close()
     print("\nOK — enriquecimento v1 e consulta se comportam como a spec pede.")
 
