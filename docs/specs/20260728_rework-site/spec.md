@@ -951,7 +951,24 @@ foi re-medido na hora e **passou** (69%).
   instrumentação não emite. O que se validou é que os handlers estão ligados
   e não quebram a interação.
 
-### 14.7 Um achado que não é desta spec
+### 14.7 O aceite, e o ajuste fino que fica para depois
+
+Mário rodou o site local (front em `:1007` + API em `:8000`) no fim da sessão
+de 28/07/2026 e deu o aceite: **"tá bom o suficiente pra essa sessão"**. O
+escopo desta spec está fechado — o que ele viu foi o comportamento, não o
+acabamento.
+
+**Fica pendente uma sessão dedicada a ajustes finos de UX/UI**, sem escopo
+definido aqui de propósito: ela nasce de olhar as telas prontas, e não de uma
+lista escrita antes. Duas notas para quem a pegar:
+
+- É acabamento sobre o que existe, não funcionalidade nova. Item novo é
+  backlog, não continuação desta spec.
+- O que está aqui como **decisão** (§13) não é candidato a ajuste sem
+  reabrir a decisão: os filtros na URL, a postura da §7.6 e da §6 sobre a
+  coordenada, e o gate de cobertura da §14.4 têm razão registrada.
+
+### 14.8 Um achado que não é desta spec
 
 O chip "festa junina" traz eventos que não são juninos — por exemplo um show
 de pop rock. A causa não é o chip: **eventos derivados de carrossel-agenda do
