@@ -1,8 +1,13 @@
 # Spec — Arquitetura medalhão: schemas por camada, uma trilha por fonte
 
-> **Status: RASCUNHO (2026-07-28)** — as decisões estruturais estão tomadas
-> (§12) e incorporadas; falta fechar os pontos da §16 e a conferência de
-> scripts que o autor está fazendo em paralelo. Ainda não é plano de execução.
+> **Status: FATIAS 1–6 IMPLEMENTADAS (2026-07-28); a 7 não.** As duas janelas
+> de migração foram executadas em produção, com as três redes e as
+> conferências dentro da transação (§9.11 e o commit da fatia 5). O que falta é
+> a **inversão do fluxo** — ver o aviso na fatia 7 da §13, que também registra
+> o que já está pronto para ela e o que a ausência dela custa.
+>
+> ⚠️ **O cron da raspagem está DESLIGADO** no GitHub até o push (ver
+> `CRON-DESLIGADO.md` na raiz do repo).
 >
 > **O quê:** reorganizar base e código em camadas explícitas de medalhão —
 > `cru` (bronze, o que a fonte disse, **uma tabela por fonte**), `tratado`
@@ -1175,6 +1180,24 @@ Fatias independentes, cada uma com valor próprio e reversível:
 7. **Inversão do fluxo** (§6.1): a coleta deixa de escrever em `tratado`, o
    "descrever" passa a consultar o `cru` (§6.4), `sumido` vira derivação sobre
    `operacao.coletas` (§8).
+
+   > ⚠️ **NÃO IMPLEMENTADA** (2026-07-28). As fatias 1–6 estão aplicadas,
+   > validadas e commitadas; esta ficou. É a maior mudança de comportamento do
+   > pipeline e a única que exige mover a normalização das cinco fontes de
+   > `coleta/` para `tratamento/`, reescrever `_raspar`/`_descrever`/
+   > `_precificar` e converter o tratamento inteiro numa transação — foi
+   > iniciada e revertida por inteiro, porque entregá-la pela metade deixaria o
+   > pipeline meio invertido, que é pior que não invertido.
+   >
+   > **O que já está pronto para ela**, das fatias anteriores: `tratado` é
+   > escrito por um lugar só (`tratamento/comum.py`), o `cru` guarda payload +
+   > rótulos externos + era por fonte, e `comum.aplicar()` já reconstrói todas
+   > as colunas derivadas e os lotes a partir do `cru`. **O que falta** é o
+   > último passo: as colunas de identidade do evento (nome, datas, local, url)
+   > ainda vêm da coleta, não da reconstrução.
+   >
+   > Enquanto ela não sai, a garantia do NI-55 é PARCIAL: a prata é
+   > reconstruível no que é derivado, não no que é identidade.
 
 A fatia 6 pode trocar de lugar com a 5 se a curadoria virar urgente — ela só
 depende dos schemas (fatia 3).
