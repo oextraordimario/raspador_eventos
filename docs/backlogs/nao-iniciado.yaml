@@ -988,39 +988,22 @@
 # atualizar._checar_schema): aditivo = ALTER IF NOT EXISTS; não-aditivo =
 # dropar só derivadas. Os dois itens abaixo fecham as lacunas restantes.
 
-- codigo: NI-55
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: M
-  eixo: infra
-  fase: 0
-  titulo: "Prata 100% reconstruível — recriar `eventos` a partir do payload da Bronze"
-  resumo: "derivar.py só recalcula colunas derivadas de linhas que JÁ existem; as colunas de catálogo (nome, data, url...) e a descrição nascem na raspagem e nunca são relidas da Bronze — enquanto isso for assim, mudança não-aditiva em eventos ainda força re-raspar"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-56, NI-15]
-  caso_real: ["drop de 2026-07-27 (NI-36/37): sem caminho de re-normalização, a base foi reconstruída por re-raspagem — e o Shotgun, quebrado desde 17/07, foi apagado por inteiro (eventos + Bronze; ~49 futuros perdidos)"]
-  detalhe: |
-    O modelo já existe DENTRO do projeto: `aplicar_instagram` reconstrói os
-    eventos fonte='instagram' 100% a partir de `instagram_raw`. Falta o
-    equivalente para as 5 plataformas: reexecutar o `_normalizar` de cada
-    scraper sobre o payload `catalogo` de `eventos_raw` (e reler a `descricao`
-    do payload `detalhe`) — hoje essas funções só rodam na hora da raspagem.
-
-    Pontos de atenção levantados na auditoria:
-    - rótulos EXTERNOS ao payload (cidade_label do Shotgun/Ticket and Go) têm
-      que ser deriváveis ou passar a ser gravados junto do raw;
-    - `raspado_em` deve vir preservado do raw (é a âncora do `sumido`);
-    - o upsert protege descrição via COALESCE — a re-normalização precisa da
-      mesma semântica pra não regredir dado;
-    - `_normalizar` importável sem efeito colateral (hoje mora nos scrapers,
-      junto de código de rede — separar parse de fetch, ou importar com
-      cuidado).
-
-    Quando fechar: mudança não-aditiva vira "dropar derivadas + re-derivar",
-    re-raspagem deixa de ser caminho de manutenção (fica só pra dado NOVO), e
-    a regra (b) da convenção nova perde a ressalva sobre `eventos`.
+# NI-55 (prata 100% reconstruível) foi IMPLEMENTADO em 2026-07-28, na fatia 7 da
+# spec docs/specs/20260728_arquitetura-medalhao/. A coleta parou de escrever em
+# `tratado`: `normalizar()` das 5 fontes mudou para `tratamento/<fonte>.py` e lê
+# `cru.<fonte>_atual`, então `--so-derivar` reconstrói a base inteira — colunas
+# de identidade inclusive, que era o que faltava. Os quatro pontos de atenção que
+# este item levantava foram todos endereçados, e dois deles com resposta
+# diferente da prevista: (a) os rótulos externos (cidade_label, slug) viraram
+# COLUNAS de cru.<fonte>, em vez de "deriváveis"; (b) `raspado_em` não vem do
+# `raspado_em` do cru e sim de `visto_em`, coluna nova — no append-only o
+# primeiro é data de MUDANÇA, e usá-lo marcaria como sumido todo evento que
+# apenas não mudou; (c) o COALESCE do upsert foi REMOVIDO em vez de replicado
+# (com a escrita inteira vindo do cru, preservar valor antigo esconderia bug de
+# reconstrução); (d) parse e fetch estão em módulos separados, então importar o
+# normalizador do Shotgun não arrasta mais o Playwright.
+# A garantia agora é verificada, não prometida: tests/test_bronze.py apaga
+# `tratado` e confere que o tratamento a reproduz (teste de fronteira, §10).
 
 - codigo: NI-56
   status: pendente
@@ -1033,14 +1016,21 @@
   resumo: "o schema.sql já AVISA (comentário sobre usuarios) mas aviso não é procedimento: o drop de 27/07 zerou execucoes e o detector de scraper quebrado perdeu a régua de comparação — falta o passo executável"
   data: 2026-07-27
   depende_de: []
-  relacionado: [NI-55]
+  relacionado: []
   caso_real: ["base atual tem 1 linha em execucoes (mais antiga: 2026-07-27T15:22) — todo o histórico de rodadas anterior ao drop se perdeu, incluindo a linha de base do alerta 'coleta caiu >50%'"]
   detalhe: |
     Um script pequeno (ex.: `python src/exportar_nao_derivaveis.py` → CSVs
     datados em pasta local gitignorada, via `COPY TO`) + a instrução no
     CLAUDE.md de rodá-lo antes de QUALQUER operação destrutiva na base.
-    Cobre `execucoes`, `usuarios`, `acessos` — e nada de Bronze (Bronze não
-    se dropa, regra (c) da convenção). Reimportação documentada no próprio
+    Cobre os schemas que não se reconstroem: `operacao` (execucoes, coletas,
+    midias) e `uso` (usuarios, acessos). O `cru` não entra por outro motivo —
+    ele não se dropa, regra (c) da convenção.
+
+    ATUALIZAÇÃO 2026-07-28: a migração do medalhão fez isso À MÃO (pg_dump +
+    branch no Neon + schema `legado_<data>`), e funcionou — mas continua não
+    sendo procedimento: foi decidido na hora, para aquela migração. O item
+    segue pendente pelo mesmo motivo de sempre, que é a diferença entre alguém
+    ter feito uma vez e existir um comando para fazer. Reimportação documentada no próprio
     script. Barato de propósito: o valor está em existir o passo executável,
     não na sofisticação.
 
