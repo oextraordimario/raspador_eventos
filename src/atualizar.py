@@ -74,16 +74,16 @@ EXTRAIR_POSTS_DIAS = 60
 
 def _checar_schema(con):
     """Base de schema antigo não é migrada automaticamente — mas TAMBÉM não é
-    descartável: a Bronze mora nela (convenção revista em 2026-07-27; ver o
-    cabeçalho de sql/schema.sql)."""
+    descartável: a camada cru mora nela (convenção revista em 2026-07-27; ver
+    o cabeçalho de sql/cru/eventos_raw.sql)."""
     cols = {r["column_name"] for r in con.execute(
         "SELECT column_name FROM information_schema.columns "
         "WHERE table_schema = 'public' AND table_name = 'eventos'")}
     if "ruido" not in cols or "sumido" not in cols:
         sys.exit("A base é de um schema antigo.\nNÃO rode DROP SCHEMA (a "
-                 "camada Bronze mora nesse banco e não se reconstrói). Aplique "
-                 "a diferença com ALTER TABLE no DBeaver/psql usando "
-                 "sql/schema.sql como referência e execute de novo.")
+                 "camada cru mora nesse banco e não se reconstrói). Aplique "
+                 "a diferença com ALTER TABLE no DBeaver/psql usando os "
+                 "arquivos de sql/ como referência e execute de novo.")
 
 
 def _raspar(incluir_shotgun=True, apenas=None):
@@ -764,7 +764,10 @@ def main():
     # parada é derrubada pela rede em silêncio (SSL closed no meio da rodada,
     # visto no Zig). Cada bloco abre a sua e fecha; os passos de raspagem
     # abrem as próprias depois da rede. Alongar a vida da conexão é cilada.
-    con = store.conectar()
+    # Único ponto do pipeline que aplica DDL (conectar() não aplica por padrão
+    # desde 2026-07-28 — spec 20260728_arquitetura-medalhao, D9). As conexões
+    # seguintes só leem e escrevem dado.
+    con = store.conectar(aplicar_schema=True)
     _checar_schema(con)
     con.close()
 

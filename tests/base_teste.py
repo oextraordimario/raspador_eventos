@@ -24,3 +24,9 @@ def preparar():
     store.DB_URL = url
     with psycopg.connect(url, autocommit=True) as con:
         con.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
+        # O DDL é aplicado AQUI, e não no primeiro store.conectar(): desde
+        # 2026-07-28 conectar() não aplica schema por padrão (spec
+        # 20260728_arquitetura-medalhao, D9). Os testes continuam chamando
+        # store.conectar() sem argumento — é este preparar() que garante que
+        # existe schema para eles encontrarem.
+        con.execute(store.ddl())

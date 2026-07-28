@@ -5,10 +5,13 @@ de cada fonte normaliza para este formato antes de gravar. A base e otimizada
 para consulta por texto/data/cidade, que e o que um agente de IA precisa — e
 vive na nuvem para a consulta funcionar com o PC do autor desligado.
 
-O DDL vive em sql/schema.sql (fonte unica, tambem rodavel no DBeaver); este
-modulo so o carrega e aplica. A connection string vem de EVENTOS_DB_URL
-(variavel de ambiente, com fallback no .env da raiz — parser proprio de 5
-linhas em vez de dependencia). Spec: docs/specs/20260711_consulta-na-nuvem/.
+O DDL vive em sql/, UM ARQUIVO POR TABELA, em pastas que anunciam a camada
+(sql/cru/, sql/tratado/, sql/operacao/, sql/uso/) — fonte unica, tambem
+rodavel a mao no DBeaver; este modulo so carrega e aplica, na ordem de
+_ORDEM_DDL. A connection string vem de EVENTOS_DB_URL (variavel de ambiente,
+com fallback no .env da raiz — parser proprio de 5 linhas em vez de
+dependencia). Specs: docs/specs/20260711_consulta-na-nuvem/ e
+docs/specs/20260728_arquitetura-medalhao/.
 """
 
 import json
@@ -24,8 +27,16 @@ import tempo
 _RAIZ = Path(__file__).resolve().parent.parent
 
 # SQL (schema + manutencao) mora em sql/, como fonte unica: os mesmos arquivos
-# rodam a mao no DBeaver/psql. Ver sql/schema.sql e sql/reconstruir_fts.sql.
+# rodam a mao no DBeaver/psql.
 _SQL_DIR = _RAIZ / "sql"
+
+# Ordem de aplicacao do DDL, fixa em CODIGO (nada de numerar arquivo, que
+# envelhece mal): as extensoes primeiro — os indices GIN sobre `busca` dependem
+# da configuracao de busca `pt` existir —, depois as camadas na ordem em que o
+# dado flui. Dentro de cada pasta, ordem alfabetica. Pasta ausente e ignorada,
+# porque a estrutura cresce fatia a fatia (spec 20260728_arquitetura-medalhao).
+_ORDEM_DDL = ("00_extensoes.sql", "01_schemas.sql", "cru", "tratado", "curado",
+              "operacao", "uso", "public")
 
 # Override para os testes (tests/ apontam para o banco eventos_teste ANTES de
 # qualquer conectar()); None = resolve EVENTOS_DB_URL do ambiente/.env.
@@ -54,21 +65,50 @@ def _ler_sql(nome):
     return (_SQL_DIR / nome).read_text(encoding="utf-8")
 
 
+def arquivos_ddl():
+    """Os .sql do schema, na ordem de aplicacao (ver _ORDEM_DDL)."""
+    for item in _ORDEM_DDL:
+        alvo = _SQL_DIR / item
+        if alvo.is_dir():
+            yield from sorted(alvo.glob("*.sql"))
+        elif alvo.is_file():
+            yield alvo
+
+
+def ddl():
+    """Todo o DDL concatenado, para UM execute so.
+
+    Um arquivo por tabela e bom para ler e revisar; mandar um execute por
+    arquivo seria um round-trip ao Neon por arquivo, em cada conexao — e o
+    pipeline abre varias conexoes curtas de proposito.
+    """
+    return "\n\n".join(a.read_text(encoding="utf-8") for a in arquivos_ddl())
+
+
 def reconstruir_fts(con):
-    """Sincroniza a coluna de busca textual (tsvector) com a tabela eventos."""
-    con.execute(_ler_sql("reconstruir_fts.sql"))
+    """Sincroniza a coluna de busca textual (tsvector) com eventos e filmes."""
+    con.execute(_ler_sql("manutencao/reconstruir_fts.sql"))
     con.commit()
 
 
-def conectar():
+def conectar(aplicar_schema=False):
+    """Abre uma conexao com a base.
+
+    aplicar_schema=True SO nos entrypoints de escrita e nos testes. O DDL e
+    idempotente, mas aplica-lo em toda conexao custa um round-trip ao Neon por
+    conexao — e a consulta abre uma por chamada, sem nunca precisar de DDL.
+    Ate 2026-07-28 toda conexao aplicava; ver spec 20260728_arquitetura-medalhao
+    (D9).
+    """
     url = DB_URL or env_var("EVENTOS_DB_URL")
     if not url:
         sys.exit("EVENTOS_DB_URL nao definida. Configure a connection string do "
                  "Neon (banco eventos) como variavel de ambiente ou no .env da "
                  "raiz do repo.")
     con = psycopg.connect(url, row_factory=dict_row)
-    con.execute(_ler_sql("schema.sql"))
-    con.commit()
+    if aplicar_schema:
+        con.execute(ddl())
+        con.commit()
     return con
 
 
