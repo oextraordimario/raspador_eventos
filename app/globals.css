@@ -410,6 +410,11 @@ a { color: inherit; text-decoration: none; }
 .tag-free { color: var(--zu-green); border-color: var(--zu-line-strong); background: var(--zu-green-bg); }
 .tag-hot { color: var(--zu-info); border-color: color-mix(in srgb, var(--zu-info) 32%, transparent); background: var(--zu-info-bg); }
 .tag-out { color: var(--zu-fg-4); border-color: var(--zu-divider); }
+/* distância só existe com "perto de mim" ligado (NI-46) */
+.tag-perto {
+  color: var(--zu-info); border-color: color-mix(in srgb, var(--zu-info) 32%, transparent);
+  font-family: var(--zu-mono); font-variant-numeric: tabular-nums;
+}
 /* A plataforma de origem é crédito, não destaque: fica discreta e sem moldura,
    porque competia visualmente com "grátis", que é o que a pessoa procura. */
 .tag-src {
@@ -804,6 +809,12 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 
 /* Chip de coleção sazonal (NI-47): é atalho de busca, não filtro estrutural —
    a borda tracejada o distingue dos chips de período sem gritar. */
+/* O "perto de mim" é <button>, não <Link> (a coordenada só existe depois da
+   permissão), então precisa herdar a aparência de chip explicitamente. */
+button.chip { font: inherit; cursor: pointer; }
+button.chip:disabled { opacity: .6; cursor: progress; }
+.chip-aviso { font-size: 12px; color: var(--zu-fg-3); align-self: center; }
+
 .chip-colecao { border-style: dashed; }
 .chip-colecao[data-on='1'] { border-style: solid; }
 

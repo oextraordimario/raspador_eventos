@@ -23,7 +23,7 @@ regra de negócio, e ambas decorrem da spec:
    heurística quem é pessoa e quem é empresa.
 
 Rotas (o vercel.json reescreve /api/dados/* para cá):
-    GET  /api/dados/eventos?texto=&de=&ate=&limite=&gratis=&bairro=&tipo=
+    GET  /api/dados/eventos?texto=&de=&ate=&limite=&gratis=&bairro=&tipo=&perto=
     GET  /api/dados/evento?url=
     GET  /api/dados/filmes?texto=&cinema=&de=&ate=&limite=
     GET  /api/dados/sessoes?filme=&cinema=
@@ -94,6 +94,30 @@ def _str(q, nome):
     return v or None
 
 
+def _perto(q):
+    """`?perto=<lat>,<lon>` → (lat, lon) ou (None, None).
+
+    A coordenada de quem está perguntando entra pela querystring, é usada na
+    ordenação e NÃO é gravada nem logada em lugar nenhum — nem aqui, nem no
+    analytics do front (o parâmetro entra na lista de mascarados do PostHog;
+    ver app/PertoDeMim.jsx). É o compromisso declarado na página /sobre.
+
+    Fora do DF a resposta continua sendo Brasília ordenada por distância —
+    inútil, mas não errado —, então não há validação de área. O que se valida
+    é o formato: número, e dentro do planeta.
+    """
+    bruto = _str(q, "perto")
+    if not bruto:
+        return None, None
+    try:
+        lat, lon = (float(x) for x in bruto.split(",", 1))
+    except (ValueError, TypeError):
+        return None, None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None, None
+    return lat, lon
+
+
 def _janela(q):
     """Traduz o atalho `periodo` em (de, ate) no fuso de Brasília.
 
@@ -143,11 +167,13 @@ def rota(caminho, q, con=None):
     """
     if caminho.endswith("/eventos"):
         de, ate = _janela(q)
+        plat, plon = _perto(q)
         evs = consulta.buscar_eventos(
             texto=_str(q, "texto"), cidade="Brasília",
             data_inicio=de, data_fim=ate, limite=_int(q, "limite", 60, 200),
             bairro=_str(q, "bairro"), tipo=_str(q, "tipo"),
-            gratis=bool(_str(q, "gratis")), con=con)
+            gratis=bool(_str(q, "gratis")), perto_lat=plat, perto_lon=plon,
+            con=con)
         # As facetas vão na MESMA resposta, como já vão em /filmes: a página
         # monta o calendário sem um segundo round-trip, e elas entram no mesmo
         # objeto cacheado pela CDN.

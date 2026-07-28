@@ -237,6 +237,41 @@ gra, _ = api_dados.rota("/api/dados/eventos",
 checar(len(gra["eventos"]) == 1 and gra["eventos"][0]["tem_gratis"] == 1,
        f"grátis com limite 1 devolve UM grátis, não uma sobra ({ids(gra)})")
 
+print("\n4d) ?perto= — ordena por distância, e NUNCA esconde (NI-46)")
+con = conexao.conectar()
+# Torre de TV; o "longe" fica a ~9 km, o "perto" a ~1 km
+con.execute("UPDATE tratado.eventos SET lat = -15.7906, lon = -47.8919 "
+            "WHERE id = 'sympla:1'")
+con.execute("UPDATE tratado.eventos SET lat = -15.8700, lon = -47.9200 "
+            "WHERE id = 'ingresse:6'")
+con.commit()
+con.close()
+
+perto, _ = api_dados.rota("/api/dados/eventos", {"perto": ["-15.7906,-47.8919"]})
+evs = perto["eventos"]
+com_dist = [e for e in evs if e.get("distancia_km") is not None]
+checar(len(com_dist) >= 2, f"quem tem coordenada ganha distancia_km ({len(com_dist)})")
+d1 = next(e for e in evs if e["url"].endswith("sympla:1"))["distancia_km"]
+checar(float(d1) < 0.2, f"a distância bate com a coordenada ({d1} km)")
+sem_coord = [e for e in evs if e.get("distancia_km") is None]
+checar(len(sem_coord) > 0,
+       "evento SEM coordenada continua na lista — ordenar não é filtrar")
+checar(all(e.get("distancia_km") != 0 for e in sem_coord),
+       "e NÃO sai como '0 km' (o least(1, NULL) do Postgres devolve 1, "
+       "o que faria todo evento sem coordenada parecer estar no seu colo)")
+
+# dentro do MESMO dia, o mais perto vem antes
+do_dia = [e for e in evs if e["start_date"][:10] == iso(days=1)[:10]
+          and e.get("distancia_km") is not None]
+dists = [float(e["distancia_km"]) for e in do_dia]
+checar(dists == sorted(dists), f"ordenado por distância dentro do dia ({dists})")
+
+lixo, _ = api_dados.rota("/api/dados/eventos", {"perto": ["não é coordenada"]})
+checar("eventos" in lixo, "?perto= malformado não quebra (vira sem filtro)")
+fora, _ = api_dados.rota("/api/dados/eventos", {"perto": ["999,999"]})
+checar(all(e.get("distancia_km") is None for e in fora["eventos"]),
+       "coordenada fora do planeta é ignorada")
+
 print("\n5) Guardas de entrada (querystring é entrada de estranho)")
 teto, _ = api_dados.rota("/api/dados/eventos", {"limite": ["999999"]})
 checar(len(teto["eventos"]) <= 200, "limite tem teto")

@@ -68,9 +68,14 @@ def _con(con):
     return (con, False) if con is not None else (conexao.conectar(), True)
 
 
+# Raio da Terra em km — a constante da haversine. PostGIS seria exagero para
+# um recorte do tamanho do DF: a expressão direta erra centímetros aqui.
+_RAIO_TERRA_KM = 6371
+
+
 def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
                    limite=20, incluir_ruido=False, bairro=None, tipo=None,
-                   gratis=False, con=None):
+                   gratis=False, perto_lat=None, perto_lon=None, con=None):
     """Busca eventos na base unificada.
 
     Por padrao esconde o que o enriquecimento v1 marcou — eventos com ruido=1
@@ -99,6 +104,14 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
             a classificacao e heuristica, e esconder o que ela nao soube
             classificar transformaria uma duvida do sistema em ausencia na
             tela. Ver enriquecer._classificar_tipo.
+        perto_lat/perto_lon: coordenada de quem esta perguntando. NAO filtra —
+            ORDENA por distancia DENTRO de cada dia, e acrescenta
+            `distancia_km` ao retorno. Nao filtra de proposito: raio esconde
+            evento, e ~30% da agenda (Ticket and Go e Instagram) nao tem
+            coordenada nenhuma — esses vao para o fim do dia, nunca somem. O
+            dia continua mandando na ordem porque a pagina e uma AGENDA: a
+            pergunta real e "o que tem hoje perto de mim", nao "o mais perto
+            de todos, em qualquer data".
         gratis: True devolve so eventos com lote gratis nao esgotado. Estava
             na api/dados.py como filtro de lista ate 2026-07-28 — o que, por
             rodar DEPOIS do `limite`, filtrava os N ja buscados em vez da
@@ -147,10 +160,42 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
               "WHERE o.dedupe_grupo = e.dedupe_grupo AND o.id != e.id) "
               "AS outras_urls")
     descr = f"substr(e.descricao, 1, {DESCRICAO_MAX}) AS descricao"
-    sql = f"SELECT {', '.join(CAMPOS)}, {descr}, {outras} FROM public.eventos e"
+
+    # "Perto de mim" (NI-46): haversine direto em SQL. A coordenada de quem
+    # pergunta desce como parametro, e nao e gravada nem logada em lugar
+    # nenhum — nem aqui, nem no analytics (ver a nota do `?perto=` na API).
+    perto = perto_lat is not None and perto_lon is not None
+    if perto:
+        # O CASE não é defensivo à toa: `least(1, NULL)` no Postgres devolve 1
+        # (ele IGNORA nulos, diferente de quase todo operador), e sem ele todo
+        # evento sem coordenada — 30% da agenda — sairia com acos(1) = 0, ou
+        # seja, "0,0 km": exatamente onde a pessoa está. Mentira com cara de
+        # precisão, que é o pior modo de falha deste recurso.
+        dist = (f"CASE WHEN e.lat IS NULL OR e.lon IS NULL THEN NULL ELSE "
+                f"round(({_RAIO_TERRA_KM} * acos(least(1, "
+                "cos(radians(%s)) * cos(radians(e.lat)) * "
+                "cos(radians(e.lon) - radians(%s)) + "
+                "sin(radians(%s)) * sin(radians(e.lat)))))::numeric, 1) END")
+        extra = f", {dist} AS distancia_km"
+        # os parametros da distancia vem ANTES dos do WHERE: no SELECT
+        params = [perto_lat, perto_lon, perto_lat] + params
+    else:
+        extra = ""
+
+    sql = (f"SELECT {', '.join(CAMPOS)}, {descr}, {outras}{extra} "
+           "FROM public.eventos e")
     if where:
         sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY e.start_date LIMIT %s"
+    if perto:
+        # dia LOCAL primeiro (a lista é agrupada por dia na tela), distância
+        # depois; quem não tem coordenada vai para o fim DO DIA, não some
+        dia_local = ("to_char(e.start_date::timestamptz AT TIME ZONE "
+                     f"'{_TZ_BSB}', 'YYYY-MM-DD')")
+        sql += (f" ORDER BY {dia_local}, (e.lat IS NULL), "
+                "distancia_km NULLS LAST, e.start_date")
+    else:
+        sql += " ORDER BY e.start_date"
+    sql += " LIMIT %s"
     params.append(limite)
 
     rows = con.execute(sql, params).fetchall()

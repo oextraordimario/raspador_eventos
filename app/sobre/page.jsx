@@ -71,6 +71,16 @@ export default function Sobre() {
           identificação do seu aparelho.
         </p>
 
+        <h2>e a sua localização?</h2>
+        <p>
+          O botão “perto de mim” pede a sua localização ao navegador só para
+          ordenar a lista pelo que está mais próximo. A coordenada vai na
+          consulta e <strong>não é guardada em lugar nenhum</strong> — nem na
+          nossa base, nem em registro de acesso, nem nas ferramentas de
+          medição de audiência (ela sai mascarada do endereço antes disso). Se
+          você não autorizar, o filtro de bairro faz um trabalho parecido.
+        </p>
+
         <h2>é uma casa ou plataforma?</h2>
         <p>
           Se você quer que um evento, um perfil ou uma casa saia daqui, é só pedir

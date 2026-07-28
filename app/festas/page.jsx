@@ -5,6 +5,7 @@ import Esqueleto from '../Esqueleto'
 import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../../lib/formato'
 import { MARCA, PERIODOS, TIPOS, periodoPadrao } from '../../lib/config'
 import { colecoesAgora } from '../../lib/colecoes'
+import PertoDeMim from '../PertoDeMim'
 import Procedencia from '../Procedencia'
 import SearchForm from '../SearchForm'
 import Flyer from '../Flyer'
@@ -16,8 +17,8 @@ import Calendario from '../Calendario'
 // -03 fixo) e SUBSTITUI o atalho de período — os dois respondem à mesma
 // pergunta, e deixar os dois valendo produziria interseções vazias sem que a
 // pessoa entendesse por quê.
-function paramsDe({ periodo, texto, gratis, dia, bairros, tipo }) {
-  const p = { texto, gratis: gratis ? '1' : '', tipo,
+function paramsDe({ periodo, texto, gratis, dia, bairros, tipo, perto }) {
+  const p = { texto, gratis: gratis ? '1' : '', tipo, perto,
               bairro: bairros?.join(',') ?? '' }
   if (dia) {
     p.de = `${dia}T00:00:00-03:00`
@@ -79,6 +80,11 @@ function Card({ ev, indice }) {
           )}
           {ev.preco_min != null && gratis && (
             <span className="tag tag-free">tem cortesia</span>
+          )}
+          {ev.distancia_km != null && (
+            <span className="tag tag-perto">
+              {`${String(ev.distancia_km).replace('.', ',')} km`}
+            </span>
           )}
           {ev.esgotado === 1 && <span className="tag tag-out">esgotado</span>}
           {ev.fonte && <span className="tag tag-src">{ev.fonte}</span>}
@@ -223,14 +229,18 @@ export default async function Festas({ searchParams }) {
   const periodo = periodoUrl || periodoPadrao(texto)
   const bairros = (sp?.bairro ?? '').split(',').filter(Boolean)
   const tipo = TIPOS.some((t) => t.chave === sp?.tipo) ? sp.tipo : ''
+  // "<lat>,<lon>" e nada mais — quem valida de verdade é a API, mas um
+  // parâmetro malformado não precisa nem sair daqui
+  const perto = /^-?\d{1,3}(\.\d+)?,-?\d{1,3}(\.\d+)?$/.test(sp?.perto ?? '')
+    ? sp.perto : ''
 
-  const filtros = { periodo, texto, gratis, dia, bairros, tipo }
+  const filtros = { periodo, texto, gratis, dia, bairros, tipo, perto }
 
   // Preserva os outros filtros ao trocar um deles — sem isso, escolher
   // "grátis" apagaria a busca que a pessoa acabou de digitar.
   const comFiltro = (mudanca) => {
     const q = new URLSearchParams()
-    const novo = { periodo, texto, gratis: gratis ? '1' : '', dia, tipo,
+    const novo = { periodo, texto, gratis: gratis ? '1' : '', dia, tipo, perto,
                    bairro: bairros.join(','), ...mudanca }
     for (const [k, v] of Object.entries(novo)) if (v) q.set(k, v)
     return `/festas?${q}`
@@ -239,7 +249,7 @@ export default async function Festas({ searchParams }) {
   const comPeriodo = (chave) => comFiltro({ periodo: chave, dia: '' })
   // O DropFiltro é client component: recebe o estado como strings e monta a
   // URL do "aplicar" sozinho, sem useSearchParams (que exigiria Suspense).
-  const estado = { periodo, texto, gratis: gratis ? '1' : '', dia, tipo,
+  const estado = { periodo, texto, gratis: gratis ? '1' : '', dia, tipo, perto,
                    bairro: bairros.join(',') }
   const colecoes = colecoesAgora()
 
@@ -265,6 +275,7 @@ export default async function Festas({ searchParams }) {
                 data-on={gratis ? '1' : '0'}>
             só grátis
           </Link>
+          <PertoDeMim ativo={Boolean(perto)} base="/festas" estado={estado} />
 
           {/* Coleções da época (NI-47): o chip só existe dentro da janela do
               ano e apenas preenche a busca — é atalho, não filtro novo. Por

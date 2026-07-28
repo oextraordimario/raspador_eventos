@@ -21,5 +21,20 @@ if (!key) {
     capture_pageview: true,
     capture_pageleave: true,
     debug: process.env.NODE_ENV === 'development',
+
+    // A URL vai junto em todo evento capturado, e desde o NI-46 ela pode
+    // conter `?perto=<lat>,<lon>` — a coordenada de quem está olhando. Mandar
+    // isso a um terceiro contradiz o que a página /sobre promete, e
+    // aconteceria em silêncio: ninguém decide capturar a URL, ela vem de
+    // graça. Aqui ela é mascarada ANTES de sair do navegador.
+    sanitize_properties: (props) => {
+      for (const chave of ['$current_url', '$referrer', '$initial_current_url',
+                           '$initial_referrer', '$pathname']) {
+        if (typeof props[chave] === 'string') {
+          props[chave] = props[chave].replace(/([?&]perto=)[^&#]*/g, '$1oculto')
+        }
+      }
+      return props
+    },
   })
 }

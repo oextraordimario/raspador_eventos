@@ -187,6 +187,7 @@ def registrado(fn):
 def buscar_eventos(texto: str = "", cidade: str = "Brasília",
                    data_inicio: str = "", data_fim: str = "",
                    bairro: str = "", tipo: str = "", gratis: bool = False,
+                   perto_lat: float = 0.0, perto_lon: float = 0.0,
                    limite: int = 20) -> list[dict]:
     """Busca festas, baladas e shows em Brasília na base unificada (Sympla,
     Ingresse, Shotgun, Zig e Ticket and Go). Use para responder o que há de
@@ -217,6 +218,10 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
             filtro traz TAMBÉM os eventos sem classificação — ele afunila, não
             garante. Vazio = tudo.
         gratis: True devolve só eventos com lote grátis disponível.
+        perto_lat/perto_lon: coordenada de referência ("perto de mim"). NÃO
+            filtra — ordena por distância dentro de cada dia e acrescenta
+            `distancia_km` ao retorno; evento sem coordenada (~30% da base)
+            vai para o fim do dia, nunca some. Passe os dois ou nenhum.
         limite: número máximo de resultados (padrão 20), ordenados por data.
 
     Returns:
@@ -235,6 +240,7 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
         texto=texto or None, cidade=cidade or None,
         data_inicio=data_inicio or None, data_fim=data_fim or None,
         bairro=bairro or None, tipo=tipo or None, gratis=gratis,
+        perto_lat=perto_lat or None, perto_lon=perto_lon or None,
         limite=limite)
 
 
