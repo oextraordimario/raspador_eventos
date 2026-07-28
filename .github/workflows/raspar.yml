@@ -1,13 +1,15 @@
 # Cron da raspagem — NI-10, spec docs/specs/20260726_abrir-ao-publico §3 passo 2.
 #
-# Tira o humano da cadência: o atualizar.py deixa de depender de o autor
-# lembrar de rodar. Grava direto na base remota (Neon), como já fazia local.
+# Tira o humano da MAIOR PARTE da cadência: o atualizar.py deixa de depender
+# de o autor lembrar de rodar — menos as duas coisas listadas abaixo, que só a
+# máquina dele faz. Grava direto na base remota (Neon), como já fazia local.
 #
 # Por que GitHub Actions e não Cloud Run/Lambda: o processo leva 10-15 min e
-# precisa de Python + Node + Chromium ao mesmo tempo — é container, não
-# function. O runner ubuntu já traz os três e, como o repo é PÚBLICO, os
-# minutos são gratuitos e ilimitados. Comparativo das 7 opções e o plano B
-# (Cloud Run Jobs) no anexo cron.md da spec.
+# precisa de Python + Node ao mesmo tempo — é container, não function. (O
+# Chromium também pesava nessa conta até 2026-07-28, quando o Shotgun saiu
+# daqui; o argumento continua de pé pelo tempo de execução.) O runner ubuntu já
+# traz os dois e, como o repo é PÚBLICO, os minutos são gratuitos e ilimitados.
+# Comparativo das 7 opções e o plano B (Cloud Run Jobs) no anexo cron.md da spec.
 #
 # ATENÇÃO — duas coisas NÃO rodam aqui, as duas por limite do ambiente de CI,
 # e as duas são feitas pela rodada LOCAL:
