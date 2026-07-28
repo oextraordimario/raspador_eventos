@@ -152,7 +152,12 @@ def rota(caminho, q, con=None):
             # significa evento sem cobrança. Filtrar aqui e não no SQL mantém
             # a consulta.py com uma responsabilidade só.
             evs = [e for e in evs if e.get("tem_gratis") == 1]
-        return {"eventos": [_limpar(e) for e in evs]}, CACHE
+        # As facetas vão na MESMA resposta, como já vão em /filmes: a página
+        # monta o calendário sem um segundo round-trip, e elas entram no mesmo
+        # objeto cacheado pela CDN.
+        return {"eventos": [_limpar(e) for e in evs],
+                "facetas": consulta.facetas_eventos(cidade="Brasília",
+                                                    con=con)}, CACHE
 
     if caminho.endswith("/evento"):
         url = _str(q, "url")

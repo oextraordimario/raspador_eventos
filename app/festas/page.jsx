@@ -1,12 +1,29 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { listarEventos, procedencia, idParaSlug } from '../../lib/api'
+import { catalogoEventos, procedencia, idParaSlug } from '../../lib/api'
 import Esqueleto from '../Esqueleto'
 import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../../lib/formato'
 import { MARCA, PERIODOS, periodoPadrao } from '../../lib/config'
 import Procedencia from '../Procedencia'
 import SearchForm from '../SearchForm'
 import Flyer from '../Flyer'
+import Drop from '../Drop'
+import Calendario from '../Calendario'
+
+// Um dia escolhido no calendário vira a janela daquele dia LOCAL (Brasília é
+// -03 fixo) e SUBSTITUI o atalho de período — os dois respondem à mesma
+// pergunta, e deixar os dois valendo produziria interseções vazias sem que a
+// pessoa entendesse por quê.
+function paramsDe({ periodo, texto, gratis, dia }) {
+  const p = { texto, gratis: gratis ? '1' : '' }
+  if (dia) {
+    p.de = `${dia}T00:00:00-03:00`
+    p.ate = `${dia}T23:59:59-03:00`
+  } else {
+    p.periodo = periodo
+  }
+  return p
+}
 
 // Os filtros vivem na URL (?periodo=&texto=&gratis=), não em estado de
 // cliente. Três ganhos que importam aqui: a página funciona sem JS, cada
@@ -75,9 +92,9 @@ function Card({ ev, indice }) {
 // que o <Suspense> de baixo consegue trocar por um esqueleto sem levar junto o
 // cabeçalho e os filtros — que devem continuar na tela, e clicáveis, enquanto
 // o resultado novo não chega.
-async function Resultado({ periodo, texto, gratis }) {
-  const [eventos, fontes] = await Promise.all([
-    listarEventos({ periodo, texto, gratis: gratis ? '1' : '' }),
+async function Resultado({ periodo, texto, gratis, dia }) {
+  const [{ eventos }, fontes] = await Promise.all([
+    catalogoEventos(paramsDe({ periodo, texto, gratis, dia })),
     procedencia(),
   ])
   const grupos = agruparPorDia(eventos)
@@ -131,10 +148,34 @@ async function Resultado({ periodo, texto, gratis }) {
   )
 }
 
+// Quantos meses o calendário mostra de uma vez. A agenda alcança meses; três
+// blocos ainda se leem como calendário, seis viram rolagem. O que passa disso
+// não some — vira a linha "+ N dias depois de <mês>".
+const MESES_NO_CALENDARIO = 3
+
+// O calendário é o único filtro que depende da base (precisa saber que dias
+// têm evento), então ele suspende sozinho, sem levar junto os chips — que já
+// podem ser clicados enquanto ele chega. O fetch é o MESMO do <Resultado>, e o
+// Next deduplica: uma requisição, dois consumidores.
+async function FiltroData({ periodo, texto, gratis, dia, href }) {
+  const { facetas } = await catalogoEventos(paramsDe({ periodo, texto, gratis, dia }))
+  if (!facetas?.dias?.length) return null
+  return (
+    <Drop rotulo="dia" ativos={dia ? 1 : 0} aberto={Boolean(dia)}>
+      <Calendario dias={facetas.dias} selecionado={dia}
+                  maxMeses={MESES_NO_CALENDARIO}
+                  hrefAlem={href({ dia: '', periodo: 'proximos' })}
+                  hrefDia={(d) => href({ dia: dia === d ? '' : d })} />
+    </Drop>
+  )
+}
+
 export default async function Festas({ searchParams }) {
   const sp = await searchParams
   const texto = sp?.texto ?? ''
   const gratis = sp?.gratis === '1'
+  // dia escolhido no calendário (querystring é entrada de estranho)
+  const dia = /^\d{4}-\d{2}-\d{2}$/.test(sp?.dia ?? '') ? sp.dia : ''
   // Período ESCOLHIDO (chip clicado) vence sempre; o default é que depende da
   // busca (NI-41). Os dois valores andam separados de propósito: o resolvido
   // manda na consulta e no chip aceso, o explícito é o que o formulário
@@ -146,10 +187,12 @@ export default async function Festas({ searchParams }) {
   // "grátis" apagaria a busca que a pessoa acabou de digitar.
   const comFiltro = (mudanca) => {
     const q = new URLSearchParams()
-    const novo = { periodo, texto, gratis: gratis ? '1' : '', ...mudanca }
+    const novo = { periodo, texto, gratis: gratis ? '1' : '', dia, ...mudanca }
     for (const [k, v] of Object.entries(novo)) if (v) q.set(k, v)
     return `/festas?${q}`
   }
+  // Clicar um chip de período abandona o dia escolhido: são a mesma pergunta.
+  const comPeriodo = (chave) => comFiltro({ periodo: chave, dia: '' })
 
   return (
     <>
@@ -159,12 +202,12 @@ export default async function Festas({ searchParams }) {
       </div>
 
       <div className="filtros">
-        <SearchForm texto={texto} periodo={periodoUrl} gratis={gratis} />
+        <SearchForm texto={texto} periodo={periodoUrl} gratis={gratis} dia={dia} />
 
         <div className="chips" role="group" aria-label="Filtros">
           {PERIODOS.map((p) => (
-            <Link key={p.chave} className="chip" href={comFiltro({ periodo: p.chave })}
-                  data-on={periodo === p.chave ? '1' : '0'}>
+            <Link key={p.chave} className="chip" href={comPeriodo(p.chave)}
+                  data-on={!dia && periodo === p.chave ? '1' : '0'}>
               {p.rotulo}
             </Link>
           ))}
@@ -173,6 +216,15 @@ export default async function Festas({ searchParams }) {
                 data-on={gratis ? '1' : '0'}>
             só grátis
           </Link>
+        </div>
+
+        <div className="drops" role="group" aria-label="Filtro por dia">
+          {/* fallback com a mesma caixa do <Drop> real: sem ele a barra de
+              filtros daria um pulo quando o calendário chegasse */}
+          <Suspense fallback={<span className="drop-fantasma">dia ▾</span>}>
+            <FiltroData periodo={periodo} texto={texto} gratis={gratis}
+                        dia={dia} href={comFiltro} />
+          </Suspense>
         </div>
       </div>
 
@@ -183,8 +235,9 @@ export default async function Festas({ searchParams }) {
           fronteira já resolvida e a tela ficaria parada exatamente no gesto
           de que o beta reclamou. Com ela, cada combinação de filtro é uma
           fronteira nova, que suspende e mostra o esqueleto. */}
-      <Suspense key={`${periodo}|${texto}|${gratis}`} fallback={<Esqueleto n={6} />}>
-        <Resultado periodo={periodo} texto={texto} gratis={gratis} />
+      <Suspense key={`${periodo}|${texto}|${gratis}|${dia}`}
+                fallback={<Esqueleto n={6} />}>
+        <Resultado periodo={periodo} texto={texto} gratis={gratis} dia={dia} />
       </Suspense>
     </>
   )

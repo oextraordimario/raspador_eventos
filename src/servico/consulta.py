@@ -44,6 +44,11 @@ CAMPOS = ["id", "nome", "fonte", "start_date", "end_date", "cidade", "estado",
 # base, indexado pelo FTS).
 DESCRICAO_MAX = 300
 
+# A hora exibida/filtrada e SEMPRE a de Brasilia; as colunas de tempo sao UTC
+# (invariante do schema), entao quem converte e a query. Vale para os dois
+# dominios: o horario da sessao de cinema e o dia do calendario de eventos.
+_TZ_BSB = "America/Sao_Paulo"
+
 
 def _con(con):
     """Conexão para UMA consulta: a recebida, ou uma nova que se fecha sozinha.
@@ -130,6 +135,45 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     return [dict(r) for r in rows]
 
 
+# Os mesmos filtros que a busca aplica por padrao. Ficam numa constante porque
+# a faceta TEM que enxergar exatamente o que a lista enxerga: dia habilitado no
+# calendario que devolve zero resultado e pior que dia desabilitado.
+_VISIVEL = ("ruido = 0 AND (cancelado IS NULL OR cancelado = 0) "
+            "AND sumido = 0 AND dedupe_canonico = 1")
+
+
+def facetas_eventos(cidade=None, con=None):
+    """Valores dos filtros da pagina de festas, so sobre evento FUTURO visivel.
+
+    O analogo do facetas_filmes (NI-35) para eventos. Hoje devolve os dias com
+    evento, que e o que o calendario habilita.
+
+    **O dia e o dia LOCAL SIMPLES** (00:00–24:00 de Brasilia), e nao o dia da
+    vida noturna com corte as 6h que os atalhos de periodo usam. Nao e
+    inconsistencia: a lista agrupa por dia local simples (`chaveDia` do front),
+    entao uma festa de sabado 1h aparece sob "sabado" na tela — e o dia
+    "sabado" do calendario precisa traze-la. O corte das 6h continua valendo
+    onde sempre valeu: nos atalhos hoje/fds/7d e nos rotulos "hoje"/"amanha".
+
+    Returns:
+        {"dias": ["YYYY-MM-DD", ...]} — ordenados, so os que tem evento.
+    """
+    con, meu = _con(con)
+    agora = datetime.now(timezone.utc).isoformat()
+    where = [f"({_VISIVEL})", "start_date >= %s"]
+    params = [agora]
+    if cidade:
+        where.append("cidade = %s")
+        params.append(cidade)
+    dias = [r["dia"] for r in con.execute(
+        "SELECT DISTINCT to_char(start_date::timestamptz AT TIME ZONE "
+        f"'{_TZ_BSB}', 'YYYY-MM-DD') AS dia FROM public.eventos "
+        f"WHERE {' AND '.join(where)} ORDER BY dia", params)]
+    if meu:
+        con.close()
+    return {"dias": dias}
+
+
 def detalhar_evento(url, con=None):
     """Devolve UM evento completo: os mesmos campos da busca, a descricao
     INTEIRA (sem o corte de DESCRICAO_MAX) e a lista de lotes de ingresso com
@@ -186,11 +230,6 @@ CAMPOS_FILME = ["id", "titulo", "titulo_original", "generos", "duracao_min",
                 "classificacao", "distribuidora", "url", "poster",
                 "poster_proprio", "em_pre_venda", "sinopse", "ano", "nota",
                 "votos", "tmdb_id"]
-
-# A hora exibida/filtrada é SEMPRE a de Brasília; `sessoes.inicio` é UTC
-# (invariante do schema), então o filtro de horário converte na query.
-_TZ_BSB = "America/Sao_Paulo"
-
 
 def _lista(v):
     """Normaliza um filtro múltiplo: None/''→[], 'a,b'→['a','b'], lista→lista.

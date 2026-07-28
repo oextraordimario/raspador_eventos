@@ -5,7 +5,7 @@ import { ORIGEM } from '../../../lib/config'
 import { chaveDia, rotuloDia, diaMes } from '../../../lib/formato'
 import { REDES, HORARIOS, redesParaCinemas, notaFmt } from '../../../lib/cinema'
 import Cartaz from '../Cartaz'
-import DropFiltro from '../DropFiltro'
+import DropFiltro from '../../DropFiltro'
 import SessaoLink from './SessaoLink'
 
 export const revalidate = 300

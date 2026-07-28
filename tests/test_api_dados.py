@@ -189,6 +189,20 @@ hoje_casa, _ = api_dados.rota("/api/dados/eventos",
 checar(ids(hoje_casa) == set(),
        "o bug reproduzido: a mesma busca em 'hoje' devolve vazio")
 
+print("\n4b) Facetas de eventos (NI-43 — o que o calendário habilita)")
+fac = r.get("facetas") or {}
+checar("dias" in fac, f"a resposta de /eventos traz as facetas ({list(fac)})")
+hoje_bsb = (AGORA - timedelta(hours=3)).date().isoformat()
+amanha_bsb = (AGORA + timedelta(days=1) - timedelta(hours=3)).date().isoformat()
+checar(amanha_bsb in fac["dias"], f"o dia do evento futuro está lá ({fac['dias']})")
+checar(fac["dias"] == sorted(fac["dias"]), "os dias vêm ordenados")
+# sympla:5 é passado e sympla:2 é ruído: nenhum dos dois pode habilitar um dia
+so_deles = {"sympla:2", "sympla:5", "shotgun:3", "zig:4"}
+visiveis = {e["url"].rsplit("/", 1)[-1] for e in
+            api_dados.rota("/api/dados/eventos", {"periodo": ["proximos"]})[0]["eventos"]}
+checar(not (so_deles & visiveis),
+       "a faceta enxerga o mesmo que a lista (sem ruído, passado, cancelado, sumido)")
+
 print("\n5) Guardas de entrada (querystring é entrada de estranho)")
 teto, _ = api_dados.rota("/api/dados/eventos", {"limite": ["999999"]})
 checar(len(teto["eventos"]) <= 200, "limite tem teto")

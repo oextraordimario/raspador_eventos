@@ -10,9 +10,22 @@ const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
 const SEMANA = ['s', 't', 'q', 'q', 's', 's', 'd']
 
 // dias: ["YYYY-MM-DD"] com sessão; renderiza cada mês que aparece neles.
-export default function Calendario({ dias, selecionado, hrefDia }) {
+//
+// `maxMeses` e `hrefAlem` entraram com o calendário de EVENTOS (NI-43): a
+// grade de cinema cobre ~8 dias e cabe inteira, mas a agenda de festas alcança
+// meses, e empilhar seis blocos de mês dentro de um dropdown é uma lista de
+// rolagem, não um calendário. Com o limite, os meses além dele viram uma linha
+// só, que leva ao período aberto — a informação de que existe mais não se
+// perde, e o dropdown continua sendo um calendário. Sem `maxMeses` (o caso do
+// cinema), nada muda.
+export default function Calendario({ dias, selecionado, hrefDia,
+                                     maxMeses = 0, hrefAlem }) {
   const habilitados = new Set(dias)
-  const meses = [...new Set(dias.map((d) => d.slice(0, 7)))].sort()
+  const todos = [...new Set(dias.map((d) => d.slice(0, 7)))].sort()
+  const meses = maxMeses > 0 ? todos.slice(0, maxMeses) : todos
+  const alem = maxMeses > 0
+    ? dias.filter((d) => d.slice(0, 7) > meses.at(-1)).length
+    : 0
 
   return (
     <div className="cal">
@@ -47,6 +60,13 @@ export default function Calendario({ dias, selecionado, hrefDia }) {
           </div>
         )
       })}
+
+      {alem > 0 && hrefAlem && (
+        <Link className="cal-alem" href={hrefAlem}>
+          + {alem} {alem === 1 ? 'dia' : 'dias'} depois de{' '}
+          {MESES[Number(meses.at(-1).slice(5)) - 1]}
+        </Link>
+      )}
     </div>
   )
 }

@@ -550,6 +550,16 @@ a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 .drop-limpar { font-size: 12.5px; color: var(--zu-fg-3); white-space: nowrap; padding: 6px 4px; }
 .drop-limpar:hover { color: var(--zu-error); }
 
+/* Lugar guardado para um <Drop> que ainda está sendo carregado: mesma caixa,
+   sem interação. Sem isto a barra de filtros pula quando o calendário chega. */
+.drop-fantasma {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--zu-sans); font-size: 13px; font-weight: 500;
+  color: var(--zu-fg-4); background: var(--zu-card);
+  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-sm);
+  padding: 6px 12px; white-space: nowrap;
+}
+
 /* Grupo de checkboxes (DropFiltro): opções em coluna + botão "aplicar".
    Lista longa (gênero tem 20+) rola num contêiner próprio; o botão fica
    fora do scroll, sempre visível. */
@@ -601,6 +611,13 @@ a.cal-dia:hover { border-color: var(--zu-green); color: var(--zu-green); }
 a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1px; }
 .cal-dia[data-on='1'] { background: var(--zu-green); color: var(--zu-on-green); border-color: var(--zu-green); }
 .cal-dia.off { color: var(--zu-fg-4); }
+/* "+ N dias depois de agosto": a agenda de eventos passa dos três meses que o
+   calendário mostra, e sumir com o resto seria mentir sobre o acervo. */
+.cal-alem {
+  font-size: 12.5px; color: var(--zu-fg-3); padding: 6px 2px 2px;
+  border-top: 1px solid var(--zu-divider);
+}
+.cal-alem:hover { color: var(--zu-green); }
 
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
 .filme-info h1 { font-size: 30px; }
