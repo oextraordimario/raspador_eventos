@@ -487,7 +487,36 @@ enquanto `eventos` não se reconstruir do payload guardado, toda operação
 destrutiva aposta que a fonte ainda responde — e o Shotgun é precisamente o
 caso em que ela não responde mais.
 
-### 7.5 Dívida deixada
+### 7.5 O NI-58 terminou por decisão, não por diagnóstico
+
+A §2.2 mandava instrumentar, ler a evidência e só então escolher a mitigação.
+A instrumentação saiu; a leitura **não vai acontecer**. Decisão do autor no
+mesmo dia, e ela está certa pelo tamanho do problema: descobrir se o runner
+leva challenge, geo-personalização ou detecção de fingerprint custaria rodadas
+de CI de 12 minutos cada, e a correção mais provável (proxy residencial)
+custaria dinheiro recorrente — tudo isso por **~65 eventos por semana** de uma
+fonte que funciona de graça na máquina do autor.
+
+O que foi feito no lugar:
+
+- workflow com `--sem-shotgun` fixo (e o input `sem_shotgun` do dispatch caiu,
+  já que não há mais escolha a fazer);
+- o passo de instalar Chromium saiu do CI — era só do Shotgun. Corta ~2 min e
+  ~400 MB por rodada;
+- `--so-instagram` virou **`--rodada-local`** (o nome antigo continua aceito):
+  o modo deixou de ser "a fila do Instagram" e passou a ser *o que o CI não
+  consegue fazer* — a extração de flyer (assinatura) **e** o Shotgun (IP
+  residencial). Na rodada local ele raspa o Shotgun e recalcula `sumido` só
+  para essa fonte, sem descrever/precificar (que o Shotgun não usa: o JSON-LD
+  do catálogo já traz descrição, line-up e preço);
+- o aviso de pendências do relatório do cron aponta para o comando novo.
+
+**Preço aceito, e é bom que esteja escrito:** a agenda do Shotgun fica tão
+fresca quanto a frequência com que a rodada local roda. Se a fonte crescer, ou
+se a rodada local espaçar demais, a conta muda — e aí a instrumentação (que
+continua no scraper) volta a valer. Religar é reverter duas linhas do workflow.
+
+### 7.6 Dívida deixada
 
 - `endereco`/`lat`/`lon` do Ticket and Go ficam **nulos** para sempre (a fonte
   não tem mais o dado). Documentado no docstring do módulo para ninguém

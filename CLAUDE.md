@@ -46,7 +46,9 @@ python src/atualizar.py --sem-cinema            # pula a grade de cinema
 python src/atualizar.py --sem-tmdb              # pula o enriquecimento TMDB dos filmes
 python src/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
 python src/atualizar.py --sem-extracao-flyer    # Instagram só até a Bronze, sem a visão
-python src/atualizar.py --so-instagram          # só a fila de extração (rodada curta)
+python src/atualizar.py --rodada-local          # o que o CI não faz: Shotgun + fila de
+                                                #   extração de flyer (--so-instagram é
+                                                #   o nome antigo, continua valendo)
 python src/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: janela de 30 dias)
 python src/atualizar.py --so-derivar            # não raspa; re-deriva do payload bruto + regras + FTS
 python src/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
@@ -160,10 +162,15 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   extrai slugs `/events/<slug>` (links **relativos** — a regex tem que casar path
   relativo) e lê o JSON-LD (`MusicEvent`) de cada evento — incluindo os campos ricos
   (`description`/`performer`/`organizer`/`offers` → descricao/atracoes/organizador/
-  preco_min), que vêm de graça na mesma página. **Funciona local e devolve 0 no
-  CI** desde 2026-07-26 (NI-58): listagem sem nenhum slug agora levanta exceção
-  e despeja HTML + screenshot em `diagnostico/shotgun/`, que o workflow sobe
-  como artifact — a mitigação espera essa evidência.
+  preco_min), que vêm de graça na mesma página. **Não roda no cron** (NI-58,
+  decidido em 2026-07-28): o site entrega listagem vazia para o runner do
+  Actions e vai bem na máquina do autor, então a fonte saiu do CI
+  (`--sem-shotgun` fixo no workflow) e pegou carona na `--rodada-local`, que já
+  era obrigatória pela extração de flyer. Investigar o bloqueio ou pagar proxy
+  não se paga por ~65 eventos/semana; o preço aceito é a agenda dele ficar tão
+  fresca quanto a frequência da rodada local. Listagem sem nenhum slug levanta
+  exceção e despeja HTML + screenshot em `diagnostico/shotgun/` (gitignorado) —
+  serve agora para diagnosticar quebra local.
 - `src/scrapers/zig.py` — API do SuperTicket (`ticket-api.superticket.com.br/events`,
   plataforma que a Zig incorporou), sem auth/navegador. **Sem filtro server-side de
   estado**: pagina o catálogo nacional (~6 páginas) e filtra

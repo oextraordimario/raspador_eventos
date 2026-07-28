@@ -86,8 +86,11 @@ def _checar_schema(con):
                  "sql/schema.sql como referência e execute de novo.")
 
 
-def _raspar(incluir_shotgun=True):
+def _raspar(incluir_shotgun=True, apenas=None):
     """Raspa cada fonte isoladamente: uma fonte quebrada não esconde as outras.
+
+    `apenas` restringe a nomes de fonte (é como a rodada local pega só o
+    Shotgun, que não funciona no CI — ver `--rodada-local` no main).
 
     A conexão com a base abre DEPOIS de cada raspagem e fecha logo após o
     upsert (2026-07-27): raspar um catálogo leva minutos, e conexão parada
@@ -104,6 +107,8 @@ def _raspar(incluir_shotgun=True):
     if incluir_shotgun:
         fontes.append(("shotgun", shotgun,
                        lambda: shotgun.raspar(city_slug="brasilia")))
+    if apenas:
+        fontes = [f for f in fontes if f[0] in apenas]
 
     resultados = {}
     for nome, modulo, chamada in fontes:
@@ -585,7 +590,8 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
         if res.get("pendentes_extracao"):
             print(f"  *** {res['pendentes_extracao']} posts aguardando "
                   "extração do flyer — rode `python src/atualizar.py "
-                  "--so-instagram` localmente (a visão exige a assinatura)")
+                  "--rodada-local` (a visão exige a assinatura; a mesma "
+                  "rodada traz o Shotgun, que o CI não lê)")
 
     # --- cinema: grade derivada de cinema_raw (snapshot da rodada) ---
     if cine is not None:
@@ -738,13 +744,18 @@ def main():
     iniciada_em = datetime.now(timezone.utc).isoformat()
     so_enriquecer = "--so-enriquecer" in sys.argv
     so_derivar = "--so-derivar" in sys.argv
-    so_instagram = "--so-instagram" in sys.argv
+    # --rodada-local: o que o CI NÃO consegue fazer. Nasceu como
+    # --so-instagram (a extração de flyer exige a assinatura do Claude) e em
+    # 2026-07-28 ganhou o Shotgun, que o runner do Actions não consegue ler
+    # (NI-58). O nome antigo continua valendo — está em doc, hábito e no aviso
+    # que o próprio relatório do cron imprime.
+    rodada_local = ("--rodada-local" in sys.argv or "--so-instagram" in sys.argv)
     sem_shotgun = "--sem-shotgun" in sys.argv
     sem_cinema = "--sem-cinema" in sys.argv
     sem_instagram = "--sem-instagram" in sys.argv
     sem_extracao = "--sem-extracao-flyer" in sys.argv
     modo = ("so-enriquecer" if so_enriquecer else "so-derivar" if so_derivar
-            else "so-instagram" if so_instagram
+            else "rodada-local" if rodada_local
             else "cron" if sem_extracao
             else "sem-shotgun" if sem_shotgun else "completo")
 
@@ -760,11 +771,21 @@ def main():
     resultados, erros = {}, []
     sumidos = desc = prec = None
     if not (so_enriquecer or so_derivar):
-        # --so-instagram: rodada curta que processa só a fila de extração
-        # deixada pelo cron (que roda com --sem-extracao-flyer). Re-raspa os
-        # perfis de propósito — a URL de mídia do CDN expira em horas, então
-        # a Bronze precisa estar fresca para a visão conseguir baixar o flyer.
-        if not so_instagram:
+        # --rodada-local: rodada curta com o que só a máquina do autor faz.
+        # (a) o Shotgun, que devolve 0 no runner do Actions e vai bem aqui
+        #     (NI-58) — sem descrever/precificar, que ele não usa: o JSON-LD
+        #     do catálogo já traz descrição, line-up e preço;
+        # (b) a fila de extração de flyer deixada pelo cron (que roda com
+        #     --sem-extracao-flyer, porque a visão exige a assinatura).
+        # Re-raspa os perfis de propósito — a URL de mídia do CDN expira em
+        # horas, então a Bronze precisa estar fresca para a visão baixar.
+        if rodada_local:
+            if not sem_shotgun:
+                resultados = _raspar(apenas=["shotgun"])
+                con = store.conectar()
+                sumidos = _marcar_sumidos(con, resultados, iniciada_em)
+                con.close()
+        else:
             resultados = _raspar(incluir_shotgun=not sem_shotgun)
             if resultados and all("erro" in r for r in resultados.values()):
                 sys.exit("Todas as fontes falharam — base não atualizada.")
@@ -804,7 +825,7 @@ def main():
     # Bronze, re-deriva para aplicar — aplicar_cinema é idempotente e custa
     # segundos. O flyer do Instagram sobe antes do aplicar_instagram pelo
     # mesmo motivo (a derivação é quem grava eventos.imagem).
-    if (not (so_enriquecer or so_derivar or so_instagram)
+    if (not (so_enriquecer or so_derivar or rodada_local)
             and not sem_cinema and "--sem-tmdb" not in sys.argv):
         novos = _enriquecer_cinema(con, erros) or 0
         novos += _copiar_posters(con, erros) or 0

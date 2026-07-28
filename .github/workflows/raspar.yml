@@ -9,12 +9,20 @@
 # minutos são gratuitos e ilimitados. Comparativo das 7 opções e o plano B
 # (Cloud Run Jobs) no anexo cron.md da spec.
 #
-# ATENÇÃO — a extração de flyer do Instagram NÃO roda aqui (--sem-extracao-flyer):
-# ela usa `claude -p` na ASSINATURA e não existe login de assinatura em CI.
-# É o "caminho 1" decidido na spec. Os posts entram na Bronze normalmente e a
-# fila de extração é processada na próxima rodada LOCAL:
-#     python src/atualizar.py --so-instagram
-# O relatório desta rodada avisa quantos posts estão aguardando.
+# ATENÇÃO — duas coisas NÃO rodam aqui, as duas por limite do ambiente de CI,
+# e as duas são feitas pela rodada LOCAL:
+#     python src/atualizar.py --rodada-local
+#
+#   1. extração de flyer do Instagram (--sem-extracao-flyer): usa `claude -p`
+#      na ASSINATURA, e não existe login de assinatura em CI ("caminho 1" da
+#      spec do Instagram). O relatório avisa quantos posts estão na fila.
+#   2. Shotgun (--sem-shotgun): o site entrega a listagem vazia para o runner
+#      (0 eventos em 26, 27 e 28/07) e vai bem na máquina do autor, que raspou
+#      65 eventos no mesmo dia. Decisão de 2026-07-28 (NI-58): não vale
+#      investigar bloqueio nem pagar proxy residencial por ~65 eventos/semana
+#      — a fonte pega carona na rodada local, que já é obrigatória por (1).
+#      Consequência aceita: a agenda do Shotgun fica tão fresca quanto a
+#      frequência com que a rodada local é executada.
 
 name: raspar
 
@@ -26,11 +34,6 @@ on:
     # esperado e irrelevante para raspagem diária de vida noturna.
     - cron: "0 6 * * *"
   workflow_dispatch:
-    inputs:
-      sem_shotgun:
-        description: "Pular o Shotgun (mais rápido; usa navegador)"
-        type: boolean
-        default: false
 
 # Duas rodadas simultâneas fariam UPSERT concorrente na mesma base. Não
 # corrompe (a chave é <fonte>:<id_nativo>), mas desperdiça e embaralha o
@@ -62,18 +65,8 @@ jobs:
       - name: Instalar dependências Python
         run: pip install -r requirements.txt
 
-      # O binário do Chromium muda de versão junto do Playwright; a chave do
-      # cache carrega o hash do requirements para não servir binário velho.
-      - name: Cache do Chromium
-        id: cache-chromium
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
-
-      - name: Instalar Chromium (Shotgun)
-        if: steps.cache-chromium.outputs.cache-hit != 'true'
-        run: python -m playwright install --with-deps chromium
+      # Sem Chromium aqui: o Playwright só era usado pelo Shotgun, que saiu do
+      # cron (ver o cabeçalho). Isso corta ~2 min e ~400 MB de cada rodada.
 
       - name: Instalar e configurar a CLI do Monid (Instagram)
         env:
@@ -90,20 +83,4 @@ jobs:
           # Ausentes, os passos são pulados com aviso — não derrubam a rodada.
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: |
-          python src/atualizar.py --sem-extracao-flyer \
-            ${{ inputs.sem_shotgun && '--sem-shotgun' || '' }}
-
-      # Evidência de fonte quebrada (NI-58). O atualizar.py isola a falha POR
-      # FONTE, então o job termina VERDE mesmo com uma fonte bloqueada — daí o
-      # `always()`: com `failure()` este passo nunca rodaria. Sem artifact não
-      # dá para distinguir bloqueio anti-bot de mudança de layout, que foi
-      # exatamente o buraco do Shotgun em 0/0 desde 2026-07-26.
-      - name: Subir evidência de diagnóstico
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: diagnostico-${{ github.run_id }}
-          path: diagnostico/
-          if-no-files-found: ignore
-          retention-days: 7
+        run: python src/atualizar.py --sem-extracao-flyer --sem-shotgun

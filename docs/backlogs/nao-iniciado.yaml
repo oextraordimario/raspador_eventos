@@ -1044,42 +1044,6 @@
     script. Barato de propósito: o valor está em existir o passo executável,
     não na sofisticação.
 
-- codigo: NI-58
-  status: pendente
-  prioridade: alta
-  rank: 1
-  esforco: P
-  eixo: raspagem
-  fase: 0
-  titulo: "Shotgun devolve 0 no CI (funciona local) — decidir a mitigação com a evidência na mão"
-  resumo: "a INSTRUMENTAÇÃO saiu em 2026-07-28 (listagem vazia levanta exceção + HTML/screenshot viram artifact do Actions); o que falta é ler a evidência da próxima rodada do cron e escolher entre stealth, proxy ou tirar o Shotgun do CI"
-  data: 2026-07-28
-  depende_de: []
-  relacionado: [NI-59, NI-10]
-  caso_real: ["última coleta boa: 77 eventos em 2026-07-17 (rodada LOCAL); as três rodadas no Actions (26, 27 e 28/07) deram 0/0 — quebrou exatamente ao sair da máquina do autor"]
-  detalhe: |
-    Hipótese de trabalho: bloqueio anti-bot para IP de datacenter (Azure) — o
-    site já respondia 429 a HTTP puro, que é o motivo de existir o Playwright
-    ali. Local o scraper vai bem (56 slugs em 3 páginas, JSON-LD íntegro em
-    2026-07-28). Descartados no diagnóstico: o redirect /pt/ → /en/cities e os
-    links /en/events/<slug> (a regex não é ancorada, continua casando).
-
-    FEITO (spec 20260728_fontes-quebradas §3.2): página 1 sem nenhum slug
-    levanta RuntimeError e despeja HTML + screenshot em diagnostico/shotgun/;
-    o workflow sobe a pasta como artifact num passo `always()` (com
-    `failure()` nunca rodaria — o atualizar.py isola a falha por fonte e o job
-    termina verde).
-
-    FALTA: baixar o artifact da próxima rodada do cron e decidir. Se confirmar
-    bloqueio por IP, a saída provável é tirar o Shotgun do cron e rodá-lo local
-    junto do --so-instagram (que já é rodada local recorrente) — proxy
-    residencial pago não se justifica por ~50 eventos/semana.
-
-    Atenção: o drop de 2026-07-27 apagou os eventos do Shotgun da base
-    (0 linhas), então a fonte foi repovoada por raspagem local em 28/07 —
-    enquanto o CI não voltar, cada rodada local é o que mantém a agenda dela
-    viva.
-
 # NI-57 (Ticket and Go pela API V2) e NI-59 (coleta zerada não marca sumido)
 # foram IMPLEMENTADOS em 2026-07-28, no mesmo dia em que entraram — spec
 # docs/specs/20260728_fontes-quebradas/. NI-57: a V1 foi desligada; listagem
@@ -1093,7 +1057,20 @@
 # desvio está registrado na §7 da spec. NI-59: guarda de duas linhas no
 # _marcar_sumidos + o alerta dizendo o que o sistema fez; teste em
 # tests/test_observabilidade.py trava os dois lados (zero pula, coleta real
-# continua marcando). NI-58 continua na lista: só a instrumentação saiu.
+# continua marcando).
+#
+# NI-58 (Shotgun em 0 no CI) foi RESOLVIDO POR DECISÃO em 2026-07-28, sem
+# investigar o bloqueio: a fonte saiu do cron (--sem-shotgun fixo no workflow,
+# que também parou de instalar o Chromium) e passou a rodar na
+# `--rodada-local`, que já era obrigatória pela extração de flyer. O raciocínio
+# do autor foi de proporção, não de curiosidade: descobrir SE é challenge, geo
+# ou fingerprint custaria rodadas de CI de 12 min cada, e a correção mais
+# provável (proxy residencial) custaria dinheiro recorrente — por ~65 eventos
+# por semana de uma fonte que funciona de graça na máquina dele. Preço aceito e
+# consciente: a agenda do Shotgun fica tão fresca quanto a frequência da rodada
+# local. Se um dia a fonte crescer ou o dono quiser o cron completo, a
+# instrumentação (exceção + HTML/screenshot em diagnostico/shotgun/) continua
+# no scraper — é só religar o passo no workflow.
 
 # NI-10 (cron da raspagem), NI-21 (LICENSE) e NI-28 (site público) foram
 # IMPLEMENTADOS em 2026-07-26 (spec docs/specs/20260726_abrir-ao-publico/).
