@@ -468,7 +468,26 @@ Instagram).
 - `_precificar` não mudou: o slug continua saindo da URL pública e
   `raspar_tickets` aponta para a rota nova.
 
-### 7.4 Dívida deixada
+### 7.4 A §2.3 estava errada: não havia o que desmarcar
+
+A spec dizia que recuperar os eventos escondidos do Shotgun seria de graça,
+porque o `_marcar_sumidos` é idempotente. Ao ir executar, a base tinha **zero
+linhas** da fonte: o `DROP` de 2026-07-27 levou o Shotgun inteiro (eventos e
+Bronze), e os 41 futuros que apareciam no relatório de 27/07 eram de antes
+dele. O `sumido` tinha escondido a agenda; o drop apagou.
+
+Recuperação real: raspagem **local** (`shotgun.raspar()` + upsert +
+`--so-derivar`) → 65 eventos de volta, 31 já visíveis na consulta. Só funcionou
+porque a máquina do autor não é bloqueada — se o Shotgun tivesse caído também
+local, o catálogo estaria perdido de vez.
+
+Isto é argumento direto para o **NI-55** (Prata reconstruível a partir da
+Bronze) e o **NI-56** (exportar não-deriváveis antes de operação destrutiva):
+enquanto `eventos` não se reconstruir do payload guardado, toda operação
+destrutiva aposta que a fonte ainda responde — e o Shotgun é precisamente o
+caso em que ela não responde mais.
+
+### 7.5 Dívida deixada
 
 - `endereco`/`lat`/`lon` do Ticket and Go ficam **nulos** para sempre (a fonte
   não tem mais o dado). Documentado no docstring do módulo para ninguém
