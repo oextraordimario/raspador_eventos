@@ -27,8 +27,15 @@ export default function Faixa({ titulo, filmes, prioridade = false }) {
       <div className="trilho" ref={trilho}>
         {filmes.map((f, i) => (
           <Link key={f.id} className="fposter" href={`/filmes/${f.id}`}>
-            <Cartaz src={f.poster} titulo={f.titulo} tamanhos="150px"
-                    prioridade={prioridade && i < 4} />
+            {/* `poster_proprio` PRIMEIRO, como no FilmCard e na página do
+                filme: é a cópia no nosso storage (NI-37), e o hotlink do CDN
+                da fonte é só o fallback de enquanto a cópia não existe. Este
+                era o único dos três lugares que renderizava pôster e não fazia
+                isso — as 55 imagens da vitrine saíam todas do CDN da
+                Ingresso.com, com a nossa cópia dos 30 pôsteres parada no Blob.
+                Uma delas ("Xica da Silva") não renderizava por causa disso. */}
+            <Cartaz src={f.poster_proprio || f.poster} titulo={f.titulo}
+                    tamanhos="150px" prioridade={prioridade && i < 4} />
             <span className="fposter-titulo">{f.titulo}</span>
             <span className="fposter-meta">
               {f.em_pre_venda === 1 ? 'pré-venda' : (f.generos || '').split(',')[0]}
