@@ -28,6 +28,7 @@ from base import conexao
 from coleta import gravar
 from tratamento import busca
 from tratamento import comum
+from servico import feedback as svc_feedback
 
 import base_teste  # noqa: E402
 
@@ -226,7 +227,70 @@ checar(len(fora["filmes"]) == 0, "fora da janela de hora não devolve nada")
 lixo_h, _ = api_dados.rota("/api/dados/filmes", {"hora_de": ["abc"]})
 checar("filmes" in lixo_h, "hora não-numérica não quebra (vira sem filtro)")
 
-print("\n8) Rota desconhecida")
+print("\n8) POST /feedback — a primeira ESCRITA que o site faz (NI-52)")
+
+
+def enviar(**campos):
+    """Posta como o <form> nativo posta: tudo em lista, como o parse_qs devolve."""
+    return api_dados.rota_post("/api/dados/feedback",
+                               {k: [v] for k, v in campos.items()})
+
+
+def total_feedback():
+    con = conexao.conectar()
+    n = con.execute("SELECT count(*) AS n FROM uso.feedback").fetchone()["n"]
+    con.close()
+    return n
+
+
+destino, status = enviar(tipo="bug", mensagem="O preço do evento X está errado",
+                         contato="eu@exemplo.test", pagina="/evento/sympla~1")
+checar(status == 303 and destino.startswith("/feedback?ok=1"),
+       f"envio válido redireciona para a confirmação ({status} {destino})")
+checar("tipo=bug" in destino, "o tipo volta na URL (é o que a página instrumenta)")
+gravado = svc_feedback.listar(limite=5)
+checar(len(gravado) == 1 and gravado[0]["mensagem"].startswith("O preço"),
+       f"a linha existe em uso.feedback ({gravado})")
+checar(gravado[0]["contato"] == "eu@exemplo.test" and gravado[0]["lido"] == 0,
+       "contato e estado 'não lido' gravados")
+
+n = total_feedback()
+_, st = enviar(tipo="spam", mensagem="oi")
+checar(st == 303 and total_feedback() == n, "tipo fora da lista NÃO vira linha")
+_, st = enviar(tipo="bug", mensagem="   ")
+checar(total_feedback() == n, "mensagem vazia NÃO vira linha")
+
+destino, st = enviar(tipo="bug", mensagem="sou um robô", site="http://spam.test")
+checar(destino.startswith("/feedback?ok=1") and total_feedback() == n,
+       "honeypot: responde SUCESSO e descarta (não ensina o robô)")
+
+enviar(tipo="sugestao", mensagem="M" * 5000, contato="C" * 900)
+guardado = svc_feedback.listar(limite=1)[0]
+checar(len(guardado["mensagem"]) == svc_feedback.MSG_MAX
+       and len(guardado["contato"]) == svc_feedback.CONTATO_MAX,
+       f"tamanhos cortados ({len(guardado['mensagem'])}/{len(guardado['contato'])})")
+
+# teto por janela: global, porque não guardamos IP (§7.2/§7.4 da spec)
+antes = total_feedback()
+for i in range(svc_feedback.TETO_JANELA + 3):
+    destino, _ = enviar(tipo="outro", mensagem=f"enxurrada {i}")
+checar(destino == "/feedback?erro=muitos",
+       f"o teto por janela responde com o erro certo ({destino})")
+checar(total_feedback() <= antes + svc_feedback.TETO_JANELA,
+       f"o teto segura a escrita ({total_feedback() - antes} gravados)")
+
+nao_lidos = svc_feedback.nao_lidos()
+checar(nao_lidos > 0, "o relatório da rodada tem o que avisar")
+svc_feedback.marcar_lido(gravado[0]["id"])
+checar(svc_feedback.nao_lidos() == nao_lidos - 1, "marcar como lido funciona")
+
+try:
+    api_dados.rota_post("/api/dados/inventada", {})
+    checar(False, "POST em rota desconhecida deveria levantar KeyError")
+except KeyError:
+    checar(True, "POST em rota desconhecida levanta KeyError (vira 404)")
+
+print("\n9) Rota desconhecida")
 try:
     api_dados.rota("/api/dados/inventada", {})
     checar(False, "rota desconhecida deveria levantar KeyError")

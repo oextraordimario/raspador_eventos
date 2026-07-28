@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Space_Grotesk, Fira_Code } from 'next/font/google'
 import { MARCA, ORIGEM } from '../lib/config'
 import Tema from './Tema'
+import LinkFeedback from './LinkFeedback'
 
 // Auto-hospedadas pelo next/font em vez do @import do Google Fonts que havia
 // no globals.css: aquele bloqueava a renderização e exigia uma conexão a um
@@ -73,6 +74,7 @@ export default function RootLayout({ children }) {
           <Link href="/festas">festas &amp; shows</Link> ·{' '}
           <Link href="/filmes">cinema</Link> ·{' '}
           <Link href="/sobre">sobre</Link> ·{' '}
+          <LinkFeedback>falar com a gente</LinkFeedback> ·{' '}
           <a href="https://github.com/oextraordimario/raspador_eventos"
              target="_blank" rel="noopener">código</a>
           <br />

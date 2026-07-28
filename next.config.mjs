@@ -17,7 +17,18 @@ const config = {
   },
 
   async rewrites() {
+    // Em produção quem roteia /api/dados/* para a função Python é o
+    // vercel.json, e o Next nunca vê essas URLs. Em desenvolvimento a API roda
+    // num processo à parte (`python api/dados.py 8000`), e até agora só o SSR
+    // falava com ela — pelo API_INTERNA, do lado do servidor. O formulário de
+    // feedback mudou isso: ele é um <form> nativo, então quem faz o POST é o
+    // NAVEGADOR, na origem do site. Sem esta rewrite o envio bateria em 404 na
+    // 1007 e o canal só seria testável depois de deployado.
+    const dev = process.env.API_INTERNA
+      ? [{ source: '/api/dados/:rota*', destination: `${process.env.API_INTERNA}/:rota*` }]
+      : []
     return [
+      ...dev,
       // Ingestão do PostHog pelo próprio domínio. Adblocker bloqueia o host
       // do PostHog direto; servir por aqui evita a subcontagem justamente do
       // público deste produto (jovem, mobile, muito adblock). Precisa existir

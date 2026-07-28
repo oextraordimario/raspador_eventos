@@ -23,11 +23,17 @@ regra de negócio, e ambas decorrem da spec:
    heurística quem é pessoa e quem é empresa.
 
 Rotas (o vercel.json reescreve /api/dados/* para cá):
-    /api/dados/eventos?texto=&de=&ate=&limite=&gratis=
-    /api/dados/evento?url=
-    /api/dados/filmes?texto=&cinema=&de=&ate=&limite=
-    /api/dados/sessoes?filme=&cinema=
-    /api/dados/procedencia
+    GET  /api/dados/eventos?texto=&de=&ate=&limite=&gratis=
+    GET  /api/dados/evento?url=
+    GET  /api/dados/filmes?texto=&cinema=&de=&ate=&limite=
+    GET  /api/dados/sessoes?filme=&cinema=
+    GET  /api/dados/procedencia
+    POST /api/dados/feedback          (form urlencoded — a ÚNICA escrita)
+
+O `do_POST` chegou em 2026-07-28 com o canal de feedback (NI-52). Ele não
+quebra a regra da docstring: quem decide o que é um envio válido, o que é
+abuso e o que vira linha é `servico/feedback.py`; aqui se lê o corpo do
+formulário e se traduz o resultado em status HTTP.
 """
 
 import json
@@ -35,11 +41,12 @@ import sys
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from servico import consulta  # noqa: E402  (precisa do sys.path acima)
+from servico import feedback as svc_feedback  # noqa: E402
 
 # Trecho da descrição na página pública. Bem acima do corte da busca (300, que
 # serve ao contexto do agente) e bem abaixo de "a descrição inteira": o
@@ -182,6 +189,39 @@ def rota(caminho, q):
     raise KeyError(caminho)
 
 
+# Corpo de POST também é entrada de estranho: sem teto, um cliente qualquer
+# mandaria megabytes e a função leria tudo na memória antes de validar.
+CORPO_MAX = 16 * 1024
+
+
+def rota_post(caminho, campos):
+    """Despacha um POST. Devolve (destino, status) — sempre um redirect.
+
+    **Sempre 303, inclusive no caminho triste**, e isso é decisão, não
+    esquecimento: o cliente desta rota é um `<form method="post">` NATIVO, sem
+    fetch, porque é o único jeito de o canal funcionar sem JS. Um 400/429 seco
+    mostraria JSON cru na tela de quem preencheu o formulário. O que o teto por
+    janela precisa garantir — que a enxurrada não vire linha na base — é
+    garantido igual; o robô não lê o status de qualquer forma.
+    """
+    if caminho.endswith("/feedback"):
+        tipo = _str(campos, "tipo") or ""
+        r = svc_feedback.registrar(
+            tipo=tipo,
+            mensagem=_str(campos, "mensagem"),
+            contato=_str(campos, "contato"),
+            pagina=_str(campos, "pagina"),
+            isca=_str(campos, "site"),   # honeypot: ver servico/feedback.py
+        )
+        if r.get("ok"):
+            # o `tipo` volta na URL só para a página poder instrumentar o envio
+            # (§9 da spec). A mensagem e o contato NUNCA saem daqui.
+            return f"/feedback?ok=1&tipo={quote(tipo)}", 303
+        return f"/feedback?erro={r['erro']}", 303
+
+    raise KeyError(caminho)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         alvo = urlparse(self.path)
@@ -204,6 +244,26 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(corpo)))
         self.end_headers()
         self.wfile.write(corpo)
+
+    def do_POST(self):
+        alvo = urlparse(self.path)
+        try:
+            tam = min(int(self.headers.get("Content-Length") or 0), CORPO_MAX)
+            corpo = self.rfile.read(tam).decode("utf-8", "replace")
+            destino, status = rota_post(alvo.path, parse_qs(corpo))
+        except KeyError:
+            destino, status = None, 404
+        except Exception as e:  # noqa: BLE001 — nem o erro pode virar 500 na cara
+            print(f"feedback: {type(e).__name__}: {e}", file=sys.stderr)
+            destino, status = "/feedback?erro=interno", 303
+
+        self.send_response(status)
+        if destino:
+            self.send_header("Location", destino)
+        # escrita nunca é cacheável — nem a resposta, nem a página de destino
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def log_message(self, *_):
         pass  # o log da Vercel já registra a requisição

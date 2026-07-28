@@ -49,6 +49,7 @@ from base import conexao, tempo, texto                            # noqa: E402
 from coleta import (cinema, gravar, ingresse, instagram, midias,  # noqa: E402
                     shotgun, sympla, ticketandgo, tmdb, zig)
 from pipeline import execucoes                                    # noqa: E402
+from servico import feedback                                      # noqa: E402
 from tratamento import ciclo, comum, curadoria, sumido            # noqa: E402
 # `cinema` e `instagram` existem nos DOIS estágios — coleta/ sabe falar com a
 # fonte, tratamento/ sabe ler o payload dela. Aqui só a coleta é importada: o
@@ -636,6 +637,14 @@ def _relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
         print(f'  - "{(canon["nome"] or "")[:60]}" [{canon["fonte"]}]  ←  ' +
               "; ".join(f'"{(m["nome"] or "")[:45]}" [{m["fonte"]}]'
                         for m in grupo[1:]))
+
+    # --- feedback do site (NI-52): o canal só existe se alguém ler ---
+    # Aqui e não numa rotina própria porque este é o relatório que o autor já
+    # lê todo dia; um canal cuja caixa de entrada ninguém abre é decorativo.
+    pendentes = feedback.nao_lidos(con)
+    if pendentes:
+        print(f"\n*** {pendentes} feedback(s) não lido(s) — rode "
+              "`python src/ferramentas/feedback.py listar`")
 
     print(f"\nÍndice de busca reconstruído. Duração: {duracao:.0f}s.")
     print('Pronto — pergunte ao agente: "o que tem hoje em Brasília?"')

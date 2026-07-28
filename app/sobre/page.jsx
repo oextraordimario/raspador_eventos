@@ -57,6 +57,20 @@ export default function Sobre() {
           página da fonte.
         </p>
 
+        <h2>achou um erro? quer sua casa aqui?</h2>
+        <p>
+          Preço desatualizado, evento que não existe mais, casa que devia estar
+          e não está — todo aviso vira trabalho por aqui.{' '}
+          <Link href="/feedback?de=/sobre">fale com a gente</Link>.
+        </p>
+        <p>
+          O que a gente guarda do que você escrever: a mensagem, o assunto e,
+          se você quiser deixar, um contato. Ele é <strong>opcional</strong> e
+          serve só para responder sobre aquilo. Fica numa base privada, não vai
+          para lugar nenhum e sai se você pedir. Não guardamos IP nem
+          identificação do seu aparelho.
+        </p>
+
         <h2>é uma casa ou plataforma?</h2>
         <p>
           Se você quer que um evento, um perfil ou uma casa saia daqui, é só pedir
