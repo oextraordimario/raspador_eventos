@@ -476,6 +476,9 @@ a { color: inherit; text-decoration: none; }
 .trilho {
   display: flex; gap: 10px; overflow-x: auto;
   margin: 0 -16px; padding: 2px 16px 8px;
+  /* sem isso o snap alinha o 1º pôster à borda VAZADA (sem o padding) e a
+     linha já carrega rolada 16px, desalinhada das faixas sem scroll */
+  scroll-padding-inline: 16px;
   scroll-snap-type: x proximity; scrollbar-width: none;
 }
 .trilho::-webkit-scrollbar { display: none; }
