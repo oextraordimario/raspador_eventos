@@ -30,23 +30,38 @@ def normalizar(p, cru):
     evento.
 
     `cidade`/`estado` vêm das colunas próprias de `cru.shotgun`, não do
-    payload: o `addressLocality` do JSON-LD é o BAIRRO, e a cidade é o
-    parâmetro de busca que a coleta usou. Gravar o que a coleta CONHECE é o que
-    torna esta reconstrução possível sem adivinhar por convenção.
+    payload: o `addressLocality` do JSON-LD é o bairro *quando* não é a própria
+    cidade (ver abaixo), e a cidade é o parâmetro de busca que a coleta usou.
+    Gravar o que a coleta CONHECE é o que torna esta reconstrução possível sem
+    adivinhar por convenção.
     """
     loc = p.get("location") or {}
     addr = loc.get("address") or {}
     org = p.get("organizer") or {}
-    bairro = addr.get("addressLocality") or None
     slug = cru["id_nativo"]
+
+    # `addressLocality` é o campo de bairro do JSON-LD, mas a fonte o preenche
+    # com a CIDADE em metade dos casos (38 de 70 dizem "Brasília", medido em
+    # 2026-07-28; o resto diz "Asa Sul", "Saan"). Cidade não é bairro: deixar
+    # passar encheria a faceta de bairro com uma opção que casa tudo.
+    localidade = (addr.get("addressLocality") or "").strip() or None
+    cidade = cru.get("cidade_label")
+    bairro = None if not localidade or localidade == cidade else localidade
     return {
         "nome": p.get("name"),
         "start_date": p.get("startDate"),
         "end_date": p.get("endDate"),
         "cidade": cru.get("cidade_label"),
         "estado": cru.get("estado_label"),
-        "local_nome": loc.get("name") or bairro,
-        "endereco": bairro or addr.get("streetAddress") or None,
+        "local_nome": loc.get("name") or localidade,
+        # o `streetAddress` é o endereço COMPLETO ("SBS Q. 1 - Asa Sul,
+        # Brasília - DF, 70070-110") e existe em 68 dos 70 payloads. Ele vinha
+        # sendo descartado porque a localidade tinha precedência — e a
+        # localidade quase sempre é só "Brasília". Invertida a ordem, esta
+        # fonte passa a ter endereço de verdade, que é também a matéria-prima
+        # do dicionário de bairros (§5.2.2 da spec do rework).
+        "endereco": addr.get("streetAddress") or localidade or None,
+        "bairro": bairro,
         "lat": (loc.get("geo") or {}).get("latitude") or None,
         "lon": (loc.get("geo") or {}).get("longitude") or None,
         # `categoria` fica NULA de propósito. O normalizador antigo gravava a

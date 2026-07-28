@@ -195,6 +195,36 @@ def main():
     assert bairros["sympla:1"] is None
     print("prata: derivação preenche bairro só de (sympla, catalogo) — ok")
 
+    # --- bairro do Shotgun: vem do addressLocality, mas ele às vezes é a
+    #     CIDADE (38 de 70 payloads reais dizem "Brasília"), e cidade não é
+    #     bairro. O endereço rico é o streetAddress, que estava sendo
+    #     descartado porque a localidade tinha precedência. ---
+    def _ender(loc, street=None):
+        a = {"addressLocality": loc}
+        if street:
+            a["streetAddress"] = street
+        return {"name": "Casa X", "address": a}
+
+    gravar_catalogo(con, "shotgun", "6",
+                    shotgun("6", location=_ender("Asa Sul", "SBS Q. 1 - Asa Sul")),
+                    cidade_label="Brasília", estado_label="DF")
+    gravar_catalogo(con, "shotgun", "7",
+                    shotgun("7", location=_ender("Brasília", "Parque da Cidade")),
+                    cidade_label="Brasília", estado_label="DF")
+    gravar_catalogo(con, "shotgun", "8", shotgun("8", location=_ender("Saan")),
+                    cidade_label="Brasília", estado_label="DF")
+    comum.aplicar(con)
+    sg = {r["id"]: dict(r) for r in con.execute(
+        "SELECT id, bairro, endereco FROM tratado.eventos WHERE fonte='shotgun'")}
+    assert sg["shotgun:6"]["bairro"] == "Asa Sul", sg["shotgun:6"]
+    assert sg["shotgun:6"]["endereco"] == "SBS Q. 1 - Asa Sul", sg["shotgun:6"]
+    assert sg["shotgun:7"]["bairro"] is None, "cidade não pode virar bairro"
+    assert sg["shotgun:7"]["endereco"] == "Parque da Cidade", sg["shotgun:7"]
+    # sem streetAddress, a localidade ainda serve de endereço aproximado
+    assert sg["shotgun:8"] == {"id": "shotgun:8", "bairro": "Saan",
+                               "endereco": "Saan"}, sg["shotgun:8"]
+    print("prata: bairro do Shotgun sai do payload, e a cidade não vira bairro — ok")
+
     # --- idempotência: aplicar 2x = mesmo estado ---
     antes = impressao(con)
     comum.aplicar(con)
