@@ -67,6 +67,12 @@ CREATE TABLE IF NOT EXISTS tratado.eventos (
     ruido_motivo    TEXT,                        -- regra que marcou (a palavra-chave), para auditoria
     dedupe_grupo    TEXT,                        -- id do grupo de duplicatas cross-fonte (= id do evento canonico); NULL = sem duplicata
     dedupe_canonico INTEGER NOT NULL DEFAULT 1,  -- 1 = registro que representa o grupo na consulta
+    -- Maior similaridade de nome com um evento do MESMO DIA que NAO virou
+    -- duplicata. O enriquecer ja calculava e jogava fora; guardar e o que
+    -- permite a view curado.pendencias achar a faixa cinzenta do dedupe — o
+    -- unico dos quatro sinais da fila de curadoria que nao e calculavel por
+    -- JOIN. Spec 20260728_arquitetura-medalhao §4.4.
+    dedupe_score    DOUBLE PRECISION,
 
     -- Indice de busca textual (nome/categoria/atracoes/descricao +
     -- local_nome/organizador — "o que tem no Ordinario?" acha pela casa) para
@@ -79,3 +85,11 @@ CREATE TABLE IF NOT EXISTS tratado.eventos (
 CREATE INDEX IF NOT EXISTS idx_eventos_start ON tratado.eventos(start_date);
 CREATE INDEX IF NOT EXISTS idx_eventos_cidade ON tratado.eventos(cidade);
 CREATE INDEX IF NOT EXISTS idx_eventos_busca ON tratado.eventos USING GIN (busca);
+
+-- Mudancas ADITIVAS. `CREATE TABLE IF NOT EXISTS` nao altera tabela que ja
+-- existe, entao coluna nova precisa do ALTER idempotente ao lado dela — e nao
+-- so na definicao acima, que so vale para base criada do zero. E a alinea (a)
+-- da politica de mudanca de schema: aditiva se aplica sozinha, o conectar()
+-- resolve.
+ALTER TABLE tratado.eventos
+    ADD COLUMN IF NOT EXISTS dedupe_score DOUBLE PRECISION;

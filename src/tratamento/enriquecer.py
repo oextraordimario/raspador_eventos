@@ -169,6 +169,11 @@ def _agrupar_duplicatas(con, aliases_local=None):
         if rx != ry:
             pai[ry] = rx
 
+    # Maior similaridade com um NÃO-duplicata do mesmo dia. É a "faixa
+    # cinzenta" do dedupe: quase colou e não colou. O cálculo já acontecia e
+    # era descartado; guardá-lo é o que alimenta curado.pendencias (§4.4).
+    quase = {}
+
     for _, evs in sorted(por_dia.items()):
         for i, a in enumerate(evs):
             for b in evs[i + 1:]:
@@ -176,6 +181,11 @@ def _agrupar_duplicatas(con, aliases_local=None):
                 # apertada fica dentro de _e_duplicata
                 if _e_duplicata(a, b):
                     unir(a["id"], b["id"])
+                else:
+                    s = _sim(a["nome_cmp"], b["nome_cmp"])
+                    for x in (a["id"], b["id"]):
+                        if s > quase.get(x, 0.0):
+                            quase[x] = s
 
     membros = {}
     por_id = {r["id"]: r for r in rows}
@@ -198,6 +208,13 @@ def _agrupar_duplicatas(con, aliases_local=None):
                 "WHERE id = %s",
                 (canonico["id"], 1 if r["id"] == canonico["id"] else 0, r["id"]))
         grupos.append(grupo)
+
+    # dedupe_score só para quem NÃO entrou em grupo: para quem entrou, a
+    # resposta já é o grupo, e o score não teria leitor.
+    agrupados = {r["id"] for g in grupos for r in g}
+    con.cursor().executemany(
+        "UPDATE tratado.eventos SET dedupe_score = %s WHERE id = %s",
+        [(s, i) for i, s in quase.items() if i not in agrupados])
     return grupos
 
 
@@ -214,7 +231,7 @@ def aplicar(con, aliases_local=None):
                   dos membros (canônico primeiro), com fonte/nome/id.
     """
     con.execute("UPDATE tratado.eventos SET ruido = 0, ruido_motivo = NULL, "
-                "dedupe_grupo = NULL, dedupe_canonico = 1")
+                "dedupe_grupo = NULL, dedupe_canonico = 1, dedupe_score = NULL")
     ruido = _marcar_ruido(con)
     grupos = _agrupar_duplicatas(con, aliases_local)
     con.commit()

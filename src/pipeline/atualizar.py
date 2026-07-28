@@ -46,7 +46,7 @@ from base import conexao, tempo                                   # noqa: E402
 from coleta import (cinema, gravar, ingresse, instagram, midias,  # noqa: E402
                     shotgun, sympla, ticketandgo, tmdb, zig)
 from pipeline import execucoes                                    # noqa: E402
-from tratamento import busca, comum, enriquecer                   # noqa: E402
+from tratamento import busca, comum, curadoria, enriquecer        # noqa: E402
 # Aliases: `cinema` e `instagram` existem nos DOIS estágios — coleta/ sabe
 # falar com a fonte, tratamento/ sabe ler o payload dela. O alias deixa claro
 # em cada linha de qual lado se está falando.
@@ -108,11 +108,14 @@ def _checar_schema(con):
                  "arquivos de sql/ como referência e execute de novo.")
 
 
-def _raspar(incluir_shotgun=True, apenas=None):
+def _raspar(incluir_shotgun=True, apenas=None, locais_df=None):
     """Raspa cada fonte isoladamente: uma fonte quebrada não esconde as outras.
 
     `apenas` restringe a nomes de fonte (é como a rodada local pega só o
     Shotgun, que não funciona no CI — ver `--rodada-local` no main).
+
+    `locais_df` é a referência canônica de casas (lida de `curado.locais` pelo
+    main): quem conhece a base é o pipeline, não o coletor.
 
     A conexão com a base abre DEPOIS de cada raspagem e fecha logo após o
     upsert (2026-07-27): raspar um catálogo leva minutos, e conexão parada
@@ -124,7 +127,8 @@ def _raspar(incluir_shotgun=True, apenas=None):
             city="brasilia", state="DF", location="Brasília", max_paginas=10)),
         ("ingresse", ingresse, lambda: ingresse.raspar()),
         ("zig", zig, lambda: zig.raspar(estado="DF")),
-        ("ticketandgo", ticketandgo, lambda: ticketandgo.raspar()),
+        ("ticketandgo", ticketandgo,
+         lambda: ticketandgo.raspar(locais_df=locais_df or ())),
     ]
     if incluir_shotgun:
         fontes.append(("shotgun", shotgun,
@@ -797,6 +801,9 @@ def main():
     # seguintes só leem e escrevem dado.
     con = conexao.conectar(aplicar_schema=True)
     _checar_schema(con)
+    # A referência canônica de casas do DF, lida ANTES da raspagem: o filtro
+    # `_do_df` do Ticket and Go depende dela, e o coletor não conhece a base.
+    locais_df = curadoria.nomes_df(con)
     con.close()
 
     resultados, erros = {}, []
@@ -817,7 +824,8 @@ def main():
                 sumidos = _marcar_sumidos(con, resultados, iniciada_em)
                 con.close()
         else:
-            resultados = _raspar(incluir_shotgun=not sem_shotgun)
+            resultados = _raspar(incluir_shotgun=not sem_shotgun,
+                                 locais_df=locais_df)
             if resultados and all("erro" in r for r in resultados.values()):
                 sys.exit("Todas as fontes falharam — base não atualizada.")
             # sumidos primeiro: cinema não entra em resultados ainda (grade não
@@ -866,7 +874,22 @@ def main():
         if _subir_midias_instagram(con, erros):
             insta = trat_instagram.aplicar(con)
 
-    enriq = enriquecer.aplicar(con, aliases_local=instagram.aliases_local())
+    # Os aliases de local vêm de DUAS origens que se somam, e a distinção é a
+    # que mantém a camada curado honesta: a watchlist é configuração de ENTRADA
+    # (muda o que se raspa) e continua em YAML versionado; `curado.locais` é
+    # referência sobre entidades do mundo, curada continuamente. Spec §4.3.
+    aliases = {**instagram.aliases_local(), **curadoria.locais_canonicos(con)}
+    enriq = enriquecer.aplicar(con, aliases_local=aliases)
+
+    # A curadoria roda DEPOIS do enriquecer (precisa poder derrubar uma decisão
+    # dele — desfazer um dedupe errado) e ANTES do FTS (para a busca indexar o
+    # texto já corrigido). Sem este passo, correção humana some na rodada
+    # seguinte, porque o tratamento reescreve `tratado` do zero.
+    cur = curadoria.aplicar(con)
+    if cur["aplicadas"] or cur["orfas"]:
+        print(f"\n[curadoria] {cur['aplicadas']} correções reaplicadas"
+              + (f" | {cur['orfas']} órfãs (registro sumiu da prata — "
+                 f"aparecem em curado.pendencias)" if cur["orfas"] else ""))
     # Única exceção ao "nada é apagado" no cru, e só de versão INTERMEDIÁRIA
     # antiga: a mais recente de cada chave nunca tem sibling mais nova, então
     # nunca casa a condição. Não roda em --so-enriquecer (não houve coleta).

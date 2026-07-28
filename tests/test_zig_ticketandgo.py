@@ -92,12 +92,18 @@ TNG_TICKETS = {  # forma do GET /eventos/{slug} (data), capturada no spike:
 def main():
     # --- Ticket and Go: filtro DF sem endereço (NI-57), casos REAIS medidos
     # contra os 79 eventos que a base tinha da era em que havia endereço ---
-    # 1) local na lista curada (dados/locais_df.yaml)
-    assert ticketandgo._do_df("Hípica Hall")
-    assert ticketandgo._do_df("hipica hall")           # normalizado: sem acento/caixa
+    # 1) local na referência canônica (curado.locais, passada pelo pipeline JÁ
+    #    normalizada — a coleta não conhece a base)
+    curados = {ticketandgo._norm(x) for x in
+               ("Hípica Hall", "Comunidade das Nações - SIA", "Caalex")}
+    assert ticketandgo._do_df("Hípica Hall", conhecidos=curados)
+    assert ticketandgo._do_df("hipica hall", conhecidos=curados)  # sem acento/caixa
     # comparação é EXATA, não substring: a mesma igreja tem filial fora do DF
-    assert ticketandgo._do_df("Comunidade das Nações - SIA")
-    assert not ticketandgo._do_df("Comunidade das Nações São Paulo")
+    assert ticketandgo._do_df("Comunidade das Nações - SIA", conhecidos=curados)
+    assert not ticketandgo._do_df("Comunidade das Nações São Paulo",
+                                  conhecidos=curados)
+    # sem referência canônica, o local sozinho não basta — sobram os textuais
+    assert not ticketandgo._do_df("Hípica Hall")
     # 2) termo inequívoco no local/nome
     assert ticketandgo._do_df("Taguatinga")
     assert ticketandgo._do_df("Arena BRB", "Festa em Brasília")

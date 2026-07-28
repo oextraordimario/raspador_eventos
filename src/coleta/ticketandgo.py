@@ -35,7 +35,6 @@ Particularidades da fonte:
 Spec: docs/specs/20260728_fontes-quebradas/spec.md.
 """
 
-import os
 import html
 import re
 import time
@@ -46,17 +45,14 @@ import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-import yaml
-
 API_V1 = "https://production-api-v1-service.ticketandgo.com.br"
 API_V2 = "https://production-api-v2-service.ticketandgo.com.br"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 
-# Casas de Brasília curadas à mão (dado versionado, como a watchlist do
-# Instagram). É a rede para o evento cuja descrição não repete o endereço.
-LOCAIS_DF = os.path.join(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))), "dados", "locais_df.yaml")
+# As casas de Brasília curadas à mão vivem em `curado.locais` desde 2026-07-28
+# (eram dados/locais_df.yaml). Quem lê a base é o pipeline, que passa a lista
+# pronta para raspar(locais_df=...) — este módulo não conhece o banco.
 
 # Brasília é UTC-3 o ano inteiro (o DF não tem horário de verão desde 2019).
 FUSO_BRASILIA = "-03:00"
@@ -109,23 +105,7 @@ def _norm(texto):
     return re.sub(r"\s+", " ", sem_acento).strip()
 
 
-_locais_df = None
-
-
-def locais_df():
-    """Nomes de locais DF conhecidos, normalizados (lê o YAML uma vez)."""
-    global _locais_df
-    if _locais_df is None:
-        try:
-            with open(LOCAIS_DF, encoding="utf-8") as f:
-                _locais_df = {_norm(x) for x in (yaml.safe_load(f) or []) if x}
-        except FileNotFoundError:
-            print(f"  (aviso: {LOCAIS_DF} não encontrado — só sinais textuais)")
-            _locais_df = set()
-    return _locais_df
-
-
-def _do_df(local, nome=None, descricao=None):
+def _do_df(local, nome=None, descricao=None, conhecidos=frozenset()):
     """O evento é de Brasília? Três sinais, do mais forte para o mais fraco.
 
     A fonte parou de expor endereço (NI-57), então não há campo geográfico
@@ -133,9 +113,10 @@ def _do_df(local, nome=None, descricao=None):
     base raspados enquanto o endereço existia: 77/77 dos que continuam no
     catálogo, sem falso positivo.
 
-    1. `local` está na lista curada (`dados/locais_df.yaml`) — comparação por
-       nome normalizado EXATO, não substring: "Comunidade das Nações - SIA" é
-       do DF, "Comunidade das Nações São Paulo" não.
+    1. `local` está em `conhecidos` (a referência canônica `curado.locais`,
+       passada JÁ NORMALIZADA por quem chama — a coleta não conhece a base) —
+       comparação por nome normalizado EXATO, não substring: "Comunidade das
+       Nações - SIA" é do DF, "Comunidade das Nações São Paulo" não.
     2. termo geográfico inequívoco (ou CEP 70-73, ou "DF") no local/nome.
     3. CEP 70-73 ou "DF" na DESCRIÇÃO — sozinho cobre ~75% dos casos, porque a
        descrição costuma repetir o endereço completo do evento.
@@ -143,7 +124,7 @@ def _do_df(local, nome=None, descricao=None):
     "Brasília" solto na descrição NÃO conta (sinal 3 é só CEP/UF): pegava
     evento de Uberlândia cujo endereço era "Jardim Brasília, Uberlândia - MG".
     """
-    if _norm(local) in locais_df():
+    if _norm(local) in conhecidos:
         return True
     campo = f"{_norm(local)} {_norm(nome)}"
     if _CEP_DF.search(campo) or _UF_DF.search(campo) or _RE_TERMOS_DF.search(campo):
@@ -273,14 +254,23 @@ ULTIMA_RASPAGEM = {}
 
 
 def raspar(cidade_label="Brasília", estado_label="DF", pausa=0.15,
-           apenas_futuros=True):
+           apenas_futuros=True, locais_df=None):
     """Varre o catálogo nacional, busca o detalhe dos futuros e filtra DF.
+
+    `locais_df` é a referência canônica de casas do DF (nomes e apelidos), que
+    o pipeline lê de `curado.locais` e passa pronta — a coleta não conhece a
+    base. Vazia, o filtro cai só nos sinais textuais, que já cobrem ~75%.
 
     Uma requisição de detalhe por evento futuro (~430 hoje, ~1,5 min com a
     pausa padrão): é o preço de a fonte ter tirado hora, descrição e endereço
     da listagem. O filtro DF só pode rodar DEPOIS do detalhe, porque o sinal
     principal (CEP na descrição) só existe lá.
     """
+    # normaliza uma vez: o filtro roda ~430 vezes por rodada
+    conhecidos = {_norm(x) for x in (locais_df or ()) if x}
+    if not conhecidos:
+        print("  (aviso: sem locais canônicos — o filtro DF cai só nos sinais "
+              "textuais)")
     catalogo = _catalogo()
     if not catalogo:
         # Catálogo vazio é listagem que não chegou, não fonte sem eventos —
@@ -307,10 +297,11 @@ def raspar(cidade_label="Brasília", estado_label="DF", pausa=0.15,
             print(f"  {n}/{len(candidatos)} detalhes | DF até aqui: {df}")
         if det is None:
             continue
-        if not _do_df(det.get("local"), det.get("nome"), det.get("descricao")):
+        if not _do_df(det.get("local"), det.get("nome"), det.get("descricao"),
+                      conhecidos):
             continue
         df += 1
-        if _norm(det.get("local")) not in locais_df():
+        if _norm(det.get("local")) not in conhecidos:
             novos_locais[(det.get("local") or "?").strip()] += 1
         if apenas_futuros and not _futuro(det):
             continue
@@ -326,10 +317,11 @@ def raspar(cidade_label="Brasília", estado_label="DF", pausa=0.15,
     print(f"  DF: {df} | futuros normalizados: {len(vistos)}"
           + (f" | {falhas} detalhes falharam" if falhas else ""))
     if novos_locais:
-        # Curadoria do dados/locais_df.yaml: estes entraram só por sinal
-        # textual. Casa recorrente aqui merece virar linha do YAML — no dia em
-        # que a descrição dela não repetir o endereço, ela sumiria calada.
-        print("  candidatos a dados/locais_df.yaml (entraram por texto): "
+        # Fila de curadoria: estes entraram só por sinal textual. Casa
+        # recorrente aqui merece virar linha de `curado.locais` — no dia em que
+        # a descrição dela não repetir o endereço, ela sumiria calada. O mesmo
+        # sinal vive na view curado.pendencias, que não some com o terminal.
+        print("  candidatos a curado.locais (entraram por texto): "
               + "; ".join(f"{loc} ({n}x)"
                           for loc, n in novos_locais.most_common(8)))
     ULTIMA_RASPAGEM.update(total_site=df, coletados=len(vistos))
