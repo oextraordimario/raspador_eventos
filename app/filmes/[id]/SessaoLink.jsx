@@ -15,11 +15,12 @@ export default function SessaoLink({ sessao, filme }) {
       session_types: sessao.tipos,
     })
   }
+  // O formato (Dublado/3D/...) fica no rótulo da linha, não na pill — só a
+  // hora é clicável; o tipo segue indo no evento de telemetria.
   return (
     <a className="horario" href={sessao.url_compra || undefined}
        target="_blank" rel="noopener nofollow" onClick={handleClick}>
       <span className="horario-hora">{hora(sessao.inicio)}</span>
-      {sessao.tipos && <span className="horario-tipo">{sessao.tipos}</span>}
     </a>
   )
 }

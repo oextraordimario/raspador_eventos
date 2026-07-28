@@ -20,20 +20,27 @@ export async function generateMetadata({ params }) {
   }
 }
 
-// Agrupa as sessões por cinema e, dentro dele, por dia local — a pergunta da
-// pessoa é "onde e quando eu consigo ver", nessa ordem.
-function porCinema(sessoes) {
+// A grade mostra UM dia por vez (o da strip): dentro do dia, agrupa por
+// cinema e, dentro dele, por formato ("Dublado", "3D/Legendado") — o rótulo
+// aparece uma vez por linha e as pills ficam só com a hora. Tudo expandido
+// (8 dias × 6 cinemas) era um paredão de 559 pills.
+function porCinemaTipo(sessoes) {
   const cinemas = new Map()
   for (const s of sessoes) {
     if (!cinemas.has(s.cinema)) cinemas.set(s.cinema, new Map())
-    const dias = cinemas.get(s.cinema)
-    const dia = chaveDia(s.inicio)
-    if (!dias.has(dia)) dias.set(dia, [])
-    dias.get(dia).push(s)
+    const tipos = cinemas.get(s.cinema)
+    const tipo = s.tipos || 'sessão'
+    if (!tipos.has(tipo)) tipos.set(tipo, [])
+    tipos.get(tipo).push(s)
   }
-  return [...cinemas.entries()].map(([cinema, dias]) => ({
+  return [...cinemas.entries()].map(([cinema, tipos]) => ({
     cinema,
-    dias: [...dias.entries()].map(([dia, lista]) => ({ dia, sessoes: lista })),
+    tipos: [...tipos.entries()]
+      .map(([tipo, lista]) => ({
+        tipo,
+        sessoes: [...lista].sort((a, b) => (a.inicio < b.inicio ? -1 : 1)),
+      }))
+      .sort((a, b) => (a.sessoes[0].inicio < b.sessoes[0].inicio ? -1 : 1)),
   }))
 }
 
@@ -47,6 +54,8 @@ export default async function Filme({ params, searchParams }) {
   const redes = (sp?.rede ?? '').split(',').filter(Boolean)
   const cinemas = (sp?.cinema ?? '').split(',').filter(Boolean)
   const hora = sp?.hora ?? ''
+  // dia da strip (querystring é entrada de estranho, valida o formato)
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(sp?.data ?? '') ? sp.data : ''
   const paramsApi = {}
   if (cinemas.length) paramsApi.cinema = cinemas.join(',')
   else if (redes.length) paramsApi.cinema = redesParaCinemas(redes).join(',')
@@ -59,11 +68,23 @@ export default async function Filme({ params, searchParams }) {
   const filme = await sessoesFilme(id, paramsApi)
   if (!filme) notFound()
 
-  const grade = porCinema(filme.sessoes || [])
+  // Os dias vêm do conjunto JÁ filtrado (rede/cinema/hora cortam via API):
+  // se um filtro esvazia um dia, ele some da strip. Dia da URL que não
+  // existe mais cai no primeiro disponível — a strip nunca aponta pro vazio.
+  const todas = filme.sessoes || []
+  const dias = [...new Set(todas.map((s) => chaveDia(s.inicio)))].sort()
+  const diaSel = dias.includes(data) ? data : dias[0]
+  const grade = porCinemaTipo(todas.filter((s) => chaveDia(s.inicio) === diaSel))
   const temFiltro = redes.length > 0 || cinemas.length > 0 || Boolean(hora)
 
-  // estado atual da URL, p/ o "aplicar" dos DropFiltro preservar os demais
-  const estado = { rede: redes.join(','), cinema: cinemas.join(','), hora }
+  // estado atual da URL, p/ a strip e o "aplicar" dos DropFiltro preservarem
+  // os demais parâmetros ao navegar
+  const estado = { rede: redes.join(','), cinema: cinemas.join(','), hora, data }
+  const hrefDia = (dia) => {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries({ ...estado, data: dia })) if (v) q.set(k, v)
+    return `/filmes/${id}?${q.toString()}`
+  }
 
   // só as redes com cinema onde o filme passa viram opção
   const redesDoFilme = Object.entries(REDES).filter(([, r]) =>
@@ -138,6 +159,21 @@ export default async function Filme({ params, searchParams }) {
 
         <h2>encontre sua sessão</h2>
 
+        {dias.length > 0 && (
+          <nav className="dias" aria-label="Escolher o dia">
+            {dias.map((dia) => {
+              const r = rotuloDia(dia)
+              return (
+                <Link key={dia} href={hrefDia(dia)} className="dia-tab"
+                      data-on={dia === diaSel ? '1' : undefined}
+                      aria-current={dia === diaSel ? 'date' : undefined}>
+                  {r.texto} <span className="num">{diaMes(`${dia}T12:00:00-03:00`)}</span>
+                </Link>
+              )
+            })}
+          </nav>
+        )}
+
         <div className="drops" role="group" aria-label="Filtrar sessões">
           {redesDoFilme.length > 1 && (
             <DropFiltro rotulo="rede" base={`/filmes/${id}`} estado={estado}
@@ -155,7 +191,10 @@ export default async function Filme({ params, searchParams }) {
                       opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
                         ({ valor: chave, rotulo: h.rotulo }))} />
           {temFiltro && (
-            <Link className="drop-limpar" href={`/filmes/${id}`}>limpar</Link>
+            <Link className="drop-limpar"
+                  href={data ? `/filmes/${id}?data=${data}` : `/filmes/${id}`}>
+              limpar
+            </Link>
           )}
         </div>
 
@@ -169,25 +208,20 @@ export default async function Filme({ params, searchParams }) {
             </span>
           </div>
         ) : (
-          grade.map(({ cinema, dias }) => (
+          grade.map(({ cinema, tipos }) => (
             <div className="box sess-cinema" key={cinema}>
               <div className="row sess-cinema-nome">{cinema}</div>
-              {dias.map(({ dia, sessoes }) => {
-                const r = rotuloDia(dia)
-                return (
-                  <div className="row sess-dia" key={dia}>
-                    <span className="sess-dia-rotulo">
-                      {r.texto} <span className="num">{diaMes(`${dia}T12:00:00-03:00`)}</span>
-                    </span>
-                    <span className="horarios">
-                      {sessoes.map((s) => (
-                        <SessaoLink key={s.inicio + (s.sala || '')} sessao={s}
-                                    filme={filme.titulo} />
-                      ))}
-                    </span>
-                  </div>
-                )
-              })}
+              {tipos.map(({ tipo, sessoes }) => (
+                <div className="row sess-tipo" key={tipo}>
+                  <span className="sess-tipo-rotulo">{tipo}</span>
+                  <span className="horarios">
+                    {sessoes.map((s) => (
+                      <SessaoLink key={s.inicio + (s.sala || '')} sessao={s}
+                                  filme={filme.titulo} />
+                    ))}
+                  </span>
+                </div>
+              ))}
             </div>
           ))
         )}
