@@ -499,9 +499,10 @@ a { color: inherit; text-decoration: none; }
   .fcard { grid-template-columns: 92px 1fr; }
 }
 
-/* Filtros sempre visíveis, cada um abrindo em dropdown. <details> sem JS:
-   clicar num chip navega (a URL é o estado), e o Drop reabre via `open`
-   quando o grupo tem seleção — multi-escolha sem reabrir na mão. */
+/* Filtros sempre visíveis, cada um abrindo em dropdown. <details>: clicar
+   num chip navega (a URL é o estado), e o Drop reabre via `open` quando o
+   grupo tem seleção — multi-escolha sem reabrir na mão. O JS do Drop só
+   coordena o fechamento (clique fora, ou abrir um irmão). */
 .drops {
   display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
   padding: 2px 0;
