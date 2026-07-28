@@ -203,6 +203,40 @@ visiveis = {e["url"].rsplit("/", 1)[-1] for e in
 checar(not (so_deles & visiveis),
        "a faceta enxerga o mesmo que a lista (sem ruído, passado, cancelado, sumido)")
 
+print("\n4c) Filtros novos: bairro, tipo e o grátis que voltou para a consulta")
+con = conexao.conectar()
+con.execute("UPDATE tratado.eventos SET bairro = 'Asa Sul' WHERE id = 'sympla:1'")
+con.execute("UPDATE tratado.eventos SET bairro = 'Ceilândia' WHERE id = 'ingresse:6'")
+con.execute("UPDATE tratado.eventos SET tipo = 'show' WHERE id = 'sympla:1'")
+con.execute("UPDATE tratado.eventos SET tipo = 'festa' WHERE id = 'sympla:7'")
+con.commit()
+con.close()
+
+por_bairro, _ = api_dados.rota("/api/dados/eventos", {"bairro": ["Asa Sul"]})
+checar(ids(por_bairro) == {"sympla:1"}, f"filtro por bairro ({ids(por_bairro)})")
+multi, _ = api_dados.rota("/api/dados/eventos", {"bairro": ["Asa Sul,Ceilândia"]})
+checar(ids(multi) == {"sympla:1", "ingresse:6"}, f"bairro aceita CSV ({ids(multi)})")
+
+fac2, _ = api_dados.rota("/api/dados/eventos", {})
+checar("Asa Sul" in fac2["facetas"]["bairros"], "o bairro vira faceta")
+checar(fac2["facetas"]["tipos"]["show"] >= 1 and "sem_rotulo" in fac2["facetas"]["tipos"],
+       f"a faceta de tipo traz as CONTAGENS, p/ quem consome medir a cobertura "
+       f"({fac2['facetas']['tipos']})")
+
+por_tipo, _ = api_dados.rota("/api/dados/eventos", {"tipo": ["show"], "periodo": ["proximos"]})
+checar("sympla:1" in ids(por_tipo), "tipo=show traz o que foi rotulado como show")
+checar("sympla:7" not in ids(por_tipo), "e não traz o que foi rotulado como festa")
+checar("ingresse:6" in ids(por_tipo),
+       "MAS traz o SEM RÓTULO — esconder o que a heurística não soube "
+       "classificar transformaria dúvida do sistema em ausência na tela")
+
+# §5.5: o grátis filtrava DEPOIS do limite, então devolvia "os grátis que
+# couberem nos N primeiros" em vez de "os N primeiros grátis"
+gra, _ = api_dados.rota("/api/dados/eventos",
+                        {"gratis": ["1"], "limite": ["1"], "periodo": ["proximos"]})
+checar(len(gra["eventos"]) == 1 and gra["eventos"][0]["tem_gratis"] == 1,
+       f"grátis com limite 1 devolve UM grátis, não uma sobra ({ids(gra)})")
+
 print("\n5) Guardas de entrada (querystring é entrada de estranho)")
 teto, _ = api_dados.rota("/api/dados/eventos", {"limite": ["999999"]})
 checar(len(teto["eventos"]) <= 200, "limite tem teto")

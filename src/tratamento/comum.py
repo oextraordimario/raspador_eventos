@@ -21,7 +21,7 @@ cada uma dona das suas colunas.
 import json
 
 from base import tempo
-from tratamento import ingresse, shotgun, sympla, ticketandgo, zig
+from tratamento import bairros, ingresse, shotgun, sympla, ticketandgo, zig
 
 # fonte -> módulo de tratamento. Uma trilha por fonte (spec D6):
 #   coleta/<fonte>.py -> cru.<fonte> -> tratamento/<fonte>.py -> tratado.eventos
@@ -147,6 +147,15 @@ def _tratar(fonte, modulo, id_nativo, cru, origens):
             lotes.extend(extrator(payload))
     if lotes:
         campos.update(agregar(lotes))
+
+    # Último passo da composição, e o ÚNICO lugar em que `bairro` se resolve:
+    # a grafia da fonte é canonizada (três produtores escrevem "Asa Norte" de
+    # três jeitos, e a faceta os listaria como três regiões), e o que a fonte
+    # não disse tenta sair do endereço em texto livre. Aqui e não no
+    # `enriquecer` de propósito — ali a coluna ganharia um segundo escritor,
+    # que é o desenho que produziu o bug da `categoria`. Ver bairros.py.
+    campos["bairro"] = (bairros.canonizar(campos.get("bairro"))
+                        or bairros.extrair(campos.get("endereco")))
     return (campos, lotes), None
 
 

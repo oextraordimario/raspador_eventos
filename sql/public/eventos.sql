@@ -21,5 +21,10 @@ SELECT id, fonte, id_nativo, nome, start_date, end_date, cidade, estado,
        local_nome, endereco, bairro, lat, lon, categoria, organizador, url,
        imagem, raspado_em, descricao, atracoes, preco_min, tem_gratis,
        esgotado, popularidade, cancelado, sumido, ruido, dedupe_grupo,
-       dedupe_canonico, busca
+       dedupe_canonico, busca,
+       -- coluna nova vai no FIM: `CREATE OR REPLACE VIEW` sabe acrescentar
+       -- coluna ao final, mas nao renomear nem reordenar as que ja existem —
+       -- inserir no meio faz o deploy falhar com "cannot change name of view
+       -- column". Ordem estetica nao vale um DROP VIEW.
+       tipo
 FROM tratado.eventos;

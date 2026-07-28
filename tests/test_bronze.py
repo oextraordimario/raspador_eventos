@@ -32,6 +32,7 @@ from coleta import sympla as sympla_coleta  # noqa: E402
 from coleta import zig as zig_coleta  # noqa: E402
 from pipeline import atualizar  # noqa: E402
 from tratamento import comum
+from tratamento import bairros as regioes  # `bairros` já é variável local aqui
 from servico import consulta  # noqa: E402
 
 import base_teste  # noqa: E402
@@ -208,8 +209,10 @@ def main():
     gravar_catalogo(con, "shotgun", "6",
                     shotgun("6", location=_ender("Asa Sul", "SBS Q. 1 - Asa Sul")),
                     cidade_label="Brasília", estado_label="DF")
+    # endereço deliberadamente opaco: sem ele o dicionário de regiões acharia
+    # o bairro pelo texto e o teste não provaria o que quer provar
     gravar_catalogo(con, "shotgun", "7",
-                    shotgun("7", location=_ender("Brasília", "Parque da Cidade")),
+                    shotgun("7", location=_ender("Brasília", "Rua Qualquer 123")),
                     cidade_label="Brasília", estado_label="DF")
     gravar_catalogo(con, "shotgun", "8", shotgun("8", location=_ender("Saan")),
                     cidade_label="Brasília", estado_label="DF")
@@ -219,11 +222,40 @@ def main():
     assert sg["shotgun:6"]["bairro"] == "Asa Sul", sg["shotgun:6"]
     assert sg["shotgun:6"]["endereco"] == "SBS Q. 1 - Asa Sul", sg["shotgun:6"]
     assert sg["shotgun:7"]["bairro"] is None, "cidade não pode virar bairro"
-    assert sg["shotgun:7"]["endereco"] == "Parque da Cidade", sg["shotgun:7"]
-    # sem streetAddress, a localidade ainda serve de endereço aproximado
-    assert sg["shotgun:8"] == {"id": "shotgun:8", "bairro": "Saan",
+    assert sg["shotgun:7"]["endereco"] == "Rua Qualquer 123", sg["shotgun:7"]
+    # sem streetAddress, a localidade ainda serve de endereço aproximado — e a
+    # grafia do bairro sai canonizada ("Saan" da fonte → "SAAN"), senão a
+    # faceta listaria as duas formas como dois lugares
+    assert sg["shotgun:8"] == {"id": "shotgun:8", "bairro": "SAAN",
                                "endereco": "Saan"}, sg["shotgun:8"]
     print("prata: bairro do Shotgun sai do payload, e a cidade não vira bairro — ok")
+
+    # --- dicionário de regiões: o endereço em texto livre vira bairro, e a
+    #     grafia da fonte é canonizada. Roda DENTRO da composição do evento
+    #     (comum._tratar), não no enriquecer: um escritor por coluna. ---
+    assert regioes.extrair("CLS 413 Bloco B, 36 - Asa Sul, Brasília - DF") == "Asa Sul"
+    assert regioes.extrair("Sds bloco E loja 3 - SHCS - Plano Piloto") == "Asa Sul", \
+        "sigla de setor é mais específica que o 'Plano Piloto' da mesma linha"
+    assert regioes.extrair("SCES Trecho 2") == "Setor de Clubes Sul"
+    assert regioes.extrair("Setor Hortigranjeiro - Santa Maria, Brasília") == "Santa Maria"
+    assert regioes.extrair("Rua Copaíba") is None, "sem casamento claro, NULL"
+    assert regioes.extrair("") is None and regioes.extrair(None) is None
+    # canonização: as três grafias reais da base viram uma
+    assert {regioes.canonizar(x) for x in ("ASA NORTE", "asa norte", "Asa Norte")} \
+        == {"Asa Norte"}
+    assert regioes.canonizar("Samambaia sul") == "Samambaia"
+    assert regioes.canonizar("Brasília") is None, "cidade não é bairro"
+    # o que o dicionário não conhece é PRESERVADO, não descartado
+    assert regioes.canonizar("VILA DO BOA") == "Vila Do Boa"
+
+    # e o caminho inteiro, do payload à coluna: endereço sem bairro nenhum
+    gravar_catalogo(con, "sympla", "9",
+                    sympla("9", location={"city": "Brasília",
+                                          "address": "SCES Trecho 2"}))
+    comum.aplicar(con)
+    assert con.execute("SELECT bairro FROM tratado.eventos WHERE id = 'sympla:9'"
+                       ).fetchone()["bairro"] == "Setor de Clubes Sul"
+    print("prata: dicionário de regiões e canonização de grafia — ok")
 
     # --- idempotência: aplicar 2x = mesmo estado ---
     antes = impressao(con)

@@ -69,7 +69,8 @@ def _con(con):
 
 
 def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
-                   limite=20, incluir_ruido=False, con=None):
+                   limite=20, incluir_ruido=False, bairro=None, tipo=None,
+                   gratis=False, con=None):
     """Busca eventos na base unificada.
 
     Por padrao esconde o que o enriquecimento v1 marcou — eventos com ruido=1
@@ -90,6 +91,19 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
         limite: numero maximo de resultados (ordenados por start_date).
         incluir_ruido: True devolve tambem os marcados como ruido, os
             cancelados e os sumidos (depuracao; nao exposto na tool MCP).
+        bairro: um ou mais bairros/regioes (CSV ou lista, texto exato como
+            aparece em facetas_eventos; ex.: "Asa Sul,Sudoeste"). Evento sem
+            bairro conhecido fica de fora — e o unico filtro daqui que
+            esconde por ausencia de dado, e por isso nunca e default.
+        tipo: 'festa' ou 'show'. **Traz tambem os SEM ROTULO** (tipo IS NULL):
+            a classificacao e heuristica, e esconder o que ela nao soube
+            classificar transformaria uma duvida do sistema em ausencia na
+            tela. Ver enriquecer._classificar_tipo.
+        gratis: True devolve so eventos com lote gratis nao esgotado. Estava
+            na api/dados.py como filtro de lista ate 2026-07-28 — o que, por
+            rodar DEPOIS do `limite`, filtrava os N ja buscados em vez da
+            base ("so gratis" com limite 60 devolvia os gratis que coubessem
+            nos 60 primeiros, nao os 60 primeiros gratis).
 
     Returns:
         Lista de dicts (nunca sqlite3.Row), ordenada por start_date.
@@ -117,6 +131,16 @@ def buscar_eventos(texto=None, cidade=None, data_inicio=None, data_fim=None,
     if data_fim:
         where.append("e.start_date <= %s")
         params.append(tempo.norm_ts(data_fim))
+    bairros = _lista(bairro)
+    if bairros:
+        where.append("e.bairro = ANY(%s)")
+        params.append(bairros)
+    if tipo:
+        # o sem-rotulo nunca some: ver a docstring
+        where.append("(e.tipo = %s OR e.tipo IS NULL)")
+        params.append(tipo)
+    if gratis:
+        where.append("e.tem_gratis = 1")
 
     # outras_urls: links do mesmo evento nas outras plataformas (NULL sem grupo).
     outras = ("(SELECT string_agg(o.url, ',') FROM public.eventos o "
@@ -156,7 +180,18 @@ def facetas_eventos(cidade=None, con=None):
     onde sempre valeu: nos atalhos hoje/fds/7d e nos rotulos "hoje"/"amanha".
 
     Returns:
-        {"dias": ["YYYY-MM-DD", ...]} — ordenados, so os que tem evento.
+        {"dias": [...], "bairros": [...], "tipos": {...}} — ordenados, so o
+        que tem evento. Bairro nulo NAO vira faceta: a opcao existe quando ha
+        o que filtrar.
+
+        `tipos` sao CONTAGENS ({"festa": n, "show": n, "sem_rotulo": n}), e
+        nao uma lista de opcoes, de proposito: quem consome decide se o filtro
+        vale a pena com base na cobertura. Hoje a heuristica classifica ~1/4
+        da agenda (o sinal de `categoria` sumiu quando as constantes de
+        Shotgun e Ticket and Go sairam, e o Sympla so diz "musica"), e um
+        filtro que devolve quase tudo e pior que filtro nenhum — ele promete
+        um recorte que nao faz. Quando o NI-05 (LLM) assumir a coluna, a
+        cobertura sobe e o filtro se acende sozinho, sem mudar codigo.
     """
     con, meu = _con(con)
     agora = datetime.now(timezone.utc).isoformat()
@@ -165,13 +200,25 @@ def facetas_eventos(cidade=None, con=None):
     if cidade:
         where.append("cidade = %s")
         params.append(cidade)
+    onde = " AND ".join(where)
     dias = [r["dia"] for r in con.execute(
         "SELECT DISTINCT to_char(start_date::timestamptz AT TIME ZONE "
         f"'{_TZ_BSB}', 'YYYY-MM-DD') AS dia FROM public.eventos "
-        f"WHERE {' AND '.join(where)} ORDER BY dia", params)]
+        f"WHERE {onde} ORDER BY dia", params)]
+    # ordenado por QUANTIDADE, não por alfabeto: numa lista de vinte regiões,
+    # a que tem quinze festas precisa estar no topo, não em "Á"
+    bairros = [r["bairro"] for r in con.execute(
+        "SELECT bairro, count(*) AS n FROM public.eventos "
+        f"WHERE {onde} AND bairro IS NOT NULL "
+        "GROUP BY bairro ORDER BY n DESC, bairro", params)]
+    tipos = {"festa": 0, "show": 0, "sem_rotulo": 0}
+    for r in con.execute(
+            "SELECT coalesce(tipo, 'sem_rotulo') AS t, count(*) AS n "
+            f"FROM public.eventos WHERE {onde} GROUP BY 1", params):
+        tipos[r["t"]] = r["n"]
     if meu:
         con.close()
-    return {"dias": dias}
+    return {"dias": dias, "bairros": bairros, "tipos": tipos}
 
 
 def detalhar_evento(url, con=None):

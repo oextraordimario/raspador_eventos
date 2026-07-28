@@ -186,6 +186,7 @@ def registrado(fn):
 @registrado
 def buscar_eventos(texto: str = "", cidade: str = "Brasília",
                    data_inicio: str = "", data_fim: str = "",
+                   bairro: str = "", tipo: str = "", gratis: bool = False,
                    limite: int = 20) -> list[dict]:
     """Busca festas, baladas e shows em Brasília na base unificada (Sympla,
     Ingresse, Shotgun, Zig e Ticket and Go). Use para responder o que há de
@@ -206,6 +207,16 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
             Vazio = sem limite inferior. Para "só eventos futuros", passe o horário
             atual — obtenha-o com a tool data_atual.
         data_fim: fim da janela, ISO 8601. Vazio = sem limite superior.
+        bairro: bairro/região de Brasília, texto exato ou vários separados por
+            vírgula ("Asa Sul", "Asa Norte,Sudoeste"). Cerca de metade dos
+            eventos tem bairro conhecido — quem não tem fica FORA do resultado
+            quando este filtro é usado, então prefira a busca textual quando o
+            usuário citar a casa em vez da região.
+        tipo: "festa" (festas e baladas) ou "show" (shows e festivais). A
+            classificação é heurística e cobre só parte da agenda, então o
+            filtro traz TAMBÉM os eventos sem classificação — ele afunila, não
+            garante. Vazio = tudo.
+        gratis: True devolve só eventos com lote grátis disponível.
         limite: número máximo de resultados (padrão 20), ordenados por data.
 
     Returns:
@@ -223,6 +234,7 @@ def buscar_eventos(texto: str = "", cidade: str = "Brasília",
     return consulta.buscar_eventos(
         texto=texto or None, cidade=cidade or None,
         data_inicio=data_inicio or None, data_fim=data_fim or None,
+        bairro=bairro or None, tipo=tipo or None, gratis=gratis,
         limite=limite)
 
 

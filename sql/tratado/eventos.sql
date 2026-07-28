@@ -73,6 +73,16 @@ CREATE TABLE IF NOT EXISTS tratado.eventos (
     -- unico dos quatro sinais da fila de curadoria que nao e calculavel por
     -- JOIN. Spec 20260728_arquitetura-medalhao §4.4.
     dedupe_score    DOUBLE PRECISION,
+    -- 'festa' | 'show' | NULL — heuristica v1 do enriquecer (NI-44). NULL e o
+    -- TERCEIRO ESTADO, nao ausencia de dado: sem sinal claro o evento nao
+    -- recebe rotulo e aparece nas DUAS visoes, porque errar para o lado de
+    -- esconder festa real e o pior erro possivel aqui. Quando o NI-05 (LLM)
+    -- entrar, ele assume esta coluna e a heuristica vira fallback.
+    --
+    -- ATENCAO: `tipo` NAO entra em comum.COLS_EVENTO. Aquela lista e reescrita
+    -- inteira a cada reconstrucao da prata, e a coluna seria zerada toda
+    -- rodada. O dono dela e o enriquecer, como de `ruido` e `dedupe_*`.
+    tipo            TEXT,
 
     -- Indice de busca textual (nome/categoria/atracoes/descricao +
     -- local_nome/organizador — "o que tem no Ordinario?" acha pela casa) para
@@ -92,4 +102,5 @@ CREATE INDEX IF NOT EXISTS idx_eventos_busca ON tratado.eventos USING GIN (busca
 -- da politica de mudanca de schema: aditiva se aplica sozinha, o conectar()
 -- resolve.
 ALTER TABLE tratado.eventos
-    ADD COLUMN IF NOT EXISTS dedupe_score DOUBLE PRECISION;
+    ADD COLUMN IF NOT EXISTS dedupe_score DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS tipo TEXT;

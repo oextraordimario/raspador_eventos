@@ -79,7 +79,7 @@ EVENTOS = [
 
 def dump(con):
     return con.execute(
-        "SELECT id, ruido, ruido_motivo, dedupe_grupo, dedupe_canonico "
+        "SELECT id, ruido, ruido_motivo, dedupe_grupo, dedupe_canonico, tipo "
         "FROM tratado.eventos ORDER BY id").fetchall()
 
 
@@ -118,11 +118,44 @@ def main():
     print("dedupe: falso-positivo ('Oitavas de Final') e dias distintos "
           "não agrupam — ok")
 
+    # --- tipo (NI-44): festa × show, e o TERCEIRO estado ---
+    tipos = {r["id"]: r["tipo"] for r in con.execute(
+        "SELECT id, tipo FROM tratado.eventos")}
+    assert tipos["shotgun:d2"] == "festa", tipos["shotgun:d2"]   # "Baile do..."
+    assert tipos["sympla:s1"] == "show", tipos["sympla:s1"]      # "Sarau do..."
+    # sem palavra que decida, NULL — e NULL aqui é rótulo ausente de propósito,
+    # não falha: o princípio é errar para o lado de não esconder festa real
+    assert tipos["sympla:desc1"] is None, tipos["sympla:desc1"]
+    assert resultado["tipos"]["festa"] >= 1 and resultado["tipos"]["show"] >= 1
+    # contradição entre categoria e nome não vira rótulo (o caso em que um
+    # palpite teria mais chance de estar errado)
+    assert enriquecer._classificar_tipo("Festa do Vinil", "shows") is None
+    assert enriquecer._classificar_tipo("Noite Qualquer", None) is None
+    print("tipo: festa/show por palavra no nome, contradição e silêncio → NULL — ok")
+
+    # o filtro por tipo NÃO pode esconder o sem-rótulo
+    con.commit()
+    so_show = {e["id"] for e in consulta.buscar_eventos(tipo="show", limite=100)}
+    assert "sympla:s1" in so_show and "sympla:desc1" in so_show, so_show
+    assert "shotgun:d2" not in so_show, so_show
+    print("consulta: tipo=show traz os shows E os sem rótulo, não as festas — ok")
+
     # --- idempotência: aplicar de novo não muda nada ---
     antes = dump(con)
     enriquecer.aplicar(con)
     assert dump(con) == antes
     print("idempotência: aplicar 2x = mesmo estado — ok")
+
+    # --- a guarda que a arquitetura exige: reconstruir a prata NÃO pode zerar
+    #     `tipo`. É o teste que pega o dia em que alguém puser a coluna em
+    #     comum.COLS_EVENTO, que é reescrita inteira a cada reconstrução. ---
+    comum.upsert_eventos(con, EVENTOS)
+    depois = {r["id"]: r["tipo"] for r in con.execute(
+        "SELECT id, tipo FROM tratado.eventos")}
+    assert depois == tipos, \
+        ("upsert_eventos zerou `tipo` — a coluna é do enriquecer e NÃO pode "
+         "entrar em COLS_EVENTO", {k: v for k, v in depois.items() if tipos[k] != v})
+    print("fronteira: upsert do catálogo não apaga o `tipo` do enriquecer — ok")
 
     # --- consulta: ruído e não-canônicos somem; outras_urls aparece ---
     # commit explícito: desde a fatia 7 os passos do tratamento não comitam

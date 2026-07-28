@@ -23,7 +23,7 @@ regra de negócio, e ambas decorrem da spec:
    heurística quem é pessoa e quem é empresa.
 
 Rotas (o vercel.json reescreve /api/dados/* para cá):
-    GET  /api/dados/eventos?texto=&de=&ate=&limite=&gratis=
+    GET  /api/dados/eventos?texto=&de=&ate=&limite=&gratis=&bairro=&tipo=
     GET  /api/dados/evento?url=
     GET  /api/dados/filmes?texto=&cinema=&de=&ate=&limite=
     GET  /api/dados/sessoes?filme=&cinema=
@@ -146,12 +146,8 @@ def rota(caminho, q, con=None):
         evs = consulta.buscar_eventos(
             texto=_str(q, "texto"), cidade="Brasília",
             data_inicio=de, data_fim=ate, limite=_int(q, "limite", 60, 200),
-            con=con)
-        if _str(q, "gratis"):
-            # tem_gratis = há lote grátis não esgotado; preco_min NULL junto
-            # significa evento sem cobrança. Filtrar aqui e não no SQL mantém
-            # a consulta.py com uma responsabilidade só.
-            evs = [e for e in evs if e.get("tem_gratis") == 1]
+            bairro=_str(q, "bairro"), tipo=_str(q, "tipo"),
+            gratis=bool(_str(q, "gratis")), con=con)
         # As facetas vão na MESMA resposta, como já vão em /filmes: a página
         # monta o calendário sem um segundo round-trip, e elas entram no mesmo
         # objeto cacheado pela CDN.

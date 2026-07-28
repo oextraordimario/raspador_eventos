@@ -42,6 +42,78 @@ RUIDO_TERMOS = [
     "conference",
 ]
 
+# ── Tipo do evento: festa & balada × show & festival (NI-44) ───────────────
+#
+# Heurística v1, conservadora, com TRÊS estados — e o terceiro é o importante:
+# sem sinal claro, o evento fica NULL e aparece nas duas visões. O princípio do
+# projeto é errar para o lado de não esconder festa real, e um rótulo errado
+# aqui tira o evento de quem o procurava.
+#
+# `categoria` só é confiável no SYMPLA: as constantes que Shotgun ("MusicEvent")
+# e Ticket and Go ("Evento") gravavam saíram em 2026-07-28, por não distinguirem
+# nada. Ou seja, ~metade da agenda depende só do passo 2 (palavra no nome), e é
+# contra ela que a regra precisa ser calibrada — não só contra o Sympla.
+_CATEGORIA_TIPO = [
+    ("show", ("shows", "festivais", "festival")),
+    ("festa", ("baladas-e-festas", "baladas", "festas", "erotico")),
+]
+
+# Palavras com fronteira, sobre o nome normalizado. Na dúvida, fora da lista:
+# "forró na varanda" (banda ao vivo num bar) é o limite honesto do v1 e fica
+# NULL de propósito.
+_NOME_TIPO = [
+    ("show", ("show", "shows", "festival", "fest", "turne", "tour", "tributo",
+              "acustico", "ao vivo", "recital", "concerto", "sarau", "canta",
+              "apresenta", "in concert", "showcase", "orquestra", "banda",
+              "cantor", "cantora", "duo", "trio", "quarteto", "luau")),
+    ("festa", ("festa", "festas", "baile", "balada", "after", "esquenta",
+               "open bar", "matine", "rave", "carnaval", "bloco", "party",
+               "domingueira", "sunset", "arraia", "arraial", "quadrilha",
+               "junina", "juninas", "pagodao", "resenha", "esquenta")),
+]
+
+
+def _classificar_tipo(nome, categoria):
+    """(nome, categoria) → 'festa' | 'show' | None.
+
+    Ordem: categoria com sinal forte primeiro, palavra no nome depois. Quando
+    os dois falam e DISCORDAM, ninguém ganha — devolve None, porque uma
+    contradição é justamente o caso em que o rótulo teria mais chance de estar
+    errado.
+    """
+    cat = _normalizar_texto(categoria or "")
+    por_categoria = next(
+        (t for t, termos in _CATEGORIA_TIPO
+         if any(re.search(rf"\b{re.escape(x)}\b", cat) for x in termos)), None)
+
+    alvo = _normalizar_texto(nome or "")
+    por_nome = next(
+        (t for t, termos in _NOME_TIPO
+         if any(re.search(rf"\b{re.escape(x)}\b", alvo) for x in termos)), None)
+
+    if por_categoria and por_nome and por_categoria != por_nome:
+        return None
+    return por_nome or por_categoria
+
+
+def _classificar(con):
+    """Preenche `tipo` na base inteira. Retorna a contagem por rótulo.
+
+    A coluna é do enriquecer, e por isso NÃO está em comum.COLS_EVENTO: aquela
+    lista é reescrita inteira a cada reconstrução da prata, e `tipo` seria
+    zerado toda rodada. Ver sql/tratado/eventos.sql.
+    """
+    contagem = {"festa": 0, "show": 0, None: 0}
+    for r in con.execute("SELECT id, nome, categoria FROM tratado.eventos"):
+        t = _classificar_tipo(r["nome"], r["categoria"])
+        contagem[t] += 1
+        if t:
+            con.execute("UPDATE tratado.eventos SET tipo = %s WHERE id = %s",
+                        (t, r["id"]))
+    return {"festa": contagem["festa"], "show": contagem["show"],
+            "sem_rotulo": contagem[None]}
+
+
 # Similaridade de nome (0..1) para considerar duplicata cross-fonte.
 SIM_NOME_FORTE = 0.85   # nome sozinho basta
 SIM_NOME_FRACA = 0.55   # exige também o mesmo local
@@ -235,13 +307,16 @@ def aplicar(con, aliases_local=None):
     Returns:
         dict com:
           ruido: lista de (nome, termo que marcou)
+          tipos: {festa, show, sem_rotulo} — a contagem da classificação
           grupos: lista de grupos de dedupe; cada grupo é uma lista de dicts
                   dos membros (canônico primeiro), com fonte/nome/id.
     """
     con.execute("UPDATE tratado.eventos SET ruido = 0, ruido_motivo = NULL, "
-                "dedupe_grupo = NULL, dedupe_canonico = 1, dedupe_score = NULL")
+                "dedupe_grupo = NULL, dedupe_canonico = 1, dedupe_score = NULL, "
+                "tipo = NULL")
     ruido = _marcar_ruido(con)
+    tipos = _classificar(con)
     grupos = _agrupar_duplicatas(con, aliases_local)
     # Sem commit: o ciclo inteiro do tratamento roda numa transação só
     # (tratamento/ciclo.py) — ver o cabeçalho de lá.
-    return {"ruido": ruido, "grupos": grupos}
+    return {"ruido": ruido, "grupos": grupos, "tipos": tipos}
