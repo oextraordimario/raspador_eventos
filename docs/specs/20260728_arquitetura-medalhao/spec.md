@@ -7,8 +7,10 @@
 > e o teste de fronteira da §10 verifica isso a cada execução da suíte. Os três
 > achados que a reconstrução contra a base real produziu estão na §13.
 >
-> ⚠️ **O cron da raspagem está DESLIGADO** no GitHub até o push (ver
-> `CRON-DESLIGADO.md` na raiz do repo).
+> **Em produção desde 2026-07-28**: push feito, deploy na Vercel, e o cron da
+> raspagem religado (`gh workflow enable raspar.yml`) depois de uma rodada
+> completa validada na máquina do autor — 7 fontes, 0 falhas, 511 eventos.
+> O `CRON-DESLIGADO.md` que marcava a janela saiu junto.
 >
 > **O quê:** reorganizar base e código em camadas explícitas de medalhão —
 > `cru` (bronze, o que a fonte disse, **uma tabela por fonte**), `tratado`

@@ -1110,3 +1110,42 @@
     - expor em CAMPOS_FILME + card/página do filme no site.
     Bônus natural: indexar direção/elenco no FTS de filmes ("filme do Nolan",
     "filme com a Margot Robbie" passam a achar).
+
+- codigo: NI-61
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: P
+  eixo: infra
+  fase: 0
+  titulo: "MCP remoto responde 500 em produção — as duas rotas"
+  resumo: "depois do deploy de 2026-07-28 (medalhão), POST /mcp e GET /.well-known/oauth-protected-resource/mcp devolvem 500; o site e a API de leitura seguem 200 — só a porta dos agentes caiu"
+  data: 2026-07-28
+  depende_de: []
+  relacionado: [NI-11, NI-20]
+  caso_real: ["conferido em https://raspador-eventos.vercel.app logo após o deploy: /, /festas, /filmes, /sobre, robots/sitemap/llms.txt e /api/dados/eventos todos 200; /mcp e a rota de metadados, 500"]
+  detalhe: |
+    O QUE SE SABE, medido — não deduzido:
+    - `vercel logs` mostra as duas rotas como `λ` (função serverless atendeu),
+      então a rewrite do vercel.json ESTÁ roteando; o erro é dentro da função
+      ou no import dela;
+    - o corpo do 500 é a página de erro do NEXT, não um traceback do Python;
+    - o último deploy anterior é de 7h antes e PRECEDE as fatias 4 e 7, então
+      não dá para afirmar se a quebra veio da reorganização de `src/` (fatia 4,
+      que moveu `mcp_server.py` para `src/servico/`) ou já existia. Descobrir
+      isso é o primeiro passo, e é barato: `vercel logs` do deploy anterior.
+
+    SUSPEITO nº 1: `api/index.py` faz `sys.path.insert(.../src)` e importa
+    `servico.mcp_server`. O que muda com a fatia 4 é que agora o import cruza
+    PACOTES (`servico/`, que puxa `base/`, `tratamento/`, `coleta/`) — todos
+    namespace packages sem `__init__.py`. Se o bundle da função Python na
+    Vercel não estiver levando `src/` inteiro, o import quebra em produção e
+    passa local, onde o disco tem tudo.
+
+    NÃO INVESTIGADO A FUNDO por decisão do autor em 28/07 ("ignora o MCP por
+    enquanto, segue só com o site") — registrado aqui para não sumir.
+
+    ATENÇÃO ao mexer: o CLAUDE.md avisa que o roteamento do vercel.json é o
+    jeito mais fácil de derrubar o MCP sem perceber. Depois de qualquer
+    alteração, conferir que o connector responde — as três rewrites (/mcp, a
+    de metadados da RFC 9728 e a do prefixo secreto) precisam continuar de pé.
