@@ -1,53 +1,94 @@
 """Raspador do Ticket and Go (ticketandgo.com.br) via API interna do site.
 
-Descoberta (spike spikes/zig-ticketandgo/, 2026-07-12): o site é um SPA
-Vue/Vite atrás de queue-it (como o Ingresse); a API de leitura é aberta:
+Descoberta original (spike spikes/zig-ticketandgo/, 2026-07-12): o site é um
+SPA Vue/Vite atrás de queue-it e a API de leitura é aberta. Em **2026-07-28 a
+API V1 que usávamos foi DESLIGADA** (404 em `POST /eventos/pesquisa` e em
+`GET /eventos/{slug}`, com o host de pé). O bundle do site mostrou para onde o
+front foi — e é o que este módulo usa agora:
 
-  POST https://production-api-v1-service.ticketandgo.com.br/eventos/pesquisa
-       body {"pesquisa": ""}  -> o CATÁLOGO INTEIRO (~460 eventos), cada um
-       já com a descrição HTML completa — esta fonte não precisa do passo
-       "descrever" do atualizar.py (como o Shotgun).
-  GET  https://production-api-v1-service.ticketandgo.com.br/eventos/{slug}
-       -> detalhe com "bilhetes" (lotes: nome + valor) e "taxa_conveniencia"
-       (fração, ex.: 0.1 = 10%) — é o payload do passo "precificar".
+  GET  {V2}/api/v2/site/list/all?filter=&page=N&perPage=100
+       -> listagem paginada do catálogo nacional (~3.600 eventos, ~430
+          futuros). Payload MAGRO: uuid, slug, nome, categoria, inicio, fim,
+          local, imagem. Sem hora, sem descrição, sem endereço, sem id numérico.
+  GET  {V1}/eventos/{slug}/evento
+       -> o detalhe (rota antiga + sufixo `/evento`), com id NUMÉRICO, hora,
+          descrição HTML, `setores[].bilhetes[]` e `taxa_conveniencia`. É o
+          payload do catálogo E o do passo "precificar" — os dois iguais.
+
+O id numérico sobreviveu à migração, então a chave `ticketandgo:<id>` continua
+valendo: evento que já estava na base é atualizado, não duplicado.
 
 Particularidades da fonte:
-- cidade/estado/cep vêm NULOS no catálogo; o local mora nos textos `local` e
-  `endereco_completo` ("SCTN - Plano Piloto, Brasília - DF, 70040-010").
-  O filtro de DF é textual (_do_df) e cidade/estado são ROTULADOS pelo filtro,
-  como o Shotgun rotula pela cidade pesquisada.
+- **Não há mais endereço.** `endereco` vem sempre vazio, cidade/estado/lat/lon
+  nulos, e o site público também parou de exibir (verificado no HTML
+  renderizado). O filtro DF, que era textual sobre `endereco_completo`, passou
+  a se apoiar em três sinais — ver `_do_df` e `dados/locais_df.yaml`.
+- Sem filtro geográfico server-side: `filter=` da V2 casa só nome/produtora
+  (medido: `filter=brasilia` acha 1 dos 79 eventos DF conhecidos) e
+  `uf=/estado=/cidade=` são ignorados. Por isso varremos o catálogo inteiro e
+  filtramos do lado de cá — como o Zig.
 - datas separadas e SEM fuso: inicio/fim "YYYY-MM-DD" + hora_incio/hora_fim
   "HH:MM:SS" (typo da fonte, sem o segundo "i") em hora local de Brasília —
   _quando compõe "YYYY-MM-DDTHH:MM:SS-03:00"; o upsert normaliza para UTC.
+- cidade/estado são ROTULADOS pelo filtro (como no Shotgun), não vêm do dado.
+
+Spec: docs/specs/20260728_fontes-quebradas/spec.md.
 """
 
+import os
 import html
 import re
 import time
 import json
+import unicodedata
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 
-API = "https://production-api-v1-service.ticketandgo.com.br"
+import yaml
+
+API_V1 = "https://production-api-v1-service.ticketandgo.com.br"
+API_V2 = "https://production-api-v2-service.ticketandgo.com.br"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+
+# Casas de Brasília curadas à mão (dado versionado, como a watchlist do
+# Instagram). É a rede para o evento cuja descrição não repete o endereço.
+LOCAIS_DF = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "dados", "locais_df.yaml")
 
 # Brasília é UTC-3 o ano inteiro (o DF não tem horário de verão desde 2019).
 FUSO_BRASILIA = "-03:00"
 
 # CEPs do DF começam em 70–73 (Brasília e cidades-satélites).
 _CEP_DF = re.compile(r"\b7[0-3]\d{3}-?\d{3}\b")
-_UF_DF = re.compile(r"\bDF\b")
+_UF_DF = re.compile(r"\bdf\b")
+
+# Termos geográficos INEQUÍVOCOS do DF. Ficaram de fora, de propósito, os
+# ambíguos com outras cidades do país — Cruzeiro, Gama, Guará, Santa Maria,
+# Varjão, Estrutural, Jardim Botânico, Sudoeste: o filtro erra para o lado de
+# PERDER evento, nunca de poluir a base com outra cidade.
+_TERMOS_DF = [
+    "brasilia", "distrito federal", "taguatinga", "ceilandia", "samambaia",
+    "planaltina", "sobradinho", "brazlandia", "candangolandia", "paranoa",
+    "itapoa", "recanto das emas", "riacho fundo", "nucleo bandeirante",
+    "vicente pires", "aguas claras", "asa norte", "asa sul", "plano piloto",
+    "lago sul", "lago norte", "park way", "arniqueira", "octogonal",
+    "eixo monumental", "esplanada dos ministerios", "setor de clubes",
+    "granja do torto", "torre de tv", "ceub", "unb",
+    "scen", "shis", "sqn", "sqs", "sgan", "sia", "sig", "scs", "scn", "sbn",
+    "w3 norte", "w3 sul",
+]
+_RE_TERMOS_DF = re.compile(
+    r"\b(?:" + "|".join(re.escape(t) for t in _TERMOS_DF) + r")\b")
 
 
-def _requisitar(url, body=None):
-    dados = json.dumps(body).encode() if body is not None else None
+def _requisitar(url):
     req = urllib.request.Request(
-        url, data=dados,
-        headers={"User-Agent": UA, "Accept": "application/json",
-                 "Content-Type": "application/json",
-                 "Referer": "https://www.ticketandgo.com.br/"},
+        url, headers={"User-Agent": UA, "Accept": "application/json",
+                      "Content-Type": "application/json",
+                      "Referer": "https://www.ticketandgo.com.br/"},
     )
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)
@@ -61,13 +102,55 @@ def _limpar_html(texto):
     return re.sub(r"\s+", " ", texto).strip() or None
 
 
-def _do_df(ev):
-    """Filtro textual de DF sobre local/endereco_completo (cidade/uf nulos na
-    fonte). Erra para o lado de PERDER evento sem marca de DF no endereço,
-    nunca de poluir a base com outra cidade. Calibrado no spike (102/102)."""
-    texto = f"{ev.get('local') or ''} {ev.get('endereco_completo') or ''}"
-    return bool("brasília" in texto.casefold() or _UF_DF.search(texto)
-                or _CEP_DF.search(texto))
+def _norm(texto):
+    """Casefold + sem acento + espaços colapsados — para comparar nome de local."""
+    texto = unicodedata.normalize("NFD", (texto or "").casefold())
+    sem_acento = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", sem_acento).strip()
+
+
+_locais_df = None
+
+
+def locais_df():
+    """Nomes de locais DF conhecidos, normalizados (lê o YAML uma vez)."""
+    global _locais_df
+    if _locais_df is None:
+        try:
+            with open(LOCAIS_DF, encoding="utf-8") as f:
+                _locais_df = {_norm(x) for x in (yaml.safe_load(f) or []) if x}
+        except FileNotFoundError:
+            print(f"  (aviso: {LOCAIS_DF} não encontrado — só sinais textuais)")
+            _locais_df = set()
+    return _locais_df
+
+
+def _do_df(local, nome=None, descricao=None):
+    """O evento é de Brasília? Três sinais, do mais forte para o mais fraco.
+
+    A fonte parou de expor endereço (NI-57), então não há campo geográfico
+    para comparar — sobra texto. Medido contra os 79 eventos que estavam na
+    base raspados enquanto o endereço existia: 77/77 dos que continuam no
+    catálogo, sem falso positivo.
+
+    1. `local` está na lista curada (`dados/locais_df.yaml`) — comparação por
+       nome normalizado EXATO, não substring: "Comunidade das Nações - SIA" é
+       do DF, "Comunidade das Nações São Paulo" não.
+    2. termo geográfico inequívoco (ou CEP 70-73, ou "DF") no local/nome.
+    3. CEP 70-73 ou "DF" na DESCRIÇÃO — sozinho cobre ~75% dos casos, porque a
+       descrição costuma repetir o endereço completo do evento.
+
+    "Brasília" solto na descrição NÃO conta (sinal 3 é só CEP/UF): pegava
+    evento de Uberlândia cujo endereço era "Jardim Brasília, Uberlândia - MG".
+    """
+    if _norm(local) in locais_df():
+        return True
+    campo = f"{_norm(local)} {_norm(nome)}"
+    if _CEP_DF.search(campo) or _UF_DF.search(campo) or _RE_TERMOS_DF.search(campo):
+        return True
+    # limpa o HTML antes: "\bdf\b" casaria dentro de href/atributo de tag
+    desc = _norm(_limpar_html(descricao))
+    return bool(_CEP_DF.search(desc) or _UF_DF.search(desc))
 
 
 def _quando(data, hora):
@@ -85,45 +168,89 @@ def _quando(data, hora):
 
 
 def raspar_tickets(slug):
-    """Busca o detalhe do evento (bilhetes/lotes + taxa_conveniencia) pelo
+    """Busca o detalhe do evento (setores/bilhetes + taxa_conveniencia) pelo
     slug da URL publica. Retorna {"payload": data do detalhe} para a camada
     Bronze; quem transforma em lotes/preco_min é o derivar. Levanta excecao
     em erro de rede/HTTP."""
-    resp = _requisitar(f"{API}/eventos/{urllib.parse.quote(slug)}")
-    return {"payload": resp.get("data") or {}}
+    return {"payload": _detalhe(slug)}
 
 
-def _normalizar(ev, cidade_label, estado_label):
-    id_nativo = str(ev.get("id"))
-    slug = ev.get("slug")
+def _detalhe(slug):
+    """Payload rico de UM evento (rota nova: /eventos/{slug}/evento)."""
+    resp = _requisitar(f"{API_V1}/eventos/{urllib.parse.quote(slug)}/evento")
+    return resp.get("data") or {}
+
+
+def _catalogo(max_paginas=45, por_pagina=100):
+    """Percorre a listagem V2 inteira. Devolve dict slug -> item do catálogo.
+
+    A paginação segue o `pagination.total` que a própria resposta traz (não o
+    perPage pedido, que o servidor pode não respeitar). max_paginas é teto de
+    segurança bem acima do catálogo conhecido (~37 páginas)."""
+    itens = {}
+    for pagina in range(1, max_paginas + 1):
+        resp = _requisitar(
+            f"{API_V2}/api/v2/site/list/all?"
+            + urllib.parse.urlencode({"filter": "", "page": pagina,
+                                      "perPage": por_pagina}))
+        lote = resp.get("lista_evento_geral") or []
+        total = (resp.get("pagination") or {}).get("total") or 0
+        for ev in lote:
+            if ev.get("slug"):
+                itens.setdefault(ev["slug"], ev)
+        print(f"  pagina {pagina}: +{len(lote)} brutos | total no site: "
+              f"{total} | acumulado: {len(itens)}")
+        if not lote or len(itens) >= total:
+            break
+    return itens
+
+
+def _normalizar(det, slug, cidade_label, estado_label):
+    """Detalhe da fonte -> schema unificado. `endereco`/`lat`/`lon` ficam
+    NULOS de propósito: a API parou de expor endereço (não é bug a consertar,
+    ver docstring do módulo). O `local` continua vindo e é o que alimenta FTS,
+    dedupe e front."""
+    id_nativo = str(det.get("id") or "").strip()
     return {
         "id": f"ticketandgo:{id_nativo}",
         "fonte": "ticketandgo",
         "id_nativo": id_nativo,
-        "nome": ev.get("nome"),
-        "start_date": _quando(ev.get("inicio"), ev.get("hora_incio")),
-        "end_date": _quando(ev.get("fim"), ev.get("hora_fim")),
-        # rotulados pelo filtro _do_df (a fonte manda cidade/estado nulos)
+        "nome": det.get("nome"),
+        "start_date": _quando(det.get("inicio"), det.get("hora_incio")),
+        "end_date": _quando(det.get("fim"), det.get("hora_fim")),
+        # rotulados pelo filtro _do_df (a fonte não manda cidade/estado)
         "cidade": cidade_label,
         "estado": estado_label,
-        "local_nome": (ev.get("local") or "").strip() or None,
-        "endereco": (ev.get("endereco_completo") or "").strip() or None,
-        "lat": ev.get("latitude") or None,
-        "lon": ev.get("longitude") or None,
-        "categoria": (ev.get("nome_tipo_evento") or "").strip() or None,
-        "organizador": None,  # a fonte só expõe id_produtora no catálogo
-        "url": f"https://www.ticketandgo.com.br/evento/{slug}" if slug else None,
-        "imagem": ev.get("banner") or ev.get("imagem") or None,
+        "local_nome": (det.get("local") or "").strip() or None,
+        "endereco": None,
+        "lat": None,
+        "lon": None,
+        "categoria": (det.get("nome_tipo_evento") or "").strip() or None,
+        "organizador": None,  # produtora é razão social (pessoa jurídica/física)
+        "url": f"https://www.ticketandgo.com.br/evento/{slug}",
+        "imagem": det.get("banner") or det.get("imagem") or None,
         "raspado_em": datetime.now(timezone.utc).isoformat(),
-        # descrição já vem no catálogo — sem passo "descrever" p/ esta fonte
-        "descricao": _limpar_html(ev.get("descricao")),
-        "_raw": ev,  # payload bruto -> eventos_raw (camada Bronze)
+        # descrição já vem no detalhe — sem passo "descrever" p/ esta fonte
+        "descricao": _limpar_html(det.get("descricao")),
+        "_raw": det,  # payload bruto -> eventos_raw (camada Bronze)
     }
 
 
-def _futuro(ev):
-    quando = _quando(ev.get("fim"), ev.get("hora_fim")) \
-        or _quando(ev.get("inicio"), ev.get("hora_incio"))
+def _futuro_por_dia(ev):
+    """Corte grosso sobre o catálogo (que só tem DIA, sem hora): mantém o que
+    termina de ontem em diante. A margem de 1 dia evita perder o evento que
+    começa hoje à noite; a hora exata chega no detalhe e quem decide de fato é
+    `_futuro`."""
+    dia = (ev.get("fim") or ev.get("inicio") or "").strip()[:10]
+    if not dia:
+        return False
+    ontem = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
+    return dia >= ontem
+
+
+def _futuro(det):
+    quando = _quando(det.get("fim"), det.get("hora_fim")) \
+        or _quando(det.get("inicio"), det.get("hora_incio"))
     if not quando:
         return False
     try:
@@ -138,21 +265,65 @@ def _futuro(ev):
 ULTIMA_RASPAGEM = {}
 
 
-def raspar(cidade_label="Brasília", estado_label="DF", pausa=0.0,
+def raspar(cidade_label="Brasília", estado_label="DF", pausa=0.15,
            apenas_futuros=True):
-    """Baixa o catálogo inteiro (pesquisa vazia), filtra DF e normaliza."""
-    resp = _requisitar(f"{API}/eventos/pesquisa", body={"pesquisa": ""})
-    catalogo = (resp.get("data") or {}).get("eventos") or []
-    df = [ev for ev in catalogo if _do_df(ev)]
-    vistos = {}
-    for ev in df:
-        if apenas_futuros and not _futuro(ev):
+    """Varre o catálogo nacional, busca o detalhe dos futuros e filtra DF.
+
+    Uma requisição de detalhe por evento futuro (~430 hoje, ~1,5 min com a
+    pausa padrão): é o preço de a fonte ter tirado hora, descrição e endereço
+    da listagem. O filtro DF só pode rodar DEPOIS do detalhe, porque o sinal
+    principal (CEP na descrição) só existe lá.
+    """
+    catalogo = _catalogo()
+    if not catalogo:
+        # Catálogo vazio é listagem que não chegou, não fonte sem eventos —
+        # falhar alto para o pipeline não ler o silêncio como "esvaziou" e
+        # esconder a agenda da fonte (NI-58/NI-59).
+        raise RuntimeError("catálogo do Ticket and Go veio vazio — API mudou?")
+    candidatos = {s: e for s, e in catalogo.items() if _futuro_por_dia(e)}
+    print(f"  catálogo: {len(catalogo)} eventos | futuros (por dia): "
+          f"{len(candidatos)} — buscando detalhe de cada um...")
+
+    vistos, df, falhas = {}, 0, 0
+    novos_locais = Counter()
+    for n, slug in enumerate(candidatos, 1):
+        try:
+            det = _detalhe(slug)
+        except Exception:
+            falhas += 1
+            det = None
+        # a pausa é POR REQUISIÇÃO (ritmo educado com a fonte), não por evento
+        # aproveitado — a maioria dos detalhes é de outra cidade e se descarta
+        if pausa:
+            time.sleep(pausa)
+        if n % 100 == 0:
+            print(f"  {n}/{len(candidatos)} detalhes | DF até aqui: {df}")
+        if det is None:
             continue
-        norm = _normalizar(ev, cidade_label, estado_label)
-        vistos.setdefault(norm["id"], norm)
-    print(f"  catálogo: {len(catalogo)} eventos | DF: {len(df)} | "
-          f"futuros normalizados: {len(vistos)}")
-    if pausa:
-        time.sleep(pausa)
-    ULTIMA_RASPAGEM.update(total_site=len(df), coletados=len(vistos))
+        if not _do_df(det.get("local"), det.get("nome"), det.get("descricao")):
+            continue
+        df += 1
+        if _norm(det.get("local")) not in locais_df():
+            novos_locais[(det.get("local") or "?").strip()] += 1
+        if apenas_futuros and not _futuro(det):
+            continue
+        norm = _normalizar(det, slug, cidade_label, estado_label)
+        if norm["id_nativo"]:
+            vistos.setdefault(norm["id"], norm)
+
+    if candidatos and falhas > len(candidatos) // 2:
+        # Metade dos detalhes falhando é a rota tendo mudado de novo, não azar
+        # de rede — mesma lógica do catálogo vazio: falhar alto (NI-58/NI-59).
+        raise RuntimeError(f"{falhas}/{len(candidatos)} detalhes falharam — "
+                           f"a rota /eventos/{{slug}}/evento mudou?")
+    print(f"  DF: {df} | futuros normalizados: {len(vistos)}"
+          + (f" | {falhas} detalhes falharam" if falhas else ""))
+    if novos_locais:
+        # Curadoria do dados/locais_df.yaml: estes entraram só por sinal
+        # textual. Casa recorrente aqui merece virar linha do YAML — no dia em
+        # que a descrição dela não repetir o endereço, ela sumiria calada.
+        print("  candidatos a dados/locais_df.yaml (entraram por texto): "
+              + "; ".join(f"{loc} ({n}x)"
+                          for loc, n in novos_locais.most_common(8)))
+    ULTIMA_RASPAGEM.update(total_site=df, coletados=len(vistos))
     return list(vistos.values())

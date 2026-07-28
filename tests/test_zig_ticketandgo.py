@@ -37,15 +37,15 @@ ZIG_CATALOGO = {
                                             "Brasília, DF - 70070-701"},
 }
 
+# Forma do GET /eventos/{slug}/evento (rota nova, NI-57): sem endereço, sem
+# cidade/estado, sem lat/lon — só local, datas separadas e descrição HTML.
 TNG_CATALOGO = {
     "id": 36999, "uuid": "x", "nome": "Pagode do Quadradinho - Arlindinho",
-    "slug": "pagode-do-quadradinho-arlindinho",
+    "slug_evento": "pagode-do-quadradinho-arlindinho",
     "inicio": "2026-08-29", "hora_incio": "19:00:00",   # typo da própria fonte
     "fim": "2026-08-29", "hora_fim": "23:59:00",
-    "cidade": None, "estado": None, "cep": None,
-    "local": "Brasília", "endereco_completo": "Brasília - DF",
-    "latitude": None, "longitude": None, "nome_tipo_evento": "Evento",
-    "banner": "https://exemplo/tng.png",
+    "local": "Brasília", "endereco": [],   # a fonte parou de expor endereço
+    "nome_tipo_evento": "Evento", "banner": "https://exemplo/tng.png",
     "descricao": "<p><strong>PAGODE</strong> do bom &amp; barato</p>",
 }
 
@@ -88,17 +88,29 @@ TNG_TICKETS = {  # forma do GET /eventos/{slug} (data), capturada no spike:
 
 
 def main():
-    # --- Ticket and Go: filtro DF textual (casos reais do spike) ---
-    assert ticketandgo._do_df({"local": None, "endereco_completo":
-                               "SCTN - Plano Piloto, Brasília - DF, 70040-010"})
-    assert ticketandgo._do_df({"local": "Brasília", "endereco_completo": None})
-    assert ticketandgo._do_df(  # sem "Brasília"/"DF": o CEP 70-73 decide
-        {"local": None, "endereco_completo": "Eixo Monumental SRPN, 70070-701"})
+    # --- Ticket and Go: filtro DF sem endereço (NI-57), casos REAIS medidos
+    # contra os 79 eventos que a base tinha da era em que havia endereço ---
+    # 1) local na lista curada (dados/locais_df.yaml)
+    assert ticketandgo._do_df("Hípica Hall")
+    assert ticketandgo._do_df("hipica hall")           # normalizado: sem acento/caixa
+    # comparação é EXATA, não substring: a mesma igreja tem filial fora do DF
+    assert ticketandgo._do_df("Comunidade das Nações - SIA")
+    assert not ticketandgo._do_df("Comunidade das Nações São Paulo")
+    # 2) termo inequívoco no local/nome
+    assert ticketandgo._do_df("Taguatinga")
+    assert ticketandgo._do_df("Arena BRB", "Festa em Brasília")
+    # 3) CEP 70-73 ou DF na descrição (o sinal que cobre a maioria)
+    assert ticketandgo._do_df("Caalex", "Trust Love",
+                             "<p>SCEN Trecho 2, Brasília - DF, 70800-120</p>")
+    assert ticketandgo._do_df("Projeted", "Master Fire", "📍 Distrito Federal – DF")
+    # "Brasília" solto na descrição NÃO conta — caso real de Uberlândia:
     assert not ticketandgo._do_df(
-        {"local": None, "endereco_completo":
-         "Avenida Visconde de Guarapuava, 2115, Centro, Curitiba, PR - 80010-100"})
-    assert not ticketandgo._do_df({"local": "", "endereco_completo": ""})
-    print("ticketandgo: filtro DF textual (Brasília/\\bDF\\b/CEP 70-73) — ok")
+        "Estádio Parque do Sabiá", "Legendários",
+        "Endereço: Av. Constelação, 1175 - Jardim Brasília, Uberlândia - MG")
+    # termos ambíguos com outras cidades ficam de fora de propósito
+    assert not ticketandgo._do_df("Clube do Cruzeiro", "Festa", "Cruzeiro - SP")
+    assert not ticketandgo._do_df("", None, None)
+    print("ticketandgo: filtro DF por local curado + termo + CEP/UF na descrição — ok")
 
     # --- Ticket and Go: composição de data local (e robustez a variações) ---
     assert ticketandgo._quando("2026-08-29", "19:00:00") == \
@@ -118,15 +130,22 @@ def main():
     assert z["local_nome"] == "Areninha Mané Garrincha"
     assert zig._futuro(ZIG_CATALOGO)
 
-    t = ticketandgo._normalizar(TNG_CATALOGO, "Brasília", "DF")
-    assert t["id"] == "ticketandgo:36999"
+    t = ticketandgo._normalizar(TNG_CATALOGO, "pagode-do-quadradinho-arlindinho",
+                                "Brasília", "DF")
+    assert t["id"] == "ticketandgo:36999", "id numérico do detalhe: chave estável"
     assert t["start_date"] == "2026-08-29T19:00:00-03:00"
     assert t["cidade"] == "Brasília" and t["estado"] == "DF", "rotulados pelo filtro"
+    assert t["endereco"] is None and t["lat"] is None, "a fonte não expõe mais"
     assert t["descricao"] == "PAGODE do bom & barato", "HTML não foi limpo"
     assert t["url"] == ("https://www.ticketandgo.com.br/evento/"
                         "pagode-do-quadradinho-arlindinho")
     assert ticketandgo._futuro(TNG_CATALOGO)
     assert not ticketandgo._futuro({"inicio": "2020-01-01", "fim": None})
+    # corte grosso do catálogo (só tem dia): margem de 1 dia p/ não perder
+    # o evento que começa hoje à noite
+    assert ticketandgo._futuro_por_dia({"inicio": "2030-01-01", "fim": None})
+    assert not ticketandgo._futuro_por_dia({"inicio": "2020-01-01", "fim": None})
+    assert not ticketandgo._futuro_por_dia({})
     print("normalização: zig e ticketandgo no schema unificado — ok")
 
     # --- escrita: datas locais viram ISO UTC comparável (invariante) ---

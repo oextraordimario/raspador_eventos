@@ -1,0 +1,36 @@
+# Casas/espaços de Brasília conhecidos — âncora do recorte DF do Ticket and Go.
+#
+# POR QUE ISTO EXISTE (NI-57, 2026-07-28): a API do Ticket and Go parou de
+# expor endereço (`endereco` vem sempre vazio, cidade/estado nulos), e o site
+# público também não mostra mais. Sem endereço, o recorte DF passou a sair de
+# três sinais, nesta ordem (src/scrapers/ticketandgo.py:_do_df):
+#   1. o `local` do evento está NESTA lista            → é DF
+#   2. termo geográfico inequívoco no local/nome        → é DF
+#   3. CEP 70–73 ou "DF" na descrição do evento         → é DF
+#
+# O sinal 3 sozinho cobre ~96% dos casos (a descrição costuma repetir o
+# endereço completo); esta lista é a rede para o resto — casa cujo texto não
+# diz onde fica. Foi semeada com os locais dos 79 eventos que estavam na base
+# raspados enquanto a API ainda dava endereço, ou seja: DF confirmado por dado,
+# não por palpite.
+#
+# COMO CRESCE: dado curado à mão, como dados/perfis_instagram.yaml — a rodada
+# imprime "candidatos a locais_df.yaml" com os locais novos que entraram só por
+# texto; conferir e colar aqui os que forem casa recorrente. Comparação é por
+# nome NORMALIZADO e EXATO (sem acento, caixa e espaços colapsados), nunca por
+# substring: "Comunidade das Nações - SIA" é do DF, "Comunidade das Nações São
+# Paulo" não — a mesma igreja tem filial em várias cidades.
+
+- Acampamento Batista Ebenézer
+- Arena Mané Garrincha
+- ASES
+- ASTCU
+- Brasília
+- Caalex
+- Clube da Portuguesa de Brasília
+- Comunidade das Nações - SIA
+- Concha Acústica
+- Estacionamento 7 - Parque da Cidade
+- Hípica Hall
+- SHIP Trecho 3 Hípica Hall - Brasília, DF
+- Ulysses Centro de Convenções

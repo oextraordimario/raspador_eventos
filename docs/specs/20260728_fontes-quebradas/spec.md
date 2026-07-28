@@ -1,8 +1,10 @@
 # Spec — Fontes quebradas: Ticket and Go (API desligada) e Shotgun (zero no CI) — NI-57/58/59
 
-> **Status: PROPOSTA (2026-07-28)** — aguarda aprovação do autor nas decisões da
-> §2. Implementação delegada ao Claude com revisão só no final, por isso a §5 é
-> um plano de validação **autoexecutável**.
+> **Status: IMPLEMENTADA em 2026-07-28** — com um desvio importante: a
+> estratégia escolhida na §2.1 **reprovou no teste de recall da §5.1** (1%) e
+> foi substituída. O plano original fica preservado abaixo; o que foi feito de
+> verdade, e por quê, está na **§7**. Ler as duas: a §2.1 registra o raciocínio
+> que a medição derrubou.
 >
 > **O quê/por quê:** duas das cinco fontes de vida noturna pararam de coletar, e
 > o raspador não parou junto — continuou gravando rodada "com sucesso" enquanto
@@ -398,3 +400,79 @@ de produto (vale manter a fonte?), não técnica.
 reconstruível a partir da Bronze (NI-55); exportar as tabelas não-reconstruíveis
 (NI-56). Os dois últimos ficaram mais urgentes depois deste episódio e seguem
 no backlog.
+
+---
+
+## 7. O que a implementação mudou em relação ao plano (2026-07-28)
+
+### 7.1 A opção D morreu; a B reprovou no teste
+
+**D (achar outra rota com endereço):** o timebox achou a resposta, e é não.
+`endereco` veio vazio em **18/18** eventos testados, o bundle não tem nenhuma
+outra rota de endereço, e a **página pública renderizada também não mostra
+endereço** — só o nome do local. A informação saiu da API, não está escondida.
+
+**B (buscar por dicionário de termos DF no `filter=`):** medida contra o
+gabarito de 79 eventos, deu **recall de 1% (1/79)**. A leitura da §1.1 estava
+errada: o `filter` casa nome/produtora, não endereço — o "Constelações
+Contemporâneas no Teatro Nacional" que parecia prova de filtro geográfico era
+coincidência de outro campo. Todos os "Trust Love" no Caalex, em Brasília,
+ficam invisíveis a `filter=brasilia`.
+
+### 7.2 O que foi implementado: varredura completa + classificador de 3 sinais
+
+O que destravou foi medir o tamanho real do problema, e não estimá-lo: o
+catálogo nacional tem 3.640 eventos, mas **só 426 são futuros**. Varrer tudo
+custa 37 requests e buscar o detalhe de todos os futuros custa ~430 — cerca de
+**3 minutos**, na mesma ordem de grandeza do passo "precificar" que já existe.
+A opção A tinha sido descartada por uma conta de guardanapo (3.689 detalhes)
+que ninguém tinha checado.
+
+Com o detalhe na mão de todos os futuros, o recorte DF virou classificação
+textual em três sinais, do mais forte para o mais fraco (`_do_df`):
+
+1. `local` na lista curada `dados/locais_df.yaml` (nome normalizado EXATO);
+2. termo geográfico inequívoco no `local`/`nome`;
+3. **CEP 70–73 ou `\bDF\b` na descrição** — sozinho cobre ~75% dos casos,
+   porque a descrição costuma repetir o endereço completo.
+
+Medição final contra o gabarito (§5.1): **77/77** dos eventos que continuam no
+catálogo (os 2 restantes são eventos-teste que saíram do ar), **sem falso
+positivo** — os únicos "extras" conferidos à mão eram DF de verdade e não
+estavam no gabarito. Rodada real: 435 futuros → 81 DF → 80 normalizados.
+
+Duas calibrações que vieram da medição, e valem como registro:
+
+- **"Brasília" solto na descrição NÃO conta.** Pegava um evento em Uberlândia
+  cujo endereço era "Jardim Brasília, Uberlândia - MG". Só CEP/UF contam no
+  sinal 3.
+- **Termo ambíguo fica fora**: Cruzeiro, Gama, Guará, Santa Maria, Varjão,
+  Estrutural, Jardim Botânico, Sudoeste são RAs do DF *e* cidades/bairros de
+  outros estados. Mantida a postura de errar para PERDER evento.
+- A comparação do sinal 1 é por nome **exato normalizado**, não substring:
+  "Comunidade das Nações - SIA" é do DF; "Comunidade das Nações São Paulo",
+  não. Foi um falso positivo real durante a calibração.
+
+`dados/locais_df.yaml` nasceu semeado com os 13 locais dos eventos que a base
+já tinha da era com endereço — DF confirmado por dado, não por palpite. A cada
+rodada o scraper imprime "candidatos a locais_df.yaml": locais que entraram só
+por sinal textual, para curadoria manual (é o mesmo padrão da watchlist do
+Instagram).
+
+### 7.3 Efeitos colaterais que NÃO aconteceram
+
+- A chave `ticketandgo:<id>` foi preservada (o id numérico veio no detalhe):
+  os 79 eventos da base foram **atualizados**, não duplicados.
+- `derivar.py` não mudou uma linha — `_lotes_ticketandgo` já lia
+  `setores[].bilhetes[]`.
+- `_precificar` não mudou: o slug continua saindo da URL pública e
+  `raspar_tickets` aponta para a rota nova.
+
+### 7.4 Dívida deixada
+
+- `endereco`/`lat`/`lon` do Ticket and Go ficam **nulos** para sempre (a fonte
+  não tem mais o dado). Documentado no docstring do módulo para ninguém
+  "consertar" achando que é bug.
+- O detalhe é buscado a cada rodada para os ~430 futuros nacionais, mesmo os
+  que já se sabe não serem do DF. Cache negativo por slug resolveria, mas é
+  otimização sem dor hoje (3 min).

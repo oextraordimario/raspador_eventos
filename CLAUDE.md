@@ -124,7 +124,8 @@ api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
 app/  lib/     # front Next.js (App Router) do site público — NA RAIZ, não em web/
 .github/workflows/raspar.yml   # cron diário da raspagem (NI-10)
 sql/           # schema.sql + reconstruir_fts.sql (fonte única do DDL, roda no DBeaver/psql)
-dados/         # dado curado à mão, versionado (perfis_instagram.yaml — a watchlist NI-24)
+dados/         # dado curado à mão, versionado (perfis_instagram.yaml — a watchlist
+               #   NI-24; locais_df.yaml — casas DF que ancoram o recorte do Ticket and Go)
 docs/          # PRD, backlogs/, specs/ (specs técnicas de implementação)
 tests/         # scripts executáveis + base_teste.py (redireciona p/ eventos_teste)
 ```
@@ -159,7 +160,10 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   extrai slugs `/events/<slug>` (links **relativos** — a regex tem que casar path
   relativo) e lê o JSON-LD (`MusicEvent`) de cada evento — incluindo os campos ricos
   (`description`/`performer`/`organizer`/`offers` → descricao/atracoes/organizador/
-  preco_min), que vêm de graça na mesma página.
+  preco_min), que vêm de graça na mesma página. **Funciona local e devolve 0 no
+  CI** desde 2026-07-26 (NI-58): listagem sem nenhum slug agora levanta exceção
+  e despeja HTML + screenshot em `diagnostico/shotgun/`, que o workflow sobe
+  como artifact — a mitigação espera essa evidência.
 - `src/scrapers/zig.py` — API do SuperTicket (`ticket-api.superticket.com.br/events`,
   plataforma que a Zig incorporou), sem auth/navegador. **Sem filtro server-side de
   estado**: pagina o catálogo nacional (~6 páginas) e filtra
@@ -168,14 +172,24 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
   página pública** (NI-23: o SSR embute `pageProps.tickets` — value + fee separada;
   o endpoint JSON de tickets responde vazio sem códigos do front e o `json_ld` da
   página tem preços errados, não usar), no passo "precificar" com guarda de nome.
-- `src/scrapers/ticketandgo.py` — `POST production-api-v1-service.ticketandgo.com.br/
-  eventos/pesquisa` com `{"pesquisa": ""}` devolve o **catálogo inteiro já com a
-  descrição** (sem passo "descrever"). cidade/estado vêm NULOS: o filtro DF é
-  **textual** sobre `local`/`endereco_completo` (`_do_df`: Brasília / `\bDF\b` /
-  CEP 70–73) e cidade/estado são rotulados, como no Shotgun. Datas locais separadas
-  (`inicio` + `hora_incio`, typo da fonte) compostas com `-03:00`. Lotes via
-  `GET /eventos/{slug}` (`raspar_tickets`) no passo "precificar";
-  `taxa_conveniencia` é FRAÇÃO (0.1 = 10%) somada ao valor na derivação.
+- `src/scrapers/ticketandgo.py` — a API V1 foi **desligada em 2026-07-28** (NI-57,
+  spec `docs/specs/20260728_fontes-quebradas/`); hoje são duas rotas: listagem
+  paginada em `GET production-api-v2-service…/api/v2/site/list/all` (payload
+  magro: uuid/slug/nome/dia/local) + detalhe em
+  `GET production-api-v1-service…/eventos/{slug}/evento` (rota antiga + sufixo
+  `/evento`), que traz o **id numérico** (chave `ticketandgo:<id>` preservada),
+  hora, descrição e `setores[].bilhetes[]`. Sem filtro geográfico server-side:
+  varre o catálogo nacional (~37 páginas), corta futuros pelo dia e busca o
+  detalhe de cada um (~430 requests, ~3 min). **A fonte não expõe mais
+  endereço** (nem o site) — `endereco`/`lat`/`lon` ficam nulos e o filtro DF
+  (`_do_df`) passou a ser: local na lista curada `dados/locais_df.yaml` →
+  termo DF inequívoco no local/nome → CEP 70–73 ou `\bDF\b` na **descrição**
+  (o sinal que cobre a maioria). Termos ambíguos com outras cidades (Cruzeiro,
+  Gama, Guará, Santa Maria…) ficam FORA de propósito. Datas locais separadas
+  (`inicio` + `hora_incio`, typo da fonte) compostas com `-03:00`, e
+  cidade/estado são rotulados como no Shotgun. Lotes pela mesma rota de detalhe
+  (`raspar_tickets`) no passo "precificar"; `taxa_conveniencia` é FRAÇÃO
+  (0.1 = 10%) somada ao valor na derivação.
 - `src/scrapers/cinema.py` — **contrato próprio** (devolve a grade bruta, não lista de
   eventos): API de conteúdo da Ingresso.com (`api-content.ingresso.com/v0/sessions/
   city/12/theater/{id}?date=...`, sem auth/navegador) para os **8 cinemas-alvo**
@@ -320,7 +334,7 @@ e `demo.py` importa os scrapers via `from scrapers import ...`.
 
 Fluxo: `scraper.raspar()` → `store.upsert_eventos()` (grava também o bruto na Bronze) →
 marcar sumidos (evento futuro que não reapareceu no catálogo de fonte raspada SEM
-erro → `sumido=1`; a consulta esconde) → descrever (busca incremental da descrição
+erro **e com coleta > 0** → `sumido=1`; a consulta esconde) → descrever (busca incremental da descrição
 p/ Sympla/Ingresse/Zig; upsert usa COALESCE p/ nunca zerá-la) → precificar (tickets/
 lotes p/ a Bronze, refeito a cada rodada na janela de 30 dias) → cinema
 (`cinema.raspar()` → `store.gravar_cinema_raw()`, snapshot com poda de dias
@@ -357,10 +371,16 @@ titulo/generos).
 - **`raspado_em` é a âncora do `sumido`:** só o upsert do catálogo o atualiza
   (descrever/precificar mexem em outras colunas). Não atualize `raspado_em` fora
   do upsert, ou a detecção de evento sumido quebra.
+- **Coleta ZERADA não é catálogo vazio** (NI-59, 2026-07-28): fonte que devolveu
+  0 nesta rodada fica FORA do `_marcar_sumidos`, como já ficava a que falhou.
+  Foi assim que o Shotgun quebrado no CI escondeu a própria agenda da consulta
+  por três dias — coletou 0 **com sucesso** e todo evento futuro dele virou
+  `sumido=1`. Pelo mesmo motivo, scraper que não conseguiu ler a listagem deve
+  LEVANTAR exceção, nunca devolver lista vazia.
 - **Cidade no Shotgun** vem como bairro em `addressLocality`; a cidade é rotulada
   pelo parâmetro de busca (`cidade_label`), não pelo dado bruto. No **Ticket and
-  Go**, cidade/estado vêm NULOS da fonte e também são rotulados (pelo filtro
-  textual `_do_df`).
+  Go**, cidade/estado vêm NULOS da fonte e também são rotulados (pelo `_do_df`,
+  que desde o NI-57 decide sem endereço nenhum — ver o scraper acima).
 - **Instagram tem regras próprias:** (a) URL de mídia do CDN **expira em horas** —
   baixar na hora da ingestão (`midias/instagram/`, gitignorado), nunca gravar a
   URL na base; (b) a fonte fica **FORA** do `_marcar_sumidos` (guarda explícita:
