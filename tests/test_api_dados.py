@@ -78,6 +78,9 @@ comum.upsert_eventos(con, [
     evento("zig:4", "Roda de Samba Antiga", "Quintal Delta"),
     evento("sympla:5", "Baile Retrô", "Clube Épsilon", start_date=iso(days=-5)),
     evento("ingresse:6", "Sarau Aberto", "Praça Zeta"),
+    # o caso do NI-41: a agenda da casa está longe, não hoje
+    evento("sympla:7", "Segunda da Resenha", "Ordinário Bar & Música",
+           start_date=iso(days=20)),
 ])
 con.execute("UPDATE tratado.eventos SET cancelado = 1 WHERE id = 'shotgun:3'")
 con.execute("UPDATE tratado.eventos SET sumido = 1 WHERE id = 'zig:4'")
@@ -166,6 +169,24 @@ checar("sympla:1" in ids(sete), "período '7d' alcança evento de amanhã")
 
 busca, _ = api_dados.rota("/api/dados/eventos", {"texto": ["pagode"]})
 checar(ids(busca) == {"sympla:1"}, f"busca textual funciona ({ids(busca)})")
+
+# Regressão do NI-41: quem digita o nome de uma casa quer a AGENDA dela. O
+# default de período do front passou a ser "proximos" quando há texto (o bug
+# era responder só por hoje e devolver zero, com cara de busca quebrada). Aqui
+# se prova a metade que mora nesta camada: o período existe, alcança evento
+# distante e não deixa o passado voltar.
+casa, _ = api_dados.rota("/api/dados/eventos",
+                         {"texto": ["Ordinário"], "periodo": ["proximos"]})
+checar(ids(casa) == {"sympla:7"},
+       f"busca por casa com 'proximos' acha evento de daqui a 20 dias ({ids(casa)})")
+prox, _ = api_dados.rota("/api/dados/eventos", {"periodo": ["proximos"]})
+checar("sympla:5" not in ids(prox),
+       "'proximos' NÃO traz evento passado (a janela tem limite inferior)")
+checar("sympla:7" in ids(prox), "'proximos' não tem limite superior")
+hoje_casa, _ = api_dados.rota("/api/dados/eventos",
+                              {"texto": ["Ordinário"], "periodo": ["hoje"]})
+checar(ids(hoje_casa) == set(),
+       "o bug reproduzido: a mesma busca em 'hoje' devolve vazio")
 
 print("\n5) Guardas de entrada (querystring é entrada de estranho)")
 teto, _ = api_dados.rota("/api/dados/eventos", {"limite": ["999999"]})

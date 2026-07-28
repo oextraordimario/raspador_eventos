@@ -117,6 +117,11 @@ def _janela(q):
         return max(ini, agora).isoformat(), (ini + timedelta(days=2, hours=12)).isoformat()
     if periodo == "7d":
         return agora.isoformat(), (virada + timedelta(days=7)).isoformat()
+    if periodo == "proximos":
+        # a agenda inteira daqui para frente: sem limite superior, mas COM o
+        # inferior — sem `de` a consulta não filtra data nenhuma e o passado
+        # voltaria para a página.
+        return agora.isoformat(), None
     return None, None
 
 

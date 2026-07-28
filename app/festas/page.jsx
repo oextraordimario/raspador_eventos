@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { listarEventos, procedencia, idParaSlug } from '../../lib/api'
 import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../../lib/formato'
-import { MARCA, PERIODOS } from '../../lib/config'
+import { MARCA, PERIODOS, periodoPadrao } from '../../lib/config'
 import Procedencia from '../Procedencia'
 import SearchForm from '../SearchForm'
 import Flyer from '../Flyer'
@@ -66,9 +66,14 @@ function Card({ ev, indice }) {
 
 export default async function Festas({ searchParams }) {
   const sp = await searchParams
-  const periodo = sp?.periodo ?? 'hoje'
   const texto = sp?.texto ?? ''
   const gratis = sp?.gratis === '1'
+  // Período ESCOLHIDO (chip clicado) vence sempre; o default é que depende da
+  // busca (NI-41). Os dois valores andam separados de propósito: o resolvido
+  // manda na consulta e no chip aceso, o explícito é o que o formulário
+  // propaga — ver SearchForm.
+  const periodoUrl = sp?.periodo ?? ''
+  const periodo = periodoUrl || periodoPadrao(texto)
 
   const [eventos, fontes] = await Promise.all([
     listarEventos({ periodo, texto, gratis: gratis ? '1' : '' }),
@@ -93,7 +98,7 @@ export default async function Festas({ searchParams }) {
       </div>
 
       <div className="filtros">
-        <SearchForm texto={texto} periodo={periodo} gratis={gratis} />
+        <SearchForm texto={texto} periodo={periodoUrl} gratis={gratis} />
 
         <div className="chips" role="group" aria-label="Filtros">
           {PERIODOS.map((p) => (
@@ -119,7 +124,11 @@ export default async function Festas({ searchParams }) {
           <strong>Nada por aqui</strong>
           <span>
             {texto
-              ? `Nenhum resultado para “${texto}”. Tente outro termo ou amplie o período.`
+              ? periodo === 'proximos'
+                // já é a janela mais larga que existe: sugerir "amplie o
+                // período" seria mandar a pessoa fazer o que ela já fez
+                ? `Nenhum resultado para “${texto}” na agenda inteira. Tente outro termo.`
+                : `Nenhum resultado para “${texto}”. Tente outro termo ou amplie o período.`
               : 'Amplie o período ou tire o filtro de grátis.'}
           </span>
         </div>
