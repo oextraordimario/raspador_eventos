@@ -573,6 +573,10 @@ a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
    Lista longa (gênero tem 20+) rola num contêiner próprio; o botão fica
    fora do scroll, sempre visível. */
 .drop-menu-lista { flex-direction: column; flex-wrap: nowrap; gap: 0; }
+/* O drop de data precisa de mais largura que os outros drop-menu-lista
+   (bairro, gênero): é o único que empilha DOIS meses de calendário lado a
+   lado, não uma coluna de checkboxes. */
+.drop-menu-data { width: min(500px, 92vw); max-width: min(500px, 92vw); }
 .drop-opcoes {
   display: flex; flex-direction: column; gap: 2px;
   max-height: min(56vh, 420px); overflow-y: auto;
@@ -608,8 +612,12 @@ a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 .cal-atalhos .chip { text-align: center; }
 
 /* Calendário do filtro de data: mês em grid de 7 colunas; só dia com sessão
-   é clicável (a grade real cobre ~8 dias — o resto fica apagado). */
-.cal { display: flex; flex-direction: column; gap: 12px; min-width: 224px; }
+   é clicável (a grade real cobre ~8 dias — o resto fica apagado). Os meses
+   ficam lado a lado (a tela é que limitou a altura, não a largura); sem
+   espaço para os dois, quebra pra baixo sozinho — é flex-wrap, não um
+   breakpoint escrito à mão. */
+.cal { display: flex; flex-wrap: wrap; gap: 16px; }
+.cal-mes { min-width: 224px; }
 .cal-titulo {
   font-family: var(--zu-mono); font-size: 10.5px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--zu-fg-2); margin-bottom: 6px;
@@ -633,6 +641,7 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 /* "+ N dias depois de agosto": a agenda de eventos passa dos três meses que o
    calendário mostra, e sumir com o resto seria mentir sobre o acervo. */
 .cal-alem {
+  flex: 1 0 100%;
   font-size: 12.5px; color: var(--zu-fg-3); padding: 6px 2px 2px;
   border-top: 1px solid var(--zu-divider);
 }

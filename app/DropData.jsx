@@ -10,7 +10,7 @@ import { PERIODOS } from '../lib/config'
 // Server component, como o Calendario: `href` já chega calculado do pai.
 export default function DropData({ periodo, dia, dias, href, maxMeses = 2 }) {
   return (
-    <Drop rotulo="data" aberto={Boolean(dia)} classeMenu="drop-menu-lista">
+    <Drop rotulo="data" aberto={Boolean(dia)} classeMenu="drop-menu-lista drop-menu-data">
       <div className="cal-atalhos">
         {PERIODOS.map((p) => (
           <Link key={p.chave} className="chip"
