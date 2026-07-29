@@ -1033,3 +1033,121 @@
     fizer sentido ter isso ao lado do comportamento, o PostHog tem source
     nativa de Search Console no data warehouse — sem segunda tag no site.
     Só reconsiderar o GA se for rodar Google Ads.
+
+- codigo: NI-64
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: M
+  eixo: raspagem
+  fase: 1
+  titulo: "Coordenada de local errada por algumas ruas (Sympla) + validar coordenada no geral"
+  resumo: "lat/lon do evento 'Terapia Sertaneja | Varanda do Contexto' (sympla:3479367) cai no bairro certo mas no lugar errado por algumas ruas; o botão 'ver no mapa' do PRÓPRIO Sympla acerta — sinal de que talvez dê pra raspar coordenada melhor da fonte, e falta validação de coordenada implausível no geral"
+  data: 2026-07-29
+  depende_de: []
+  relacionado: []
+  caso_real: "sympla:3479367 — Contexto Bar e Restaurante, SCES Trecho 2: nosso mapa cai a algumas ruas do local real; o mapa do Sympla acerta"
+  detalhe: |
+    Conferido em 29/07: tanto `cru.sympla` origem `catalogo` (campo
+    `location.lat/lon`) quanto origem `detalhe` (campo
+    `eventsAddress.geolocation`) trazem EXATAMENTE a mesma coordenada
+    (-15.8263204, -47.8876107) pra esse evento — não é bug de qual payload a
+    gente lê, as duas rotas da própria Sympla concordam entre si e mesmo assim
+    erram o local por algumas ruas (o bairro/CEP batem, o pino não). `src/
+    tratamento/sympla.py:39-40` só repassa `loc.get("lat")`/`loc.get("lon")`
+    sem tocar — não há geocodificação nossa no meio.
+
+    O usuário conferiu no site da Sympla e o botão "ver no mapa" DELES manda pro
+    lugar certo. Como o campo de geolocalização das duas APIs internas erra,
+    duas hipóteses: (a) o botão do site público usa uma busca por ENDEREÇO/nome
+    no Google Maps, não essa coordenada salva — nesse caso não tem nada melhor
+    pra raspar, e o fallback textual que a gente já tem (`local_nome` +
+    `endereco` + `cidade`) seria o caminho, não o lat/lon; ou (b) existe uma
+    coordenada mais precisa em algum lugar do HTML/rede da página pública que
+    as duas BFFs que a gente já usa não expõem. Vale abrir o
+    `discover_sympla.py` ou inspecionar a rede da página pública do evento pra
+    descobrir qual dos dois é o caso ANTES de decidir o que fazer — pode ser
+    que não dê pra raspar melhor, e aí a correção é manual mesmo (curadoria).
+
+    Se não der pra raspar melhor: caminho manual é `curado` — corrigir lat/lon
+    (ou local_nome/endereco) por local, à mão, na camada de curadoria (nunca se
+    dropa). Não existe hoje um mecanismo de "coordenada curada por venue"; se
+    esse tipo de correção for aparecer com frequência, vale desenhar uma tabela
+    própria em vez de remendar evento por evento.
+
+    Validação de coordenada (pedido explícito do usuário, além do caso
+    pontual): hoje nada desconfia de lat/lon implausível — nenhuma fonte, nem
+    só a Sympla. Ideia mínima: comparar a coordenada com o bairro/cidade
+    declarados (reverse geocoding ou uma caixa aproximada por bairro do DF) e
+    marcar/alertar quando destoar muito, em vez de confiar cegamente em
+    qualquer lat/lon que a fonte mandar. Isso beneficia direto o "perto de mim"
+    (`consulta.py`) e o embed de mapa da página de evento (a mudança mais
+    recente do site), não só este caso.
+
+- codigo: NI-65
+  status: pendente
+  prioridade: media
+  rank: 2
+  esforco: M
+  eixo: enriquecimento
+  fase: 1
+  titulo: "Revisar duplicatas: mesma-fonte virando 'outra plataforma' por engano + dedupe cross-fonte de verdade existe?"
+  resumo: "sympla:3479367 tinha sympla:3482408 (MESMA fonte, mesmo local) em outras_urls — o botão que acabou de sair (pedido de hoje) mascarava isso como 'outra plataforma'; falta decidir a política pros dois casos: duplicata dentro da mesma fonte, e duplicata de verdade entre fontes diferentes (se é que ocorre na base)"
+  data: 2026-07-29
+  depende_de: []
+  relacionado: [NI-01]
+  caso_real: "sympla:3479367 ('Terapia Sertaneja com Surra de Modão | 29.07') e sympla:3482408 ('Surra de Modão + Cardápio em Dobro na Varanda do Contexto | 29.07') — mesmo local_cmp ('Contexto Bar e Restaurante'), sim=0.61 (> SIM_NOME_INTRA=0.55): o par bate a regra intra-fonte do NI-01 (`_e_duplicata` em src/tratamento/enriquecer.py) e virou um grupo de dedupe; a descrição de 3479367 já menciona 'cardápio em dobro', reforçando que é o MESMO evento anunciado 2x pela casa — não parece bug de matching"
+  detalhe: |
+    Investigado em 29/07 a partir de um estranhamento do usuário sobre a página
+    de `sympla:3479367`: o mapa embutido tinha acabado de expor que ela listava
+    `sympla:3482408` em `outras_urls`, e o botão da UI dizia "ver este evento em
+    outra plataforma" — só que as duas são SYMPLA. O botão saiu (pedido do
+    mesmo dia), mas a causa por trás continua de pé: `_e_duplicata()` em
+    `src/tratamento/enriquecer.py` agrupa duplicata TAMBÉM dentro da mesma fonte
+    (regra do NI-01: mesmo local obrigatório + similaridade ≥ `SIM_NOME_INTRA`
+    0.55), e quem NÃO é o canônico do grupo entra em `outras_urls` do canônico
+    — o campo foi desenhado pensando em cross-fonte (`_PREF_FONTE`), e a UI
+    assumiu isso sem checar a fonte de cada link.
+
+    Conferido o par em si: `_nome_comparavel` reduz os dois nomes a "terapia
+    sertaneja com surra de modao varanda do contexto" e "surra de modao
+    cardapio em dobro na varanda do contexto" (sim=0.61), `local_cmp` bate
+    (mesmo texto de local), e a descrição de 3479367 já cita "cardápio em
+    dobro" — ou seja, tudo aponta pra ser o MESMO evento, anunciado pela casa em
+    duas páginas Sympla diferentes (talvez pra rodar duas campanhas/públicos
+    diferentes). Não parece bug de similaridade; é o comportamento correto do
+    NI-01 fazendo o que foi desenhado pra fazer.
+
+    Duas perguntas em aberto, que é o que este item cobre:
+
+    1. **Duplicata mesma-fonte**: hoje ela só aparece indiretamente (o não-
+       canônico simplesmente não é mostrado como evento próprio, e sobrevivia só
+       como link em `outras_urls` do canônico — que agora não tem mais botão
+       nenhum apontando pra ele). Isso é aceitável (a pessoa só vê UM anúncio da
+       festa, que é o objetivo do dedupe), ou vale considerar mostrar de alguma
+       forma que a casa tem 2 anúncios pro mesmo evento? Provavelmente não vale
+       a pena — mas vale uma decisão consciente, não silêncio.
+
+    2. **Duplicata cross-fonte de verdade** (mesmo evento vendendo em, por
+       exemplo, Shotgun E Sympla ao mesmo tempo): o mecanismo existe
+       (`_PREF_FONTE`, cross-fonte com sim ≥ `SIM_NOME_FORTE` 0.85 sozinho, ou
+       ≥ `SIM_NOME_FRACA` 0.55 + mesmo local) e É pra isso que `outras_urls`
+       nasceu. Conferido agora (29/07) contra a base real: EXISTE — 8 grupos de
+       `dedupe_grupo` com mais de uma `fonte` distinta em `tratado.eventos`.
+       A maioria é o par esperado instagram↔plataforma (conciliação post↔
+       ingresso, ver spec do Instagram), mas tem PELO MENOS 2 grupos
+       sympla↔ticketandgo puros (`sympla:3463747`+`ticketandgo:45908` e
+       `sympla:3463757`+`ticketandgo:45875`) — ou seja, duplicata cross-fonte
+       de verdade (fora do caso Instagram) ocorre, só que é rara (2 em ~300
+       eventos ativos).
+
+    Como o botão "ver este evento em outra plataforma" saiu da página (pedido
+    de hoje), esses 2 pares perdem a única forma que tinham de aparecer pro
+    visitante — hoje ficam mudos (o não-canônico nem existe como card próprio,
+    e o link agora não tem onde ser mostrado). Decidir: (a) tudo bem ficar
+    invisível — o canônico escolhido por `_PREF_FONTE` já é a versão que a
+    gente confia mais, e "mostrar que também vende em outro lugar" pode não
+    valer a complexidade pra só 2 casos; ou (b) vale uma forma mais discreta de
+    expor isso (uma linha de texto, não um CTA) especificamente quando as
+    fontes do grupo são diferentes — o que exigiria a página saber a fonte de
+    cada item de `outras_urls`, que hoje ela não sabe (só guarda a URL).

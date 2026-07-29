@@ -19,16 +19,3 @@ export function TicketCta({ href, fonte, haPrice }) {
     </a>
   )
 }
-
-export function OtherPlatformCta({ href }) {
-  function handleClick() {
-    posthog.capture('other_platform_link_clicked')
-  }
-
-  return (
-    <a className="cta ghost" href={href} target="_blank" rel="noopener nofollow"
-       onClick={handleClick}>
-      Ver este evento em outra plataforma
-    </a>
-  )
-}

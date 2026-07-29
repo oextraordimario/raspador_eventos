@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { detalharEvento, slugParaId } from '../../../lib/api'
 import { diaSemana, diaMes, horaOuNada, reais, tituloLimpo } from '../../../lib/formato'
 import { MARCA, ORIGEM } from '../../../lib/config'
-import { TicketCta, OtherPlatformCta } from './CtaButton'
+import { TicketCta } from './CtaButton'
 import { MapaEmbed, AgendaLink, Compartilhar } from './Acoes'
 import { Hero } from '../../Flyer'
 
@@ -27,7 +27,6 @@ export default async function Evento({ params }) {
   const ev = await detalharEvento(slugParaId(id))
   if (!ev) notFound()
 
-  const outras = ev.outras_urls ? ev.outras_urls.split(',').filter(Boolean) : []
   const titulo = tituloLimpo(ev.nome)
   const horario = horaOuNada(ev.start_date, ev.fonte)
   // endereço absoluto desta página: o JSON-LD, o link da agenda e o
@@ -150,17 +149,13 @@ export default async function Evento({ params }) {
               <AgendaLink ev={ev} titulo={titulo} url={pagina} />
               <Compartilhar titulo={titulo} url={pagina} />
             </div>
-
-            {outras.map((u) => (
-              <OtherPlatformCta key={u} href={u} />
-            ))}
           </div>
 
           {/* Filho separado, não dentro de .col-info: no grid de 2 colunas do
-              desktop, o auto-placement joga este 3º item pra próxima linha,
-              coluna 1 — cai sozinho embaixo da descrição, sem precisar de
-              grid-row/column explícitos. No mobile (flex empilhado) ele é
-              só o último item, abaixo de tudo (inclusive dos botões). */}
+              desktop ele tem grid-row/column explícitos (globals.css) pra
+              cair embaixo de `.col-info`, sem depender da altura de
+              `.col-acoes`. No mobile (flex empilhado) ele é só o último
+              item, abaixo de tudo (inclusive dos botões). */}
           <MapaEmbed ev={ev} />
         </div>
       </article>
