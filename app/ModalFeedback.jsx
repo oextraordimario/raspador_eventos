@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { MARCA } from '../lib/config'
 import FormularioFeedback from './FormularioFeedback'
 
 // Overlay client-side por cima da página atual. O <form> por dentro continua
@@ -26,15 +25,12 @@ export default function ModalFeedback({ aberto, aoFechar, pagina }) {
   return (
     <div className="modal-fundo" onClick={aoFechar}>
       <div className="modal-caixa" role="dialog" aria-modal="true"
-           aria-label="Falar com a gente" onClick={(e) => e.stopPropagation()}>
-        <button className="icon-btn modal-fechar" onClick={aoFechar}
-                type="button" aria-label="Fechar">×</button>
-        <h2>falar com a gente</h2>
-        <p>
-          O {MARCA.nome} é feito por uma pessoa só e depende de gente
-          contando o que está errado. Preço desatualizado, evento que não
-          existe, casa faltando, ideia de melhoria — manda.
-        </p>
+           aria-label="Fale com a gente" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-cabecalho">
+          <h2 className="modal-titulo">fale com a gente</h2>
+          <button className="icon-btn modal-fechar" onClick={aoFechar}
+                  type="button" aria-label="Fechar">×</button>
+        </div>
         <FormularioFeedback pagina={pagina} />
       </div>
     </div>

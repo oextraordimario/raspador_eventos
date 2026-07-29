@@ -37,9 +37,9 @@ export default function FormularioFeedback({ pagina = '' }) {
         <input name="contato" type="text" maxLength={200}
                placeholder="e-mail ou @ do Instagram" />
         <small>
-          Só serve para a gente responder sobre isto. Fica numa base
-          privada e sai se você pedir — veja o{' '}
-          <Link href="/sobre">sobre</Link>.
+          Só serve pra gente te responder sobre isto. Fica numa base
+          privada e sai se você pedir (veja o{' '}
+          <Link href="/sobre" className="link-sublinhado">sobre</Link>).
         </small>
       </label>
 

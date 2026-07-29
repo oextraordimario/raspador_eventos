@@ -119,6 +119,7 @@ body {
 }
 
 a { color: inherit; text-decoration: none; }
+.link-sublinhado { text-decoration: underline; }
 
 .wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 96px; }
 
@@ -876,24 +877,33 @@ button.chip:disabled { opacity: .6; cursor: progress; }
   position: fixed; inset: 0; z-index: 60;
   display: flex; align-items: flex-end; justify-content: center;
   background: color-mix(in srgb, black 55%, transparent);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   padding: 0;
 }
 .modal-caixa {
-  position: relative; width: 100%; max-width: 520px;
-  max-height: min(88vh, 720px); overflow-y: auto;
+  position: relative; width: 100%; max-width: 416px;
+  max-height: min(88vh, 576px); overflow-y: auto;
   background: var(--zu-ink); border: 1px solid var(--zu-divider);
   border-radius: var(--zu-r-lg) var(--zu-r-lg) 0 0;
-  padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
+  padding: 19px 16px calc(16px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 30px color-mix(in srgb, black 25%, transparent);
 }
-.modal-caixa h2 {
-  font-family: var(--zu-sans); font-size: 20px; font-weight: 700;
-  letter-spacing: -.02em; margin: 0 0 10px;
+.modal-cabecalho {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin: 0 0 14px;
 }
-.modal-caixa p { margin: 0 0 18px; color: var(--zu-fg-2); font-size: 14.5px; line-height: 1.65; }
-.modal-fechar {
-  position: absolute; top: 16px; right: 16px; font-size: 20px; line-height: 1;
-}
+.modal-caixa h2 { font-family: var(--zu-sans); font-weight: 700; margin: 0; }
+.modal-titulo { font-size: 21px; letter-spacing: -.02em; }
+.modal-fechar { flex: none; font-size: 17px; line-height: 1; width: 27px; height: 27px; }
+.modal-caixa .form { gap: 13px; }
+.modal-caixa .campo { gap: 5px; }
+.modal-caixa .campo-nome { font-size: 9.5px; }
+.modal-caixa .campo small { font-size: 10.5px; }
+.modal-caixa .campo input,
+.modal-caixa .campo select,
+.modal-caixa .campo textarea { font-size: 13.5px; padding: 10px 11px; }
+.modal-caixa .campo textarea { height: 90px; min-height: 0; }
+.modal-caixa .cta { padding: 12px; font-size: 13.5px; }
 @media (min-width: 640px) {
   .modal-fundo { align-items: center; padding: 24px; }
   .modal-caixa { border-radius: var(--zu-r-lg); box-shadow: 0 20px 50px color-mix(in srgb, black 30%, transparent); }
