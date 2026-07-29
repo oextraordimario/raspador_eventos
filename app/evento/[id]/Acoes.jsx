@@ -4,30 +4,31 @@ import { useEffect, useState } from 'react'
 import posthog from 'posthog-js'
 import { janelaAgenda } from '../../../lib/formato'
 
-// Ações secundárias do detalhe: levar a pessoa ao lugar (mapa), ao calendário
-// dela (agenda) e ao amigo dela (compartilhar). Nenhuma delas pede API, chave
-// ou login — as três são link de template ou API do próprio navegador. São
-// client components só pela instrumentação e, no caso do compartilhar, porque
-// o recurso não existe sem JS.
+// Ações secundárias do detalhe: situar a pessoa (mapa), levá-la ao calendário
+// dela (agenda) e ao amigo dela (compartilhar). Nenhuma pede API, chave ou
+// login — agenda e compartilhar são link de template ou API do próprio
+// navegador; o mapa usa o embed público do Google Maps (`output=embed`, sem
+// chave). São client components só pela instrumentação e, no caso do
+// compartilhar, porque o recurso não existe sem JS.
 
 // Mapa: com coordenada, ela vence — o endereço textual das fontes às vezes é
 // sujo ("St. Oeste Colonia Colonia Agricola..."), e duas delas não mandam
 // endereço nenhum. O fallback textual vira "Casa, Brasília", que é o que a
 // casa tem de identificável: pior que coordenada, melhor que nada.
-export function MapaLink({ ev }) {
+export function MapaEmbed({ ev }) {
   const temCoord = ev.lat != null && ev.lon != null
   const alvo = temCoord
     ? `${ev.lat},${ev.lon}`
     : [ev.local_nome, ev.endereco, ev.cidade].filter(Boolean).join(', ')
   if (!alvo) return null
 
-  const href =
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alvo)}`
+  const src = `https://www.google.com/maps?q=${encodeURIComponent(alvo)}&output=embed`
   return (
-    <a className="acao" href={href} target="_blank" rel="noopener"
-       onClick={() => posthog.capture('map_link_clicked', { has_coords: temCoord })}>
-      ver no mapa
-    </a>
+    <div className="mapa-embed">
+      <div className="label">mapa</div>
+      <iframe src={src} loading="lazy" title="Mapa do local"
+              referrerPolicy="no-referrer-when-downgrade" />
+    </div>
   )
 }
 

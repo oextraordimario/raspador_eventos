@@ -725,6 +725,39 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
   .list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+/* Página de evento: no mobile as duas "colunas" (.col-info, .col-acoes) só
+   empilham — cada uma já é uma coluna flex por conta própria. */
+.doc-corpo { display: flex; flex-direction: column; gap: 20px; }
+.col-info, .col-acoes { display: flex; flex-direction: column; gap: 16px; }
+
+/* Página de evento no desktop: a capa acompanha o .wrap inteiro, mas o
+   resto vira duas colunas de verdade — .col-info (título/data/local/sobre)
+   à esquerda e .col-acoes (ingressos/CTA/outros botões) à direita, numa
+   faixa mais estreita que não estica com o resto da página. .col-acoes
+   fica `sticky` porque ela é curta e a descrição pode rolar bem mais que
+   isso — sem o sticky, ela "sobra" lá em cima assim que o texto cresce.
+   Posições de grid EXPLÍCITAS (em vez de confiar no auto-placement): sem
+   isso, a linha 1 (onde .col-info e .col-acoes moram lado a lado) esticava
+   pela altura do mais alto dos dois — e como a lista de ingressos costuma
+   ser mais alta que a descrição, o mapa (linha 2) ficava jogado lá embaixo,
+   bem longe do fim do texto. Com `.col-acoes` ocupando as DUAS linhas, o
+   mapa cola direto embaixo de `.col-info`. */
+@media (min-width: 900px) {
+  .doc-corpo {
+    display: grid; grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start; gap: 32px 32px;
+  }
+  .col-info { grid-column: 1; grid-row: 1; }
+  .mapa-embed { grid-column: 1; grid-row: 2; }
+  .col-acoes { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: calc(var(--h-top) + 16px); }
+}
+
+.mapa-embed { display: flex; flex-direction: column; gap: 8px; }
+.mapa-embed iframe {
+  width: 100%; height: 220px; border: 1px solid var(--zu-divider);
+  border-radius: var(--zu-r-md); background: var(--zu-holder);
+}
+
 /* ---------- vazio ---------- */
 
 .empty { text-align: center; padding: 64px 20px; }

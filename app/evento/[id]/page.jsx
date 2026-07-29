@@ -4,7 +4,7 @@ import { detalharEvento, slugParaId } from '../../../lib/api'
 import { diaSemana, diaMes, horaOuNada, reais, tituloLimpo } from '../../../lib/formato'
 import { MARCA, ORIGEM } from '../../../lib/config'
 import { TicketCta, OtherPlatformCta } from './CtaButton'
-import { MapaLink, AgendaLink, Compartilhar } from './Acoes'
+import { MapaEmbed, AgendaLink, Compartilhar } from './Acoes'
 import { Hero } from '../../Flyer'
 
 export const revalidate = 300
@@ -89,62 +89,80 @@ export default async function Evento({ params }) {
 
       <article className="doc">
         <Hero src={ev.imagem} alto={titulo} />
-        <h1>{titulo}</h1>
-        <div className="when">
-          {diaSemana(ev.start_date)} {diaMes(ev.start_date)}
-          {horario && ` · ${horario}`}
-        </div>
-        <div className="where">
-          {ev.local_nome || 'local a confirmar'}
-          {ev.bairro && ` — ${ev.bairro}`}
-          {ev.endereco && <><br /><span className="also">{ev.endereco}</span></>}
-        </div>
 
-        <div className="acoes">
-          <MapaLink ev={ev} />
-          <AgendaLink ev={ev} titulo={titulo} url={pagina} />
-          <Compartilhar titulo={titulo} url={pagina} />
-        </div>
-
-        {ev.lotes?.length > 0 && (
-          <>
-            <div className="label">ingressos</div>
-            <div className="box">
-              {ev.lotes.map((lo, i) => (
-                <div className="row" key={i}>
-                  {/* o nome do lote fica CRU, como a fonte publica: a condição
-                      ("CORTESIA FEMININA ATÉ 00H") mora nele, de propósito */}
-                  <div className="row-name">{lo.nome}</div>
-                  <div className={`row-val${lo.gratis ? ' free' : ''}`}>
-                    {lo.gratis ? 'grátis' : reais(lo.preco)}
-                    {!lo.gratis && lo.taxa > 0 && (
-                      <small>inclui {reais(lo.taxa)} de taxa</small>
-                    )}
-                    {lo.esgotado === 1 && <small>esgotado</small>}
-                  </div>
-                </div>
-              ))}
+        {/* Capa fica larga (acompanha o .doc inteiro). O resto vira duas
+            colunas no desktop — info à esquerda, ingressos/CTA/outros
+            botões à direita (`.col-acoes`) — porque numa coluna só a seção
+            de ingressos esticava de ponta a ponta. No mobile as duas
+            "colunas" empilham normalmente. */}
+        <div className="doc-corpo">
+          <div className="col-info">
+            <h1>{titulo}</h1>
+            <div className="when">
+              {diaSemana(ev.start_date)} {diaMes(ev.start_date)}
+              {horario && ` · ${horario}`}
             </div>
-          </>
-        )}
+            <div className="where">
+              {ev.local_nome || 'local a confirmar'}
+              {ev.bairro && ` — ${ev.bairro}`}
+              {ev.endereco && <><br /><span className="also">{ev.endereco}</span></>}
+            </div>
 
-        {ev.descricao && (
-          <>
-            <div className="label">sobre</div>
-            <div className="desc">{ev.descricao}</div>
-            {ev.descricao_truncada && (
-              <div className="desc-corte">
-                Texto do organizador, em trecho — o resto está na página da fonte.
+            {ev.descricao && (
+              <div className="sec-sobre">
+                <div className="label">sobre</div>
+                <div className="desc">{ev.descricao}</div>
+                {ev.descricao_truncada && (
+                  <div className="desc-corte">
+                    Texto do organizador, em trecho — o resto está na página da fonte.
+                  </div>
+                )}
               </div>
             )}
-          </>
-        )}
+          </div>
 
-        <TicketCta href={ev.url} fonte={ev.fonte} haPrice={ev.preco_min != null} />
+          <div className="col-acoes">
+            {ev.lotes?.length > 0 && (
+              <div className="sec-ingressos">
+                <div className="label">ingressos</div>
+                <div className="box">
+                  {ev.lotes.map((lo, i) => (
+                    <div className="row" key={i}>
+                      {/* o nome do lote fica CRU, como a fonte publica: a condição
+                          ("CORTESIA FEMININA ATÉ 00H") mora nele, de propósito */}
+                      <div className="row-name">{lo.nome}</div>
+                      <div className={`row-val${lo.gratis ? ' free' : ''}`}>
+                        {lo.gratis ? 'grátis' : reais(lo.preco)}
+                        {!lo.gratis && lo.taxa > 0 && (
+                          <small>inclui {reais(lo.taxa)} de taxa</small>
+                        )}
+                        {lo.esgotado === 1 && <small>esgotado</small>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {outras.map((u) => (
-          <OtherPlatformCta key={u} href={u} />
-        ))}
+            <TicketCta href={ev.url} fonte={ev.fonte} haPrice={ev.preco_min != null} />
+
+            <div className="acoes">
+              <AgendaLink ev={ev} titulo={titulo} url={pagina} />
+              <Compartilhar titulo={titulo} url={pagina} />
+            </div>
+
+            {outras.map((u) => (
+              <OtherPlatformCta key={u} href={u} />
+            ))}
+          </div>
+
+          {/* Filho separado, não dentro de .col-info: no grid de 2 colunas do
+              desktop, o auto-placement joga este 3º item pra próxima linha,
+              coluna 1 — cai sozinho embaixo da descrição, sem precisar de
+              grid-row/column explícitos. No mobile (flex empilhado) ele é
+              só o último item, abaixo de tudo (inclusive dos botões). */}
+          <MapaEmbed ev={ev} />
+        </div>
       </article>
     </>
   )
