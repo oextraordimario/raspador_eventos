@@ -101,10 +101,6 @@ async function Resultado({ filtros }) {
 
   return (
     <>
-      <p className="count">
-        {eventos.length} {eventos.length === 1 ? 'evento' : 'eventos'}
-      </p>
-
       {grupos.length === 0 ? (
         <div className="empty">
           <strong>Nada por aqui</strong>
@@ -145,6 +141,19 @@ async function Resultado({ filtros }) {
 
       <Procedencia fontes={fontes} />
     </>
+  )
+}
+
+// Mesma consulta do <Resultado> (paramsDe(filtros) idêntico) — o fetch do
+// Next deduplica, então mostrar a contagem na linha dos filtros não custa
+// uma segunda ida à base. Fica na própria barra sticky, não mais acima da
+// lista: continua visível rolando a página.
+async function Contagem({ filtros }) {
+  const { eventos } = await catalogoEventos(paramsDe(filtros))
+  return (
+    <p className="count">
+      {eventos.length} {eventos.length === 1 ? 'evento' : 'eventos'}
+    </p>
   )
 }
 
@@ -212,7 +221,7 @@ export default async function Festas({ searchParams }) {
   // manda na consulta e no chip aceso, o explícito é o que o formulário
   // propaga — ver SearchForm.
   const periodoUrl = sp?.periodo ?? ''
-  const periodo = periodoUrl || periodoPadrao(texto)
+  const periodo = periodoUrl || periodoPadrao()
   const bairros = (sp?.bairro ?? '').split(',').filter(Boolean)
   const tipo = TIPOS.some((t) => t.chave === sp?.tipo) ? sp.tipo : ''
   // "<lat>,<lon>" e nada mais — quem valida de verdade é a API, mas um
@@ -290,6 +299,10 @@ export default async function Festas({ searchParams }) {
               {c.rotulo}
             </Link>
           ))}
+
+          <Suspense fallback={null}>
+            <Contagem filtros={filtros} />
+          </Suspense>
         </div>
       </div>
 
