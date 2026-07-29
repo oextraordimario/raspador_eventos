@@ -70,7 +70,7 @@ export default async function Filmes({ searchParams }) {
       if (s) q.set(k, s)
     }
     const qs = q.toString()
-    return qs ? `/filmes?${qs}` : '/filmes'
+    return qs ? `/cinema?${qs}` : '/cinema'
   }
   const estado = { texto, generos: generos.join(','), classificacao: classes.join(','),
                    rede: redes.join(','), cinema: cinemas.join(','), hora, data,
@@ -98,7 +98,7 @@ export default async function Filmes({ searchParams }) {
       </div>
 
       <div className="filtros">
-        <form className="search" action="/filmes">
+        <form className="search" action="/cinema">
           <input name="texto" type="search" defaultValue={texto}
                  placeholder="animação, terror, comédia..."
                  aria-label="Buscar filmes" />
@@ -113,29 +113,29 @@ export default async function Filmes({ searchParams }) {
           )}
 
           {facetas?.generos?.length > 0 && (
-            <DropFiltro rotulo="gênero" base="/filmes" estado={estado}
+            <DropFiltro rotulo="gênero" base="/cinema" estado={estado}
                         param="generos" selecionados={generos}
                         opcoes={facetas.generos.map((g) => ({ valor: g, rotulo: g }))} />
           )}
 
-          <DropFiltro rotulo="rede" base="/filmes" estado={estado}
+          <DropFiltro rotulo="rede" base="/cinema" estado={estado}
                       param="rede" selecionados={redes} limpa="cinema"
                       opcoes={Object.entries(REDES).map(([chave, r]) =>
                         ({ valor: chave, rotulo: r.rotulo }))} />
 
           {facetas?.cinemas?.length > 0 && (
-            <DropFiltro rotulo="cinema" base="/filmes" estado={estado}
+            <DropFiltro rotulo="cinema" base="/cinema" estado={estado}
                         param="cinema" selecionados={cinemas} limpa="rede"
                         opcoes={facetas.cinemas.map((c) => ({ valor: c, rotulo: c }))} />
           )}
 
-          <DropFiltro rotulo="horário" base="/filmes" estado={estado}
+          <DropFiltro rotulo="horário" base="/cinema" estado={estado}
                       param="hora" selecionados={hora ? [hora] : []} unico
                       opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
                         ({ valor: chave, rotulo: h.rotulo }))} />
 
           {facetas?.classificacoes?.length > 0 && (
-            <DropFiltro rotulo="classificação" base="/filmes" estado={estado}
+            <DropFiltro rotulo="classificação" base="/cinema" estado={estado}
                         param="classificacao" selecionados={classes}
                         opcoes={facetas.classificacoes.map((c) => ({ valor: c, rotulo: c }))} />
           )}
@@ -147,7 +147,7 @@ export default async function Filmes({ searchParams }) {
 
           {nFiltros > 0 && (
             <Link className="drop-limpar"
-                  href={texto ? `/filmes?texto=${encodeURIComponent(texto)}` : '/filmes'}>
+                  href={texto ? `/cinema?texto=${encodeURIComponent(texto)}` : '/cinema'}>
               limpar
             </Link>
           )}

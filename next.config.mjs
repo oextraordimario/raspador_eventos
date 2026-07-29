@@ -16,6 +16,16 @@ const config = {
     minimumCacheTTL: 2678400, // 31 dias — o flyer não muda depois de publicado
   },
 
+  async redirects() {
+    // /filmes virou /cinema. O site já está aberto ao público (sitemap e
+    // llms.txt indexados) — link salvo, resultado de busca ou o llms.txt de
+    // um agente ainda desatualizado não pode virar 404.
+    return [
+      { source: '/filmes', destination: '/cinema', permanent: true },
+      { source: '/filmes/:id', destination: '/cinema/:id', permanent: true },
+    ]
+  },
+
   async rewrites() {
     // Em produção quem roteia /api/dados/* para a função Python é o
     // vercel.json, e o Next nunca vê essas URLs. Em desenvolvimento a API roda

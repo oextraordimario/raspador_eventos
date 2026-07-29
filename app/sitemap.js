@@ -12,7 +12,7 @@ export const revalidate = 3600
 export default async function sitemap() {
   const eventos = await listarEventos({ periodo: '7d', limite: 200 })
 
-  const fixas = ['', '/festas', '/filmes', '/sobre'].map((p) => ({
+  const fixas = ['', '/festas', '/cinema', '/sobre'].map((p) => ({
     url: `${ORIGEM}${p}`,
     lastModified: new Date(),
     changeFrequency: 'daily',

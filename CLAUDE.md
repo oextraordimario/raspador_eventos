@@ -325,7 +325,7 @@ aqui + `--so-derivar`, **sem re-raspar**.
   serve agente em contexto privado, não página indexada) e `organizador` NUNCA é
   exposto (às vezes é pessoa física → LGPD). Rotas sob `/api/dados/*`.
 - `app/` + `lib/` — **site público** (Next.js App Router). Rotas: `/` (home),
-  `/festas`, `/filmes`, `/evento/[id]`, `/sobre`, `/feedback`. Os filtros vivem
+  `/festas`, `/cinema`, `/evento/[id]`, `/sobre`, `/feedback`. Os filtros vivem
   na URL (`?periodo=&texto=&gratis=&dia=&bairro=&tipo=&perto=`), não em estado
   de cliente: funciona sem JS, cada
   combinação é endereço compartilhável e o SSR entrega HTML pronto — que é o que a

@@ -55,7 +55,7 @@ export default async function Home({ searchParams }) {
           </span>
         </Link>
 
-        <Link className="portal" href="/filmes">
+        <Link className="portal" href="/cinema">
           <span className="portal-title">cinema</span>
           <span className="portal-desc">
             O que está em cartaz nos cinemas da cidade, com horários, salas e
