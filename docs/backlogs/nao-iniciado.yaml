@@ -962,3 +962,39 @@
     jeito mais fácil de derrubar o MCP sem perceber. Depois de qualquer
     alteração, conferir que o connector responde — as três rewrites (/mcp, a
     de metadados da RFC 9728 e a do prefixo secreto) precisam continuar de pé.
+
+- codigo: NI-62
+  status: pendente
+  prioridade: alta
+  rank: 1
+  esforco: P
+  eixo: infra
+  fase: 1
+  titulo: "Revisar segurança do feedback contra injeção de prompt e SQL"
+  resumo: "canal de feedback (NI-52) é a PRIMEIRA escrita de estranho na base — texto livre de mensagem/contato/página; revisar SQL (parametrização) e o risco de esse texto alimentar algum prompt de LLM sem sanitização, hoje ou no futuro"
+  data: 2026-07-29
+  depende_de: []
+  relacionado: [NI-52]
+  detalhe: |
+    Ponto de partida (`src/servico/feedback.py`): as escritas usam placeholder
+    `%s` do psycopg (parametrizado, não concatena valor de estranho na query) —
+    EXCETO `listar()`, que monta a cláusula `WHERE lido = 0` via f-string. Hoje
+    esse trecho é um literal fixo (`"" ` ou `"WHERE lido = 0"`), nunca valor de
+    formulário, então não é injeção de verdade — mas é o tipo de padrão que vira
+    buraco se alguém um dia trocar por um filtro vindo de fora sem perceber que
+    aquele "%s" ali é string interpolada, não parâmetro. Vale endurecer (mover
+    pra parâmetro de verdade, ou pelo menos comentar bem alto o porquê é seguro
+    hoje) e conferir o resto do módulo com a mesma régua.
+
+    Injeção de PROMPT é o outro eixo: `mensagem`/`contato`/`pagina` são texto de
+    estranho, sem sanitização nenhuma (por design — quem interpreta é gente,
+    `src/ferramentas/feedback.py` só imprime no terminal). Hoje não há nenhum
+    passo do pipeline que jogue esse texto num prompt de LLM, então o risco é
+    zero NA PRÁTICA — mas o canal existe faz pouco tempo e o site está se
+    abrindo ao público (`docs/specs/20260726_abrir-ao-publico/`); antes de
+    qualquer futuro "resume os feedbacks com IA" ou pipeline parecido, isso
+    precisa de sanitização/instrução explícita de que o conteúdo é DADO, não
+    instrução — clássico prompt injection indireto. Também vale olhar
+    `api/dados.py` (rota_post) pela mesma lente: é o único lugar do site que
+    ACEITA escrita de fora, então é o alvo natural de qualquer ataque contra a
+    base ou contra um agente que um dia consuma esse dado.
