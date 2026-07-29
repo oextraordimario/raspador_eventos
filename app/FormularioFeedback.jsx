@@ -12,7 +12,7 @@ export const TIPOS_FEEDBACK = [
 // <form> é NATIVO, sem fetch, method="post" — é o único jeito de o envio
 // funcionar sem JS; quem responde é a função Python (api/dados.py), que
 // redireciona de volta para /feedback com ?ok=1 ou ?erro=.
-export default function FormularioFeedback({ pagina = '' }) {
+export default function FormularioFeedback({ pagina = '', desabilitado = false }) {
   return (
     <form className="form" method="post" action="/api/dados/feedback">
       <label className="campo">
@@ -53,7 +53,9 @@ export default function FormularioFeedback({ pagina = '' }) {
       </div>
 
       <input type="hidden" name="pagina" value={pagina} />
-      <button className="cta" type="submit">enviar</button>
+      <button className="cta" type="submit" disabled={desabilitado}>
+        {desabilitado ? 'enviando…' : 'enviar'}
+      </button>
     </form>
   )
 }
