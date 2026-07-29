@@ -261,7 +261,7 @@ export default async function Festas({ searchParams }) {
 
           <Link className="chip" href={comFiltro({ gratis: gratis ? '' : '1' })}
                 data-on={gratis ? '1' : '0'}>
-            grátis
+            grátis/cortesia
           </Link>
           <PertoDeMim ativo={Boolean(perto)} base="/festas" estado={estado} />
 
