@@ -61,11 +61,6 @@ function Card({ ev, indice }) {
         {ev.atracoes && (
           <div className="lineup">{ev.atracoes.split(';').join(' · ')}</div>
         )}
-        {/* NI-38: o resumo entra na mesma posição da sinopse do card de filme
-            (título > local > resumo > meta) e com o mesmo corte de 2 linhas —
-            que é do CSS, não de JS: o trecho de 600 chars da API é sobra. Sem
-            descrição, nada renderiza: placeholder aqui só faria barulho. */}
-        {ev.descricao && <div className="resumo">{ev.descricao}</div>}
         <div className="meta">
           {quando && <span className="time">{quando}</span>}
           {ev.preco_min != null ? (
@@ -86,11 +81,7 @@ function Card({ ev, indice }) {
             </span>
           )}
           {ev.esgotado === 1 && <span className="tag tag-out">esgotado</span>}
-          {ev.fonte && <span className="tag tag-src">{ev.fonte}</span>}
         </div>
-        {ev.outras_urls && (
-          <div className="also">também em outra plataforma</div>
-        )}
       </div>
     </Link>
   )
