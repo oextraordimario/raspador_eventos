@@ -821,7 +821,7 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
    a borda tracejada o distingue dos chips de período sem gritar. */
 /* O "perto de mim" é <button>, não <Link> (a coordenada só existe depois da
    permissão), então precisa herdar a aparência de chip explicitamente. */
-button.chip { font: inherit; cursor: pointer; }
+button.chip { appearance: none; -webkit-appearance: none; line-height: inherit; cursor: pointer; }
 button.chip:disabled { opacity: .6; cursor: progress; }
 .chip-aviso { font-size: 12px; color: var(--zu-fg-3); align-self: center; }
 
