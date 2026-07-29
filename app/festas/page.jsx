@@ -150,7 +150,7 @@ async function Resultado({ filtros }) {
 
 // Quantos meses o calendário mostra de uma vez. A agenda alcança meses; dois
 // blocos ainda se leem como calendário, mais viram rolagem. O que passa disso
-// não some — vira a linha "+ N dias depois de <mês>".
+// não some — as setas laterais do calendário navegam até lá.
 const MESES_NO_CALENDARIO = 2
 
 // Fração mínima da agenda que precisa estar classificada para os chips de
@@ -176,7 +176,7 @@ function mostrarTipos(tipos) {
 // têm evento), então ele suspende sozinho, sem levar junto os chips — que já
 // podem ser clicados enquanto ele chega. O fetch é o MESMO do <Resultado>, e o
 // Next deduplica: uma requisição, dois consumidores.
-async function FiltrosDaBase({ filtros, href, estado }) {
+async function FiltrosDaBase({ filtros, href, estado, mesCal }) {
   const { facetas } = await catalogoEventos(paramsDe(filtros))
   const { periodo, dia, bairros, tipo } = filtros
   return (
@@ -190,7 +190,7 @@ async function FiltrosDaBase({ filtros, href, estado }) {
       ))}
       {facetas?.dias?.length > 0 && (
         <DropData periodo={periodo} dia={dia} dias={facetas.dias} href={href}
-                  maxMeses={MESES_NO_CALENDARIO} />
+                  maxMeses={MESES_NO_CALENDARIO} mesCal={mesCal} />
       )}
       {facetas?.bairros?.length > 0 && (
         <DropFiltro rotulo="região" base="/festas" estado={estado}
@@ -219,6 +219,9 @@ export default async function Festas({ searchParams }) {
   // parâmetro malformado não precisa nem sair daqui
   const perto = /^-?\d{1,3}(\.\d+)?,-?\d{1,3}(\.\d+)?$/.test(sp?.perto ?? '')
     ? sp.perto : ''
+  // Mês em foco no calendário (navegação lateral, não é filtro de verdade —
+  // não entra em paramsDe, só decide qual janela de dois meses o drop mostra).
+  const mesCal = /^\d{4}-\d{2}$/.test(sp?.mesCal ?? '') ? sp.mesCal : ''
 
   const filtros = { periodo, texto, gratis, dia, bairros, tipo, perto }
 
@@ -227,7 +230,7 @@ export default async function Festas({ searchParams }) {
   const comFiltro = (mudanca) => {
     const q = new URLSearchParams()
     const novo = { periodo, texto, gratis: gratis ? '1' : '', dia, tipo, perto,
-                   bairro: bairros.join(','), ...mudanca }
+                   bairro: bairros.join(','), mesCal, ...mudanca }
     for (const [k, v] of Object.entries(novo)) if (v) q.set(k, v)
     return `/festas?${q}`
   }
@@ -256,7 +259,7 @@ export default async function Festas({ searchParams }) {
               <span className="drop-fantasma">região ▾</span>
             </>
           }>
-            <FiltrosDaBase filtros={filtros} href={comFiltro} estado={estado} />
+            <FiltrosDaBase filtros={filtros} href={comFiltro} estado={estado} mesCal={mesCal} />
           </Suspense>
 
           <Link className="chip" href={comFiltro({ gratis: gratis ? '' : '1' })}

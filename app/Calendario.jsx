@@ -3,31 +3,33 @@ import Link from 'next/link'
 // Calendário de mês para o filtro de data. Honesto sobre a janela real: a
 // grade da fonte cobre ~8 dias (vira na quinta), então só dia com sessão é
 // clicável — o resto do mês aparece desabilitado, em vez de fingir que há
-// programação. Server component: `hrefDia` chega do pai (server → server
-// pode passar função) e devolve a URL com o dia togglado.
+// programação. Server component: `hrefDia`/`hrefMes` chegam do pai (server →
+// server pode passar função) e devolvem a URL com o dia ou o mês togglado.
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
                'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 const SEMANA = ['s', 't', 'q', 'q', 's', 's', 'd']
 
 // dias: ["YYYY-MM-DD"] com sessão; renderiza cada mês que aparece neles.
 //
-// `maxMeses` e `hrefAlem` entraram com o calendário de EVENTOS (NI-43): a
-// grade de cinema cobre ~8 dias e cabe inteira, mas a agenda de festas alcança
-// meses, e empilhar seis blocos de mês dentro de um dropdown é uma lista de
-// rolagem, não um calendário. Com o limite, os meses além dele viram uma linha
-// só, que leva ao período aberto — a informação de que existe mais não se
-// perde, e o dropdown continua sendo um calendário. Sem `maxMeses` (o caso do
-// cinema), nada muda.
+// `maxMeses` mostra só um recorte de cada vez — a grade de cinema cobre ~8
+// dias e cabe inteira (maxMeses=0, todos os meses, sem setas), mas a agenda
+// de festas alcança meses, e empilhar todos seria rolagem, não calendário.
+// Com o recorte, as setas laterais (`hrefMes`) andam um mês por clique sem
+// esconder o resto do acervo: quem procura o aniversário daqui a três meses
+// navega até lá, em vez de esbarrar numa lista em vez de calendário.
+// `foco` é o primeiro mês da janela atual (o mês selecionado na URL, ou o
+// mais antigo com dado, se ausente).
 export default function Calendario({ dias, selecionado, hrefDia,
-                                     maxMeses = 0, hrefAlem }) {
+                                     maxMeses = 0, foco = '', hrefMes }) {
   const habilitados = new Set(dias)
   const todos = [...new Set(dias.map((d) => d.slice(0, 7)))].sort()
-  const meses = maxMeses > 0 ? todos.slice(0, maxMeses) : todos
-  const alem = maxMeses > 0
-    ? dias.filter((d) => d.slice(0, 7) > meses.at(-1)).length
-    : 0
+  const inicio = foco && todos.includes(foco) ? todos.indexOf(foco) : 0
+  const meses = maxMeses > 0 ? todos.slice(inicio, inicio + maxMeses) : todos
+  const temSetas = maxMeses > 0 && Boolean(hrefMes) && todos.length > maxMeses
+  const temAnterior = temSetas && inicio > 0
+  const temProximo = temSetas && inicio + maxMeses < todos.length
 
-  return (
+  const grade = (
     <div className="cal">
       {meses.map((mes) => {
         const [ano, m] = mes.split('-').map(Number)
@@ -60,12 +62,25 @@ export default function Calendario({ dias, selecionado, hrefDia,
           </div>
         )
       })}
+    </div>
+  )
 
-      {alem > 0 && hrefAlem && (
-        <Link className="cal-alem" href={hrefAlem}>
-          + {alem} {alem === 1 ? 'dia' : 'dias'} depois de{' '}
-          {MESES[Number(meses.at(-1).slice(5)) - 1]}
-        </Link>
+  if (!temSetas) return grade
+
+  return (
+    <div className="cal-carrossel">
+      {temAnterior ? (
+        <Link className="icon-btn cal-seta" href={hrefMes(todos[inicio - 1])}
+              aria-label="Mês anterior">‹</Link>
+      ) : (
+        <span className="icon-btn cal-seta off" aria-hidden="true">‹</span>
+      )}
+      {grade}
+      {temProximo ? (
+        <Link className="icon-btn cal-seta" href={hrefMes(todos[inicio + 1])}
+              aria-label="Mês seguinte">›</Link>
+      ) : (
+        <span className="icon-btn cal-seta off" aria-hidden="true">›</span>
       )}
     </div>
   )

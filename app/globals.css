@@ -576,7 +576,7 @@ a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 /* O drop de data precisa de mais largura que os outros drop-menu-lista
    (bairro, gênero): é o único que empilha DOIS meses de calendário lado a
    lado, não uma coluna de checkboxes. */
-.drop-menu-data { width: min(500px, 92vw); max-width: min(500px, 92vw); }
+.drop-menu-data { width: min(600px, 92vw); max-width: min(600px, 92vw); }
 .drop-opcoes {
   display: flex; flex-direction: column; gap: 2px;
   max-height: min(56vh, 420px); overflow-y: auto;
@@ -640,14 +640,13 @@ a.cal-dia:hover { border-color: var(--zu-green); color: var(--zu-green); }
 a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1px; }
 .cal-dia[data-on='1'] { background: var(--zu-green); color: var(--zu-on-green); border-color: var(--zu-green); }
 .cal-dia.off { color: var(--zu-fg-4); }
-/* "+ N dias depois de agosto": a agenda de eventos passa dos três meses que o
-   calendário mostra, e sumir com o resto seria mentir sobre o acervo. */
-.cal-alem {
-  flex: 1 0 100%;
-  font-size: 12.5px; color: var(--zu-fg-3); padding: 6px 2px 2px;
-  border-top: 1px solid var(--zu-divider);
-}
-.cal-alem:hover { color: var(--zu-green); }
+/* Setas laterais do calendário: navegam a janela de meses sem esconder o
+   resto do acervo atrás de um link pra lista — quem procura um evento daqui
+   a três meses chega lá andando mês a mês. */
+.cal-carrossel { display: flex; align-items: flex-start; gap: 6px; }
+.cal-carrossel .cal { flex: 1; min-width: 0; }
+.cal-seta { margin-top: 2px; font-size: 16px; line-height: 1; text-decoration: none; }
+.cal-seta.off { opacity: .3; pointer-events: none; }
 
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
 .filme-info h1 { font-size: 30px; }
