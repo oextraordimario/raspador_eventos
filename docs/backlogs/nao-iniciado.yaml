@@ -1086,8 +1086,8 @@
 
 - codigo: NI-65
   status: pendente
-  prioridade: media
-  rank: 2
+  prioridade: alta
+  rank: 1
   esforco: M
   eixo: enriquecimento
   fase: 1

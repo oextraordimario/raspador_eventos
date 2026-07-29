@@ -6,6 +6,7 @@ Uso (da raiz do repo):
         [--status S] [--prioridade P] [--eixo E] [--fase F] [--busca TEXTO]
     python src/ferramentas/backlog.py ver <codigo>
     python src/ferramentas/backlog.py add --arquivo nao-iniciado|rejeitado --de <item.yaml>
+    python src/ferramentas/backlog.py editar <codigo> --set campo=valor [--set campo=valor ...]
 
 `add` lê um dict (YAML ou JSON) de um arquivo com os campos do item — SEM
 `codigo` (é atribuído automaticamente como o próximo NI-##/RJ-## livre, nunca
@@ -31,6 +32,14 @@ Exemplo de `item.yaml` para `add`:
     esforco: M
     detalhe: |
       Prosa livre, várias linhas, à vontade.
+
+`editar` troca só os campos passados (ex.: `--set prioridade=alta`) e deixa o
+resto do item — e do arquivo inteiro — intocado; `valor` é interpretado como
+YAML (`--set rank=1`, `--set relacionado=[NI-05]` funcionam). Se mudar
+`prioridade` sem passar `--set rank=...` junto, `rank` é recalculado sozinho.
+Não mexe em `detalhe`/`caso_real` na prática (dá pra passar, mas escrever
+prosa multi-linha em `campo=valor` de linha de comando é osso — pra isso é
+mais fácil editar o `.yaml` na mão mesmo).
 """
 
 import argparse
@@ -67,6 +76,23 @@ OBRIGATORIOS = {
 def carregar(arquivo):
     texto = ARQUIVOS[arquivo].read_text(encoding="utf-8")
     return yaml.safe_load(texto) or []
+
+
+# Início de cada item, sempre em coluna 0 — usado por `editar` pra achar o
+# bloco de UM item no texto bruto sem precisar reserializar o arquivo
+# inteiro (yaml.safe_load lê tudo, mas escrever de volta com yaml.dump
+# destruiria comentário de cabeçalho e o estilo dos outros itens).
+_RE_INICIO_ITEM = re.compile(r"(?m)^- codigo: (\S+)")
+
+
+def _dividir_blocos(texto):
+    """(preambulo, [(codigo, corpo), ...]) — corpo inclui tudo depois do
+    'codigo: NI-##' até (exclusive) o próximo item, inclusive o separador
+    em branco entre eles."""
+    partes = _RE_INICIO_ITEM.split(texto)
+    preambulo = partes[0]
+    blocos = [(partes[i], partes[i + 1]) for i in range(1, len(partes), 2)]
+    return preambulo, blocos
 
 
 def proximo_codigo(arquivo):
@@ -157,6 +183,38 @@ def cmd_add(args):
     print(f"{item['codigo']} adicionado em {caminho.relative_to(RAIZ)}")
 
 
+def cmd_editar(args):
+    for arquivo, caminho in ARQUIVOS.items():
+        texto = caminho.read_text(encoding="utf-8")
+        _, blocos = _dividir_blocos(texto)
+        alvo = next(((c, corpo) for c, corpo in blocos if c == args.codigo), None)
+        if alvo is None:
+            continue
+        codigo, corpo = alvo
+        item = yaml.safe_load(f"- codigo: {codigo}{corpo}")[0]
+
+        prioridade_mudou = False
+        rank_explicito = False
+        for atribuicao in args.set:
+            campo, sep, valor = atribuicao.partition("=")
+            if not sep:
+                sys.exit(f"--set espera campo=valor, recebeu {atribuicao!r}")
+            item[campo] = yaml.safe_load(valor)
+            prioridade_mudou = prioridade_mudou or campo == "prioridade"
+            rank_explicito = rank_explicito or campo == "rank"
+        if prioridade_mudou and not rank_explicito and item.get("prioridade") in RANK_POR_PRIORIDADE:
+            item["rank"] = RANK_POR_PRIORIDADE[item["prioridade"]]
+
+        validar(item, arquivo)
+        separador = corpo[len(corpo.rstrip("\n")):]
+        bloco_velho = f"- codigo: {codigo}{corpo}"
+        bloco_novo = formatar_item(item, arquivo).rstrip("\n") + separador
+        caminho.write_text(texto.replace(bloco_velho, bloco_novo, 1), encoding="utf-8")
+        print(f"{codigo} atualizado em {caminho.relative_to(RAIZ)}")
+        return
+    sys.exit(f"{args.codigo} não encontrado")
+
+
 def cmd_listar(args):
     alvos = ["nao-iniciado", "rejeitado"] if args.arquivo == "todos" else [args.arquivo]
     total = 0
@@ -213,6 +271,12 @@ def main():
     a.add_argument("--arquivo", choices=[*ARQUIVOS], required=True)
     a.add_argument("--de", required=True, help="arquivo YAML/JSON com os campos (sem codigo)")
     a.set_defaults(func=cmd_add)
+
+    e = sub.add_parser("editar", help="atualiza campos de um item existente")
+    e.add_argument("codigo")
+    e.add_argument("--set", action="append", default=[], dest="set",
+                   metavar="campo=valor", help="repetível")
+    e.set_defaults(func=cmd_editar)
 
     args = p.parse_args()
     args.func(args)
