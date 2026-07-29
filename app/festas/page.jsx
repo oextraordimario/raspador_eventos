@@ -202,7 +202,7 @@ async function FiltrosDaBase({ filtros, href, estado }) {
                   maxMeses={MESES_NO_CALENDARIO} />
       )}
       {facetas?.bairros?.length > 0 && (
-        <DropFiltro rotulo="bairro" base="/festas" estado={estado}
+        <DropFiltro rotulo="região" base="/festas" estado={estado}
                     param="bairro" selecionados={bairros}
                     opcoes={facetas.bairros.map((b) => ({ valor: b, rotulo: b }))} />
       )}
@@ -256,10 +256,21 @@ export default async function Festas({ searchParams }) {
       <div className="filtros">
         <SearchForm texto={texto} periodo={periodoUrl} gratis={gratis} dia={dia} />
 
-        <div className="chips" role="group" aria-label="Filtros">
+        <div className="drops" role="group" aria-label="Filtros">
+          {/* fallback com a mesma caixa dos <Drop> reais: sem ele a barra de
+              filtros daria um pulo quando eles chegassem */}
+          <Suspense fallback={
+            <>
+              <span className="drop-fantasma">data ▾</span>
+              <span className="drop-fantasma">região ▾</span>
+            </>
+          }>
+            <FiltrosDaBase filtros={filtros} href={comFiltro} estado={estado} />
+          </Suspense>
+
           <Link className="chip" href={comFiltro({ gratis: gratis ? '' : '1' })}
                 data-on={gratis ? '1' : '0'}>
-            só grátis
+            grátis
           </Link>
           <PertoDeMim ativo={Boolean(perto)} base="/festas" estado={estado} />
 
@@ -276,19 +287,6 @@ export default async function Festas({ searchParams }) {
               {c.rotulo}
             </Link>
           ))}
-        </div>
-
-        <div className="drops" role="group" aria-label="Filtros de dia e bairro">
-          {/* fallback com a mesma caixa dos <Drop> reais: sem ele a barra de
-              filtros daria um pulo quando eles chegassem */}
-          <Suspense fallback={
-            <>
-              <span className="drop-fantasma">data ▾</span>
-              <span className="drop-fantasma">bairro ▾</span>
-            </>
-          }>
-            <FiltrosDaBase filtros={filtros} href={comFiltro} estado={estado} />
-          </Suspense>
         </div>
       </div>
 
