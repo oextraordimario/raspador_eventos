@@ -728,12 +728,12 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 /* Página de evento: no mobile as duas "colunas" (.col-info, .col-acoes) só
    empilham — cada uma já é uma coluna flex por conta própria. */
 .doc-corpo { display: flex; flex-direction: column; gap: 20px; }
-.col-info, .col-acoes { display: flex; flex-direction: column; gap: 16px; }
+.col-info, .col-acoes-corpo { display: flex; flex-direction: column; gap: 16px; }
 
 /* Página de evento no desktop: a capa acompanha o .wrap inteiro, mas o
    resto vira duas colunas de verdade — .col-info (título/data/local/sobre)
    à esquerda e .col-acoes (ingressos/CTA/outros botões) à direita, numa
-   faixa mais estreita que não estica com o resto da página. .col-acoes
+   faixa mais estreita que não estica com o resto da página. .col-acoes-corpo
    fica `sticky` porque ela é curta e a descrição pode rolar bem mais que
    isso — sem o sticky, ela "sobra" lá em cima assim que o texto cresce.
    `grid-template-areas` em vez de confiar no auto-placement: sem isso, a
@@ -741,16 +741,26 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
    altura do mais alto dos dois — e como a lista de ingressos costuma ser
    mais alta que a descrição, o mapa (linha 2) ficava jogado lá embaixo, bem
    longe do fim do texto. Com `.col-acoes` ocupando as DUAS linhas, o mapa
-   cola direto embaixo de `.col-info`. */
+   cola direto embaixo de `.col-info`.
+
+   `.col-acoes`/`.col-imagem` são os itens de grid (recebem a área e, quando
+   abrangem 2 linhas, `align-self: stretch`); o `position: sticky` mora num
+   FILHO deles (`.col-acoes-corpo`, `.hero`), nunca direto no item que
+   abrange 2 linhas — um item de grid só é esticado até a altura da área
+   quando pedido (`align-items` do container aqui é `start`), então o
+   `sticky` direto nele não tinha até onde "parar" e furava a linha
+   seguinte (o mapa). Com um filho dentro de um pai de altura de verdade, o
+   sticky para exatamente na borda do pai. */
 @media (min-width: 900px) {
   .doc-corpo {
     display: grid; grid-template-columns: minmax(0, 1fr) 320px;
     grid-template-areas: "img img" "info acoes" "mapa acoes";
     align-items: start; gap: 32px 32px;
   }
-  .hero { grid-area: img; }
+  .col-imagem { grid-area: img; }
   .col-info { grid-area: info; }
-  .col-acoes { grid-area: acoes; position: sticky; top: calc(var(--h-top) + 16px); }
+  .col-acoes { grid-area: acoes; align-self: stretch; }
+  .col-acoes-corpo { position: sticky; top: calc(var(--h-top) + 16px); }
   .mapa-embed { grid-area: mapa; }
 
   /* Capa quadrada ou vertical: esticá-la na largura toda só sobraria faixa
@@ -758,13 +768,17 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
      quando a proporção real é <= 1,05). Em vez disso, ela vira uma coluna à
      esquerda do tamanho dela mesma, com informação e ingressos empilhados à
      direita; o mapa continua ocupando a largura toda, agora embaixo de
-     tudo. Sem sticky aqui: a coluna direita não é mais curta que a imagem
-     do jeito que era em relação à descrição no layout largo. */
+     tudo. Aqui é a IMAGEM que fica `sticky` (não `.col-acoes-corpo`, como no
+     layout largo) — é ela que agora é curta e fica pra trás enquanto a
+     coluna de informação/ingressos rola mais. */
   .doc-corpo--estreita {
-    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-columns: 360px minmax(0, 1fr);
     grid-template-areas: "img info" "img acoes" "mapa mapa";
   }
-  .doc-corpo--estreita .col-acoes { position: static; top: auto; }
+  .doc-corpo--estreita .col-imagem { align-self: stretch; }
+  .doc-corpo--estreita .hero { position: sticky; top: calc(var(--h-top) + 16px); }
+  .doc-corpo--estreita .col-acoes { align-self: start; }
+  .doc-corpo--estreita .col-acoes-corpo { position: static; top: auto; }
 }
 
 .mapa-embed { display: flex; flex-direction: column; gap: 8px; }
