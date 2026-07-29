@@ -645,8 +645,8 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 /* Setas laterais do calendário: navegam a janela de meses sem esconder o
    resto do acervo atrás de um link pra lista — quem procura um evento daqui
    a três meses chega lá andando mês a mês. */
-.cal-carrossel { display: flex; align-items: center; gap: 6px; }
-.cal-carrossel .cal { flex: 1; min-width: 0; }
+.cal-carrossel { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.cal-carrossel .cal { flex: 0 1 auto; min-width: 0; }
 .cal-seta { flex: none; }
 .cal-seta.off { opacity: .3; pointer-events: none; }
 
