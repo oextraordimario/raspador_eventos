@@ -736,20 +736,35 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
    faixa mais estreita que não estica com o resto da página. .col-acoes
    fica `sticky` porque ela é curta e a descrição pode rolar bem mais que
    isso — sem o sticky, ela "sobra" lá em cima assim que o texto cresce.
-   Posições de grid EXPLÍCITAS (em vez de confiar no auto-placement): sem
-   isso, a linha 1 (onde .col-info e .col-acoes moram lado a lado) esticava
-   pela altura do mais alto dos dois — e como a lista de ingressos costuma
-   ser mais alta que a descrição, o mapa (linha 2) ficava jogado lá embaixo,
-   bem longe do fim do texto. Com `.col-acoes` ocupando as DUAS linhas, o
-   mapa cola direto embaixo de `.col-info`. */
+   `grid-template-areas` em vez de confiar no auto-placement: sem isso, a
+   linha 1 (onde .col-info e .col-acoes moram lado a lado) esticava pela
+   altura do mais alto dos dois — e como a lista de ingressos costuma ser
+   mais alta que a descrição, o mapa (linha 2) ficava jogado lá embaixo, bem
+   longe do fim do texto. Com `.col-acoes` ocupando as DUAS linhas, o mapa
+   cola direto embaixo de `.col-info`. */
 @media (min-width: 900px) {
   .doc-corpo {
     display: grid; grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-areas: "img img" "info acoes" "mapa acoes";
     align-items: start; gap: 32px 32px;
   }
-  .col-info { grid-column: 1; grid-row: 1; }
-  .mapa-embed { grid-column: 1; grid-row: 2; }
-  .col-acoes { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: calc(var(--h-top) + 16px); }
+  .hero { grid-area: img; }
+  .col-info { grid-area: info; }
+  .col-acoes { grid-area: acoes; position: sticky; top: calc(var(--h-top) + 16px); }
+  .mapa-embed { grid-area: mapa; }
+
+  /* Capa quadrada ou vertical: esticá-la na largura toda só sobraria faixa
+     cinza dos lados (ela é medida em `Corpo.jsx` e vira este modificador
+     quando a proporção real é <= 1,05). Em vez disso, ela vira uma coluna à
+     esquerda do tamanho dela mesma, com informação e ingressos empilhados à
+     direita; o mapa continua ocupando a largura toda, agora embaixo de
+     tudo. Sem sticky aqui: a coluna direita não é mais curta que a imagem
+     do jeito que era em relação à descrição no layout largo. */
+  .doc-corpo--estreita {
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-areas: "img info" "img acoes" "mapa mapa";
+  }
+  .doc-corpo--estreita .col-acoes { position: static; top: auto; }
 }
 
 .mapa-embed { display: flex; flex-direction: column; gap: 8px; }
