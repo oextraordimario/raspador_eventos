@@ -29,6 +29,7 @@ export default async function Filmes({ searchParams }) {
   const hora = sp?.hora ?? ''
   // dia local escolhido no calendário (querystring é entrada de estranho)
   const data = /^\d{4}-\d{2}-\d{2}$/.test(sp?.data ?? '') ? sp.data : ''
+  const todos = sp?.todos === '1'
 
   const temFiltro = Boolean(texto || generos.length || classes.length ||
                             redes.length || cinemas.length || hora || data)
@@ -60,7 +61,7 @@ export default async function Filmes({ searchParams }) {
   // strings, para o "aplicar" preservar os demais filtros ao navegar.
   // Rede e cinema se excluem (os dois viram o MESMO param da API).
   const atual = { texto, generos, classificacao: classes, rede: redes,
-                  cinema: cinemas, hora, data }
+                  cinema: cinemas, hora, data, todos: todos ? '1' : '' }
   const href = (mudanca) => {
     const novo = { ...atual, ...mudanca }
     const q = new URLSearchParams()
@@ -72,11 +73,19 @@ export default async function Filmes({ searchParams }) {
     return qs ? `/filmes?${qs}` : '/filmes'
   }
   const estado = { texto, generos: generos.join(','), classificacao: classes.join(','),
-                   rede: redes.join(','), cinema: cinemas.join(','), hora, data }
+                   rede: redes.join(','), cinema: cinemas.join(','), hora, data,
+                   todos: todos ? '1' : '' }
 
   const nFiltros = generos.length + classes.length + redes.length +
     cinemas.length + (hora ? 1 : 0) + (data ? 1 : 0)
-  const faixas = temFiltro ? [] : montarFaixas(filmes)
+  // "todos os filmes" força a grade plana (sem vitrine) mesmo sem filtro
+  // nenhum ativo, e nesse caso o padrão é alfabético — a API ordena por
+  // relevância (nº de sessões), que não é o que faz sentido numa lista A-Z
+  const grade = temFiltro || todos
+  const faixas = grade ? [] : montarFaixas(filmes)
+  const listaFilmes = todos
+    ? [...filmes].sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
+    : filmes
 
   return (
     <>
@@ -131,6 +140,11 @@ export default async function Filmes({ searchParams }) {
                         opcoes={facetas.classificacoes.map((c) => ({ valor: c, rotulo: c }))} />
           )}
 
+          <Link className="chip" href={href({ todos: todos ? '' : '1' })}
+                data-on={todos ? '1' : '0'}>
+            todos os filmes
+          </Link>
+
           {nFiltros > 0 && (
             <Link className="drop-limpar"
                   href={texto ? `/filmes?texto=${encodeURIComponent(texto)}` : '/filmes'}>
@@ -140,21 +154,28 @@ export default async function Filmes({ searchParams }) {
         </div>
       </div>
 
-      {temFiltro ? (
+      {grade ? (
         <>
           <p className="count">
-            {filmes.length} {filmes.length === 1 ? 'filme' : 'filmes'}
+            {listaFilmes.length} {listaFilmes.length === 1 ? 'filme' : 'filmes'}
           </p>
-          {filmes.length === 0 ? (
-            <div className="empty">
-              <strong>Nada em cartaz com esses filtros</strong>
-              <span>
-                {texto ? `Nenhum filme casa com “${texto}”.` : 'Afrouxe um dos filtros.'}
-              </span>
-            </div>
+          {listaFilmes.length === 0 ? (
+            temFiltro ? (
+              <div className="empty">
+                <strong>Nada em cartaz com esses filtros</strong>
+                <span>
+                  {texto ? `Nenhum filme casa com “${texto}”.` : 'Afrouxe um dos filtros.'}
+                </span>
+              </div>
+            ) : (
+              <div className="empty">
+                <strong>Nada em cartaz</strong>
+                <span>A grade ainda não foi coletada.</span>
+              </div>
+            )
           ) : (
             <div className="list">
-              {filmes.map((f) => <FilmCard key={f.id} filme={f} />)}
+              {listaFilmes.map((f) => <FilmCard key={f.id} filme={f} />)}
             </div>
           )}
         </>
