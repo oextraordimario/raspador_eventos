@@ -872,6 +872,33 @@ button.chip:disabled { opacity: .6; cursor: progress; }
   overflow: hidden;
 }
 
+.modal-fundo {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, black 55%, transparent);
+  padding: 0;
+}
+.modal-caixa {
+  position: relative; width: 100%; max-width: 520px;
+  max-height: min(88vh, 720px); overflow-y: auto;
+  background: var(--zu-ink); border: 1px solid var(--zu-divider);
+  border-radius: var(--zu-r-lg) var(--zu-r-lg) 0 0;
+  padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 30px color-mix(in srgb, black 25%, transparent);
+}
+.modal-caixa h2 {
+  font-family: var(--zu-sans); font-size: 20px; font-weight: 700;
+  letter-spacing: -.02em; margin: 0 0 10px;
+}
+.modal-caixa p { margin: 0 0 18px; color: var(--zu-fg-2); font-size: 14.5px; line-height: 1.65; }
+.modal-fechar {
+  position: absolute; top: 16px; right: 16px; font-size: 20px; line-height: 1;
+}
+@media (min-width: 640px) {
+  .modal-fundo { align-items: center; padding: 24px; }
+  .modal-caixa { border-radius: var(--zu-r-lg); box-shadow: 0 20px 50px color-mix(in srgb, black 30%, transparent); }
+}
+
 .fab-feedback {
   position: fixed; bottom: 16px; right: 16px; z-index: 45;
   display: grid; place-items: center; width: 56px; height: 56px;
