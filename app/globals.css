@@ -1014,6 +1014,9 @@ button.chip:disabled { opacity: .6; cursor: progress; }
 }
 .foot a { color: var(--zu-fg-2); }
 .foot a:hover { color: var(--zu-green); }
+.foot-linha {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px;
+}
 @media (min-width: 900px) {
   .foot { max-width: 1080px; }
 }
