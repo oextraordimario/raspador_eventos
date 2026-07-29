@@ -61,14 +61,14 @@ export default function RootLayout({ children }) {
                   <span className="cur">_</span>
                 </h1>
               </Link>
+              <nav className="head-nav">
+                <Link href="/festas">festas &amp; shows</Link>
+                <Link href="/filmes">cinema</Link>
+              </nav>
               <div className="head-btns">
                 <Tema />
               </div>
             </div>
-            <nav className="head-nav">
-              <Link href="/festas">festas &amp; shows</Link>
-              <Link href="/filmes">cinema</Link>
-            </nav>
           </div>
         </header>
 
