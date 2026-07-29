@@ -603,6 +603,16 @@ a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 .drop-aplicar:hover { filter: brightness(1.08); }
 .drop-aplicar:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
 
+/* Atalhos de período (hoje/fim de semana/7 dias/próximos) dentro do MESMO
+   dropdown do calendário — dia específico e período são a mesma pergunta,
+   então moram no mesmo controle em vez de dois filtros lado a lado. */
+.cal-atalhos {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
+  padding-bottom: 10px; margin-bottom: 10px;
+  border-bottom: 1px solid var(--zu-divider);
+}
+.cal-atalhos .chip { text-align: center; }
+
 /* Calendário do filtro de data: mês em grid de 7 colunas; só dia com sessão
    é clicável (a grade real cobre ~8 dias — o resto fica apagado). */
 .cal { display: flex; flex-direction: column; gap: 12px; min-width: 224px; }

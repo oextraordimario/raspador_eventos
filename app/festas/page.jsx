@@ -3,15 +3,14 @@ import Link from 'next/link'
 import { catalogoEventos, procedencia, idParaSlug } from '../../lib/api'
 import Esqueleto from '../Esqueleto'
 import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../../lib/formato'
-import { MARCA, PERIODOS, TIPOS, periodoPadrao } from '../../lib/config'
+import { MARCA, TIPOS, periodoPadrao } from '../../lib/config'
 import { colecoesAgora } from '../../lib/colecoes'
 import PertoDeMim from '../PertoDeMim'
 import Procedencia from '../Procedencia'
 import SearchForm from '../SearchForm'
 import Flyer from '../Flyer'
-import Drop from '../Drop'
 import DropFiltro from '../DropFiltro'
-import Calendario from '../Calendario'
+import DropData from '../DropData'
 
 // Um dia escolhido no calendário vira a janela daquele dia LOCAL (Brasília é
 // -03 fixo) e SUBSTITUI o atalho de período — os dois respondem à mesma
@@ -158,10 +157,10 @@ async function Resultado({ filtros }) {
   )
 }
 
-// Quantos meses o calendário mostra de uma vez. A agenda alcança meses; três
-// blocos ainda se leem como calendário, seis viram rolagem. O que passa disso
+// Quantos meses o calendário mostra de uma vez. A agenda alcança meses; dois
+// blocos ainda se leem como calendário, mais viram rolagem. O que passa disso
 // não some — vira a linha "+ N dias depois de <mês>".
-const MESES_NO_CALENDARIO = 3
+const MESES_NO_CALENDARIO = 2
 
 // Fração mínima da agenda que precisa estar classificada para os chips de
 // tipo aparecerem (NI-44). Não é preciosismo: a busca esconde o sem-rótulo de
@@ -188,7 +187,7 @@ function mostrarTipos(tipos) {
 // Next deduplica: uma requisição, dois consumidores.
 async function FiltrosDaBase({ filtros, href, estado }) {
   const { facetas } = await catalogoEventos(paramsDe(filtros))
-  const { dia, bairros, tipo } = filtros
+  const { periodo, dia, bairros, tipo } = filtros
   return (
     <>
       {mostrarTipos(facetas?.tipos) && TIPOS.map((t) => (
@@ -199,12 +198,8 @@ async function FiltrosDaBase({ filtros, href, estado }) {
         </Link>
       ))}
       {facetas?.dias?.length > 0 && (
-        <Drop rotulo="dia" ativos={dia ? 1 : 0} aberto={Boolean(dia)}>
-          <Calendario dias={facetas.dias} selecionado={dia}
-                      maxMeses={MESES_NO_CALENDARIO}
-                      hrefAlem={href({ dia: '', periodo: 'proximos' })}
-                      hrefDia={(d) => href({ dia: dia === d ? '' : d })} />
-        </Drop>
+        <DropData periodo={periodo} dia={dia} dias={facetas.dias} href={href}
+                  maxMeses={MESES_NO_CALENDARIO} />
       )}
       {facetas?.bairros?.length > 0 && (
         <DropFiltro rotulo="bairro" base="/festas" estado={estado}
@@ -245,8 +240,6 @@ export default async function Festas({ searchParams }) {
     for (const [k, v] of Object.entries(novo)) if (v) q.set(k, v)
     return `/festas?${q}`
   }
-  // Clicar um chip de período abandona o dia escolhido: são a mesma pergunta.
-  const comPeriodo = (chave) => comFiltro({ periodo: chave, dia: '' })
   // O DropFiltro é client component: recebe o estado como strings e monta a
   // URL do "aplicar" sozinho, sem useSearchParams (que exigiria Suspense).
   const estado = { periodo, texto, gratis: gratis ? '1' : '', dia, tipo, perto,
@@ -264,13 +257,6 @@ export default async function Festas({ searchParams }) {
         <SearchForm texto={texto} periodo={periodoUrl} gratis={gratis} dia={dia} />
 
         <div className="chips" role="group" aria-label="Filtros">
-          {PERIODOS.map((p) => (
-            <Link key={p.chave} className="chip" href={comPeriodo(p.chave)}
-                  data-on={!dia && periodo === p.chave ? '1' : '0'}>
-              {p.rotulo}
-            </Link>
-          ))}
-          <span className="chip-sep" aria-hidden="true" />
           <Link className="chip" href={comFiltro({ gratis: gratis ? '' : '1' })}
                 data-on={gratis ? '1' : '0'}>
             só grátis
@@ -297,7 +283,7 @@ export default async function Festas({ searchParams }) {
               filtros daria um pulo quando eles chegassem */}
           <Suspense fallback={
             <>
-              <span className="drop-fantasma">dia ▾</span>
+              <span className="drop-fantasma">data ▾</span>
               <span className="drop-fantasma">bairro ▾</span>
             </>
           }>
