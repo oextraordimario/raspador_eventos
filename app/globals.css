@@ -145,7 +145,7 @@ a { color: inherit; text-decoration: none; }
   margin: 0 -16px; padding: 10px 16px;
   display: flex; flex-direction: column; gap: 10px;
 }
-.brand-row { display: flex; align-items: center; gap: 14px; }
+.brand-row { display: flex; align-items: center; gap: 26px; }
 .brand {
   font-family: var(--zu-mono); font-size: 20px; font-weight: 700;
   letter-spacing: -.01em; color: var(--zu-fg-1); margin: 0;
@@ -157,11 +157,13 @@ a { color: inherit; text-decoration: none; }
 .head-btns { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 
 .head-nav {
-  display: flex; gap: 16px; white-space: nowrap;
+  display: flex; flex-wrap: wrap; gap: 6px 16px; white-space: nowrap;
   font-family: var(--zu-mono); font-size: 13px; letter-spacing: .01em;
+  min-width: 0; row-gap: 6px;
 }
 .head-nav a { color: var(--zu-fg-2); }
 .head-nav a:hover { color: var(--zu-green); }
+.head-nav-em-breve { color: var(--zu-fg-3); }
 
 .icon-btn {
   display: grid; place-items: center; width: 32px; height: 32px; flex: none;
