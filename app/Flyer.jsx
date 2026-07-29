@@ -31,18 +31,3 @@ export default function Flyer({ src, alto, tamanhos, prioridade = false }) {
     </div>
   )
 }
-
-// Versão grande, para o topo da página do evento. Usa `contain`, não `cover`:
-// flyer de festa carrega informação impressa (line-up, horário, endereço) e
-// cortar as bordas jogaria fora justamente o que a pessoa abriu para ver. O
-// fundo preenche a sobra.
-export function Hero({ src, alto }) {
-  if (!temFlyer(src)) return null
-  return (
-    <div className="hero">
-      <Image src={src} alt={`Cartaz de ${alto}`} fill
-             sizes="(min-width: 900px) 720px, 100vw" priority
-             style={{ objectFit: 'contain' }} />
-    </div>
-  )
-}

@@ -5,7 +5,7 @@ import { diaSemana, diaMes, horaOuNada, reais, tituloLimpo } from '../../../lib/
 import { MARCA, ORIGEM } from '../../../lib/config'
 import { TicketCta } from './CtaButton'
 import { MapaEmbed, AgendaLink, Compartilhar } from './Acoes'
-import { Hero } from '../../Flyer'
+import { Hero } from './Hero'
 
 export const revalidate = 300
 
