@@ -9,6 +9,22 @@ const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
                'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 const SEMANA = ['s', 't', 'q', 'q', 's', 's', 'd']
 
+// SVG em vez de ‹/› de texto: o glyph desses caracteres não fica centralizado
+// no botão em toda fonte (sobra visível embaixo) — SVG com viewBox próprio
+// não depende de métrica de fonte nenhuma.
+const SETA_ESQ = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M15 6l-6 6 6 6" />
+  </svg>
+)
+const SETA_DIR = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+)
+
 // dias: ["YYYY-MM-DD"] com sessão; renderiza cada mês que aparece neles.
 //
 // `maxMeses` mostra só um recorte de cada vez — a grade de cinema cobre ~8
@@ -71,16 +87,16 @@ export default function Calendario({ dias, selecionado, hrefDia,
     <div className="cal-carrossel">
       {temAnterior ? (
         <Link className="icon-btn cal-seta" href={hrefMes(todos[inicio - 1])}
-              aria-label="Mês anterior">‹</Link>
+              aria-label="Mês anterior">{SETA_ESQ}</Link>
       ) : (
-        <span className="icon-btn cal-seta off" aria-hidden="true">‹</span>
+        <span className="icon-btn cal-seta off" aria-hidden="true">{SETA_ESQ}</span>
       )}
       {grade}
       {temProximo ? (
         <Link className="icon-btn cal-seta" href={hrefMes(todos[inicio + 1])}
-              aria-label="Mês seguinte">›</Link>
+              aria-label="Mês seguinte">{SETA_DIR}</Link>
       ) : (
-        <span className="icon-btn cal-seta off" aria-hidden="true">›</span>
+        <span className="icon-btn cal-seta off" aria-hidden="true">{SETA_DIR}</span>
       )}
     </div>
   )

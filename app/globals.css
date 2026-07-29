@@ -647,7 +647,7 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
    a três meses chega lá andando mês a mês. */
 .cal-carrossel { display: flex; align-items: center; gap: 6px; }
 .cal-carrossel .cal { flex: 1; min-width: 0; }
-.cal-seta { flex: none; font-size: 16px; line-height: 1; text-decoration: none; }
+.cal-seta { flex: none; }
 .cal-seta.off { opacity: .3; pointer-events: none; }
 
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */
