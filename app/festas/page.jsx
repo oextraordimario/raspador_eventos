@@ -268,6 +268,15 @@ export default async function Festas({ searchParams }) {
           </Link>
           <PertoDeMim ativo={Boolean(perto)} base="/festas" estado={estado} />
 
+          {/* "próximos" saiu do drop de data (era um atalho de período
+              interno) e virou este botão: é a agenda inteira, sem teto —
+              categoria diferente dos atalhos de "quando", mais parecida com
+              um "tira o filtro de data" declarado. */}
+          <Link className="chip" href={comFiltro({ periodo: 'proximos', dia: '', mesCal: '' })}
+                data-on={!dia && periodo === 'proximos' ? '1' : '0'}>
+            todos os eventos
+          </Link>
+
           {/* Coleções da época (NI-47): o chip só existe dentro da janela do
               ano e apenas preenche a busca — é atalho, não filtro novo. Por
               isso ele também abre a janela de período: quem procura arraiá

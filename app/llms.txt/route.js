@@ -22,8 +22,8 @@ export async function GET() {
 
 - ${ORIGEM}/ — porta de entrada, com as duas seções do site
 - ${ORIGEM}/festas — festas e shows, com filtros de período
-  (?periodo=hoje|fds|7d|proximos), busca textual (?texto=) e só-gratuitos
-  (?gratis=1)
+  (?periodo=hoje|amanha|fds|7d|semana|proximos), busca textual (?texto=) e
+  só-gratuitos (?gratis=1)
 - ${ORIGEM}/filmes — filmes em cartaz nos cinemas de ${MARCA.cidade}
 - ${ORIGEM}/evento/<id> — uma página por evento, com JSON-LD schema.org/Event
 - ${ORIGEM}/sobre — procedência do dado e canal de remoção

@@ -601,12 +601,14 @@ a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 .drop-aplicar:hover { filter: brightness(1.08); }
 .drop-aplicar:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 2px; }
 
-/* Atalhos de período (hoje/fim de semana/7 dias/próximos) dentro do MESMO
-   dropdown do calendário — dia específico e período são a mesma pergunta,
-   então moram no mesmo controle em vez de dois filtros lado a lado. */
+/* Atalhos de período (hoje/amanhã/fim de semana/7 dias/próxima semana)
+   dentro do MESMO dropdown do calendário — dia específico e período são a
+   mesma pergunta, então moram no mesmo controle em vez de dois filtros lado
+   a lado. auto-fit em vez de coluna fixa: cabem os 5 numa linha só onde há
+   espaço (desktop); sem espaço (mobile), sobra vira linha de baixo sozinha. */
 .cal-atalhos {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
-  padding-bottom: 10px; margin-bottom: 10px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 5px; padding-bottom: 10px; margin-bottom: 10px;
   border-bottom: 1px solid var(--zu-divider);
 }
 .cal-atalhos .chip {
@@ -643,9 +645,9 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
 /* Setas laterais do calendário: navegam a janela de meses sem esconder o
    resto do acervo atrás de um link pra lista — quem procura um evento daqui
    a três meses chega lá andando mês a mês. */
-.cal-carrossel { display: flex; align-items: flex-start; gap: 6px; }
+.cal-carrossel { display: flex; align-items: center; gap: 6px; }
 .cal-carrossel .cal { flex: 1; min-width: 0; }
-.cal-seta { margin-top: 2px; font-size: 16px; line-height: 1; text-decoration: none; }
+.cal-seta { flex: none; font-size: 16px; line-height: 1; text-decoration: none; }
 .cal-seta.off { opacity: .3; pointer-events: none; }
 
 /* Detalhe do filme: pôster + info lado a lado, depois a grade por cinema. */

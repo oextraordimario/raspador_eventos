@@ -140,6 +140,8 @@ def _janela(q):
 
     if periodo == "hoje":
         return agora.isoformat(), (virada + timedelta(days=1)).isoformat()
+    if periodo == "amanha":
+        return (virada + timedelta(days=1)).isoformat(), (virada + timedelta(days=2)).isoformat()
     if periodo == "fds":
         # sexta 18h até a manhã de segunda; se já passou, o próximo fim de semana
         sexta = hoje - timedelta(days=(hoje.weekday() - 4) % 7)
@@ -149,6 +151,12 @@ def _janela(q):
         return max(ini, agora).isoformat(), (ini + timedelta(days=2, hours=12)).isoformat()
     if periodo == "7d":
         return agora.isoformat(), (virada + timedelta(days=7)).isoformat()
+    if periodo == "semana":
+        # a semana de calendário (segunda a segunda) DEPOIS da atual — bloco
+        # fixo, diferente do "7 dias" (janela rolante a partir de agora).
+        segunda_atual = hoje - timedelta(days=hoje.weekday())
+        ini = datetime.combine(segunda_atual + timedelta(days=7), datetime.min.time(), bsb) + timedelta(hours=6)
+        return max(ini, agora).isoformat(), (ini + timedelta(days=7)).isoformat()
     if periodo == "proximos":
         # a agenda inteira daqui para frente: sem limite superior, mas COM o
         # inferior — sem `de` a consulta não filtra data nenhuma e o passado
