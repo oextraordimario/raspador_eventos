@@ -998,3 +998,38 @@
     `api/dados.py` (rota_post) pela mesma lente: é o único lugar do site que
     ACEITA escrita de fora, então é o alvo natural de qualquer ataque contra a
     base ou contra um agente que um dia consuma esse dado.
+
+- codigo: NI-63
+  status: nao-iniciado
+  prioridade: baixa
+  rank: 3
+  esforco: P
+  eixo: produto
+  fase: 2
+  titulo: "Verificar/configurar o domínio no Google Search Console"
+  resumo: "único ângulo cego hoje: o que a pessoa DIGITOU no buscador antes de chegar — nenhuma analytics de site vê isso, e é exatamente o que a Fase 2 (ser achado por buscador e por LLM) precisa medir; esperar o domínio próprio"
+  data: 2026-07-29
+  depende_de: []
+  relacionado: []
+  detalhe: |
+    Fica parado de propósito até existir domínio de verdade. Hoje o site mora em
+    `raspador-eventos.vercel.app`, e subdomínio de plataforma indexa mal: o
+    Search Console mediria um teto baixo que diz mais sobre a hospedagem do que
+    sobre o produto. Configurar antes daria número ruim com cara de número.
+
+    Quando houver domínio: verificar a propriedade (tag no `<head>` via
+    `app/layout.jsx`, ou registro DNS — o DNS é melhor, cobre subdomínio e não
+    depende de deploy) e conferir se `app/sitemap.js` e `app/robots.js` estão
+    sendo lidos. Custa uma tarde e não instrumenta NADA na página.
+
+    Decidido em 29/07, junto com a pergunta "vale instrumentar o GA?": não vale.
+    O GA4 não traz nenhum dado de comportamento que o PostHog já não capture
+    (`$referrer`, `$initial_utm_*`, canal, geoip, device), é o alvo nº 1 do
+    adblock — justamente o que o proxy `/ph/*` existe para contornar, e o
+    público daqui bloqueia muito —, criaria uma segunda verdade que nunca bate
+    com a primeira, e puxaria a conversa de consentimento/banner de cookies
+    contra a postura de privacidade que a `/sobre` promete. A busca orgânica,
+    que é o único dado que faltava, vem do Search Console e não do GA. Se um dia
+    fizer sentido ter isso ao lado do comportamento, o PostHog tem source
+    nativa de Search Console no data warehouse — sem segunda tag no site.
+    Só reconsiderar o GA se for rodar Google Ads.
