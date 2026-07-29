@@ -65,14 +65,16 @@ export default function RootLayout({ children }) {
                 <Tema />
               </div>
             </div>
+            <nav className="head-nav">
+              <Link href="/festas">festas &amp; shows</Link>
+              <Link href="/filmes">cinema</Link>
+            </nav>
           </div>
         </header>
 
         <main className="wrap">{children}</main>
 
         <footer className="foot">
-          <Link href="/festas">festas &amp; shows</Link> ·{' '}
-          <Link href="/filmes">cinema</Link> ·{' '}
           <Link href="/sobre">sobre</Link> ·{' '}
           <LinkFeedback>falar com a gente</LinkFeedback> ·{' '}
           <a href="https://github.com/oextraordimario/raspador_eventos"

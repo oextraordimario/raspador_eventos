@@ -155,6 +155,13 @@ a { color: inherit; text-decoration: none; }
 
 .head-btns { display: flex; align-items: center; gap: 6px; }
 
+.head-nav {
+  display: flex; gap: 28px;
+  font-family: var(--zu-mono); font-size: 13px; letter-spacing: .01em;
+}
+.head-nav a { color: var(--zu-fg-2); }
+.head-nav a:hover { color: var(--zu-green); }
+
 .icon-btn {
   display: grid; place-items: center; width: 32px; height: 32px; flex: none;
   background: transparent; color: var(--zu-fg-3);
