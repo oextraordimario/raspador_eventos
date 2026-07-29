@@ -440,6 +440,24 @@ filmes, título/gêneros.
   renderiza sem ele, sem erro na tela. O padrão do projeto é passar `base` +
   `estado` (strings) e montar a URL do lado do cliente (ver `DropFiltro`,
   `PertoDeMim`).
+- **PostHog no ambiente local: a key precisa existir em Development.** Sem
+  `NEXT_PUBLIC_POSTHOG_KEY`, o `instrumentation-client.js` nem chama `init()` — e
+  o único sinal é um `console.error` no navegador, então o `npm run dev` roda com
+  a analytics inteira desligada sem nada quebrar. A variável mora no ambiente
+  **Development** da Vercel; `vercel env pull .env.local --environment=development`
+  a traz de volta (o pull SOBRESCREVE o arquivo — é por isso que ela precisa estar
+  lá, e não só na máquina). Dev, preview e produção mandam para o mesmo projeto:
+  quem separa é a propriedade `ambiente` de todo evento, que o filtro de contas de
+  teste do projeto usa para tirar `development`/`preview` dos insights. Ao olhar um
+  número, é o "Filter out internal and test users" que decide se você está vendo
+  gente de verdade.
+- **`posthog-js` descarta evento de quem ele julga bot, em silêncio.** A checagem
+  (`aa()` no `dist/module.js`) olha três coisas: a string do user-agent, os
+  `brands` de `navigator.userAgentData` — que no Chromium headless trazem
+  "HeadlessChrome" — e `navigator.webdriver`. Vale para o Playwright: um teste de
+  ponta a ponta da analytics precisa mascarar as TRÊS, senão a página carrega, o
+  SDK inicializa, o console mostra tudo funcionando e nenhum evento sai. O que
+  denuncia é `[WebExperiments] Refusing to render ... likely bot` no console.
 - **Ruído conhecido:** o filtro `themes=99` do Sympla deixa passar anúncios/cursos —
   tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra NÃO marca: falso
   positivo esconde festa real; termos já descartados em `docs/backlogs/rejeitado.yaml`).

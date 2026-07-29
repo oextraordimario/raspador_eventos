@@ -88,6 +88,18 @@ invalida a série histórica. As envs `NEXT_PUBLIC_POSTHOG_KEY`/`_HOST` existem
 **só em Production**, o que resolve local × prod de graça. Quatro eventos custom
 já capturam: `ticket_link_clicked`, `other_platform_link_clicked`,
 `film_session_clicked`, `event_search_performed`.
+
+> **Correção (29/07):** a frase acima está errada, e do jeito mais caro — ela
+> tomou por solução o que era o defeito. Com a key só em Production, o
+> `instrumentation-client.js` não chamava `init()` em desenvolvimento: o
+> ambiente local rodava com a analytics DESLIGADA, sem separar nada de nada,
+> e o único sinal era um `console.error` no navegador. Não é "local × prod
+> resolvido" — é local sem medição alguma, que só apareceu quando se foi
+> procurar o próprio teste no PostHog e não se achou. O que separa de verdade
+> é a propriedade `ambiente` em todo evento (dev/preview/produção mandam para
+> o mesmo projeto) somada ao filtro de contas de teste, que tira
+> `development`/`preview` dos insights. A key passou a existir também no
+> ambiente **Development** da Vercel. Ver as duas armadilhas no `CLAUDE.md`.
 Consequências: o NI-54 sai do backlog; o **NI-53 está destravado** (ele
 dependia de existir analytics para o UTM ser lido por alguém); o NI-50 tem com
 o que ser medido; e cada elemento novo desta spec nasce instrumentado (§9).
