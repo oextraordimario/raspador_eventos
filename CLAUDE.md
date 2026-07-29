@@ -458,6 +458,15 @@ filmes, título/gêneros.
   ponta a ponta da analytics precisa mascarar as TRÊS, senão a página carrega, o
   SDK inicializa, o console mostra tudo funcionando e nenhum evento sai. O que
   denuncia é `[WebExperiments] Refusing to render ... likely bot` no console.
+- **Máscara de dado sensível varre TUDO, não uma lista de campos.** O `?perto=`
+  saía mascarado de cinco chaves conhecidas (`$current_url`, `$referrer`…) — e
+  o SDK, numa versão qualquer, passou a mandar `$session_entry_url`, que não
+  estava na lista e levava a coordenada inteira para o PostHog. Ninguém é
+  avisado quando isso acontece: o campo novo simplesmente aparece. Hoje o
+  `before_send` percorre toda chave de texto de `properties`, `$set` e
+  `$set_once` (o hook antigo, `sanitize_properties`, nem enxergava os dois
+  últimos, onde mora o `$initial_current_url` do perfil da pessoa). Ao proteger
+  um parâmetro novo, proteja por PADRÃO do valor, nunca por nome de campo.
 - **Ruído conhecido:** o filtro `themes=99` do Sympla deixa passar anúncios/cursos —
   tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra NÃO marca: falso
   positivo esconde festa real; termos já descartados em `docs/backlogs/rejeitado.yaml`).

@@ -15,9 +15,9 @@ import posthog from 'posthog-js'
 // Ela desce como parâmetro, é usada na ordenação da query e não é gravada em
 // lugar nenhum — nem na base, nem em log. E não vai para o analytics: o
 // PostHog captura a URL de cada pageview, então `?perto=` iria junto, para um
-// TERCEIRO, sem ninguém ter decidido isso. Quem impede é o `sanitize_properties`
-// do instrumentation-client.js — se este botão for removido um dia, aquela
-// máscara pode ir junto.
+// TERCEIRO, sem ninguém ter decidido isso. Quem impede é o `before_send` do
+// instrumentation-client.js — se este botão for removido um dia, aquela máscara
+// pode ir junto.
 // `estado` são os params atuais da URL como STRINGS, e a URL é montada aqui —
 // mesmo contrato do DropFiltro. Uma função `href` como prop seria mais direta,
 // mas função não atravessa a fronteira server → client: o React descarta o
