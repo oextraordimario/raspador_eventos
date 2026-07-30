@@ -25,7 +25,10 @@ export async function GET() {
   (?periodo=hoje|amanha|fds|semana|proximos), busca textual (?texto=) e
   só-gratuitos (?gratis=1)
 - ${ORIGEM}/cinema — filmes em cartaz nos cinemas de ${MARCA.cidade}
-- ${ORIGEM}/evento/<id> — uma página por evento, com JSON-LD schema.org/Event
+- ${ORIGEM}/evento/<titulo>-<dia>-<mes> — uma página por evento, com JSON-LD
+  schema.org/Event (ex.: /evento/forro-na-varanda-26-07)
+- ${ORIGEM}/cinema/<titulo>-<ano> — uma página por filme em cartaz, com
+  JSON-LD schema.org/Movie e a grade de sessões
 - ${ORIGEM}/sobre — procedência do dado e canal de remoção
 
 ## Cobertura atual

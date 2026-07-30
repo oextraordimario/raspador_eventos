@@ -26,7 +26,7 @@ export default function Faixa({ titulo, filmes, prioridade = false }) {
       </div>
       <div className="trilho" ref={trilho}>
         {filmes.map((f, i) => (
-          <Link key={f.id} className="fposter" href={`/cinema/${f.id}`}>
+          <Link key={f.id} className="fposter" href={`/cinema/${f.slug}`}>
             {/* `poster_proprio` PRIMEIRO, como no FilmCard e na página do
                 filme: é a cópia no nosso storage (NI-37), e o hotlink do CDN
                 da fonte é só o fallback de enquanto a cópia não existe. Este

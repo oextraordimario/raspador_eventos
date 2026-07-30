@@ -1,4 +1,4 @@
-import { listarEventos, idParaSlug } from '../lib/api'
+import { listarEventos } from '../lib/api'
 import { ORIGEM } from '../lib/config'
 
 export const revalidate = 3600
@@ -22,7 +22,7 @@ export default async function sitemap() {
   return [
     ...fixas,
     ...eventos.map((ev) => ({
-      url: `${ORIGEM}/evento/${idParaSlug(ev.id)}`,
+      url: `${ORIGEM}/evento/${ev.slug}`,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.8,

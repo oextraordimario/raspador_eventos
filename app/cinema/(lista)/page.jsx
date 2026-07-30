@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { catalogoFilmes } from '../../lib/api'
-import { MARCA } from '../../lib/config'
-import { REDES, HORARIOS, montarFaixas, redesParaCinemas } from '../../lib/cinema'
-import FilmCard from './FilmCard'
-import Faixa from './Faixa'
-import Drop from '../Drop'
-import DropFiltro from '../DropFiltro'
-import Calendario from '../Calendario'
+import { catalogoFilmes } from '../../../lib/api'
+import { MARCA } from '../../../lib/config'
+import { REDES, HORARIOS, montarFaixas, redesParaCinemas } from '../../../lib/cinema'
+import FilmCard from '../FilmCard'
+import Faixa from '../Faixa'
+import Drop from '../../Drop'
+import DropFiltro from '../../DropFiltro'
+import Calendario from '../../Calendario'
 
 export const revalidate = 300
 

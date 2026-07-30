@@ -8,7 +8,7 @@ import { notaFmt } from '../../lib/cinema'
 // cinemas (que mora no detalhe) entram a sinopse e a nota do TMDB (NI-36).
 export default function FilmCard({ filme }) {
   return (
-    <Link className="card fcard" href={`/cinema/${filme.id}`}>
+    <Link className="card fcard" href={`/cinema/${filme.slug}`}>
       <Cartaz src={filme.poster_proprio || filme.poster} titulo={filme.titulo}
               tamanhos="(min-width: 900px) 92px, 78px" />
       <div className="body">

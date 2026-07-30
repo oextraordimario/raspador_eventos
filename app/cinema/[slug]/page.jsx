@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { sessoesFilme } from '../../../lib/api'
 import { ORIGEM } from '../../../lib/config'
 import { chaveDia, rotuloDia, diaMes } from '../../../lib/formato'
@@ -11,12 +11,15 @@ import SessaoLink from './SessaoLink'
 export const revalidate = 300
 
 export async function generateMetadata({ params }) {
-  const { id } = await params
-  const filme = await sessoesFilme(id)
+  const { slug } = await params
+  const filme = await sessoesFilme(slug)
   if (!filme) return { title: 'filme não encontrado' }
   return {
     title: filme.titulo,
     description: `Sessões de ${filme.titulo} nos cinemas de Brasília — horários, salas e onde comprar.`,
+    // como na página de evento: o canônico é o slug do filme, não o parâmetro
+    // pelo qual se chegou (id numérico antigo, ou slug sem o ano)
+    alternates: { canonical: `${ORIGEM}/cinema/${filme.slug}` },
   }
 }
 
@@ -45,7 +48,7 @@ function porCinemaTipo(sessoes) {
 }
 
 export default async function Filme({ params, searchParams }) {
-  const { id } = await params
+  const { slug } = await params
   const sp = await searchParams
 
   // Mesmos filtros da lista (menos gênero/classificação, que não fazem
@@ -65,8 +68,15 @@ export default async function Filme({ params, searchParams }) {
     if (h.hora_ate != null) paramsApi.hora_ate = h.hora_ate
   }
 
-  const filme = await sessoesFilme(id, paramsApi)
+  const filme = await sessoesFilme(slug, paramsApi)
   if (!filme) notFound()
+
+  // Mesma regra da página de evento (uma só, sem farejar formato): id numérico
+  // antigo (`/cinema/29922`), slug sem o ano (compartilhado antes de o TMDB
+  // responder) e título casado por ILIKE todos chegam aqui e vão de 308 para o
+  // endereço de hoje. Guarda contra laço: só redireciona se houver slug e ele
+  // for diferente.
+  if (filme.slug && filme.slug !== slug) permanentRedirect(`/cinema/${filme.slug}`)
 
   // Os dias vêm do conjunto JÁ filtrado (rede/cinema/hora cortam via API):
   // se um filtro esvazia um dia, ele some da strip. Dia da URL que não
@@ -83,7 +93,7 @@ export default async function Filme({ params, searchParams }) {
   const hrefDia = (dia) => {
     const q = new URLSearchParams()
     for (const [k, v] of Object.entries({ ...estado, data: dia })) if (v) q.set(k, v)
-    return `/cinema/${id}?${q.toString()}`
+    return `/cinema/${filme.slug}?${q.toString()}`
   }
 
   // só as redes com cinema onde o filme passa viram opção
@@ -108,7 +118,7 @@ export default async function Filme({ params, searchParams }) {
     ...(filme.tmdb_id && {
       sameAs: `https://www.themoviedb.org/movie/${filme.tmdb_id}`,
     }),
-    url: `${ORIGEM}/cinema/${filme.id}`,
+    url: `${ORIGEM}/cinema/${filme.slug}`,
   }
 
   return (
@@ -176,23 +186,23 @@ export default async function Filme({ params, searchParams }) {
 
         <div className="drops" role="group" aria-label="Filtrar sessões">
           {redesDoFilme.length > 1 && (
-            <DropFiltro rotulo="rede" base={`/cinema/${id}`} estado={estado}
+            <DropFiltro rotulo="rede" base={`/cinema/${filme.slug}`} estado={estado}
                         param="rede" selecionados={redes} limpa="cinema"
                         opcoes={redesDoFilme.map(([chave, r]) =>
                           ({ valor: chave, rotulo: r.rotulo }))} />
           )}
           {(filme.cinemas || []).length > 1 && (
-            <DropFiltro rotulo="cinema" base={`/cinema/${id}`} estado={estado}
+            <DropFiltro rotulo="cinema" base={`/cinema/${filme.slug}`} estado={estado}
                         param="cinema" selecionados={cinemas} limpa="rede"
                         opcoes={filme.cinemas.map((c) => ({ valor: c, rotulo: c }))} />
           )}
-          <DropFiltro rotulo="horário" base={`/cinema/${id}`} estado={estado}
+          <DropFiltro rotulo="horário" base={`/cinema/${filme.slug}`} estado={estado}
                       param="hora" selecionados={hora ? [hora] : []} unico
                       opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
                         ({ valor: chave, rotulo: h.rotulo }))} />
           {temFiltro && (
             <Link className="drop-limpar"
-                  href={data ? `/cinema/${id}?data=${data}` : `/cinema/${id}`}>
+                  href={data ? `/cinema/${filme.slug}?data=${data}` : `/cinema/${filme.slug}`}>
               limpar
             </Link>
           )}

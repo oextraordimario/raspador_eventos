@@ -1,35 +1,51 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { detalharEvento, slugParaId } from '../../../lib/api'
-import { diaSemana, diaMes, horaOuNada, tituloLimpo } from '../../../lib/formato'
+import { notFound, permanentRedirect } from 'next/navigation'
+import { detalharEvento } from '../../../lib/api'
+import { diaSemana, diaMes, horaOuNada } from '../../../lib/formato'
 import { MARCA, ORIGEM } from '../../../lib/config'
 import { Corpo } from './Corpo'
 
 export const revalidate = 300
 
 export async function generateMetadata({ params }) {
-  const { id } = await params
-  const ev = await detalharEvento(slugParaId(id))
+  const { slug } = await params
+  const ev = await detalharEvento(slug)
   if (!ev) return { title: 'evento não encontrado' }
   const h = horaOuNada(ev.start_date, ev.fonte)
   const quando = `${diaSemana(ev.start_date)} ${diaMes(ev.start_date)}${h ? `, ${h}` : ''}`
   return {
-    title: tituloLimpo(ev.nome),
+    title: ev.nome,
     description: `${quando} · ${ev.local_nome || MARCA.cidade}. ${ev.descricao?.slice(0, 120) ?? ''}`,
-    alternates: { canonical: `${ORIGEM}/evento/${id}` },
+    // o canônico sai do SLUG do evento, nunca do parâmetro da rota: chegar por
+    // um endereço antigo não pode fazer esse endereço se declarar canônico
+    alternates: { canonical: `${ORIGEM}/evento/${ev.slug}` },
   }
 }
 
 export default async function Evento({ params }) {
-  const { id } = await params
-  const ev = await detalharEvento(slugParaId(id))
+  const { slug } = await params
+  const ev = await detalharEvento(slug)
   if (!ev) notFound()
 
-  const titulo = tituloLimpo(ev.nome)
+  // UMA regra cobre todo endereço que não é o de hoje, sem farejar formato:
+  // id antigo (`sympla~3520331`), slug de antes de um renome, e o caso da
+  // duplicata — em que a API responde o evento CANÔNICO, cujo slug é outro.
+  // Esse último era um bug silencioso até aqui: a página servia o conteúdo do
+  // canônico num endereço próprio, e o buscador via conteúdo duplicado com o
+  // `canonical` apontando para o lugar errado.
+  // `ev.slug` nulo (tratamento ainda não passou) não redireciona — é a guarda
+  // que impede laço.
+  if (ev.slug && ev.slug !== slug) permanentRedirect(`/evento/${ev.slug}`)
+
+  // O nome já vem limpo da BASE (NI-33, 2026-07-29): a regra que remove a data
+  // que o organizador repetiu no título mora em `base/texto.py` e roda na
+  // escrita da prata, então o <h1>, o slug, o FTS e o que o agente do MCP
+  // recebe são a mesma string. Antes disso, `tituloLimpo()` consertava só aqui.
+  const titulo = ev.nome
   const horario = horaOuNada(ev.start_date, ev.fonte)
   // endereço absoluto desta página: o JSON-LD, o link da agenda e o
   // compartilhar apontam todos para cá, e é obrigatório ser um só
-  const pagina = `${ORIGEM}/evento/${id}`
+  const pagina = `${ORIGEM}/evento/${ev.slug}`
 
   // JSON-LD schema.org/Event — é o que faz a Porta B da Fase 2 existir: o
   // agente e o buscador leem a página como dado estruturado, não como texto.
@@ -38,9 +54,6 @@ export default async function Evento({ params }) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
-    // nome limpo também aqui: o JSON-LD é o que o agente e o buscador leem, e
-    // "Forró na Varanda" descreve o evento melhor que o título com a data
-    // repetida que o organizador publicou
     name: titulo,
     startDate: ev.start_date,
     ...(ev.end_date && { endDate: ev.end_date }),

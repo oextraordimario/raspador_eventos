@@ -1,8 +1,8 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { catalogoEventos, procedencia, idParaSlug } from '../../lib/api'
+import { catalogoEventos, procedencia } from '../../lib/api'
 import Esqueleto from '../Esqueleto'
-import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais, tituloLimpo } from '../../lib/formato'
+import { agruparPorDia, rotuloDia, diaMes, horaOuNada, reais } from '../../lib/formato'
 import { MARCA, TIPOS, periodoPadrao } from '../../lib/config'
 import { colecoesAgora } from '../../lib/colecoes'
 import PertoDeMim from '../PertoDeMim'
@@ -45,10 +45,12 @@ const PRIORITARIAS = 4
 
 function Card({ ev, indice }) {
   const gratis = ev.tem_gratis === 1
-  const titulo = tituloLimpo(ev.nome)
+  // o nome já vem limpo da base (NI-33): a regra que tira a data que o
+  // organizador repetiu no título roda na escrita da prata, não aqui
+  const titulo = ev.nome
   const quando = horaOuNada(ev.start_date, ev.fonte)
   return (
-    <Link className="card" href={`/evento/${idParaSlug(ev.id)}`}>
+    <Link className="card" href={`/evento/${ev.slug}`}>
       <Flyer src={ev.imagem} alto={titulo}
              tamanhos="(min-width: 900px) 92px, 78px"
              prioridade={indice < PRIORITARIAS} />
