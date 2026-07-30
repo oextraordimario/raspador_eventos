@@ -19,6 +19,7 @@ from tratamento import cinema as trat_cinema  # noqa: E402
 from base import conexao
 from coleta import gravar
 from tratamento import busca
+from tratamento import slug as trat_slug
 from coleta import cinema  # noqa: E402
 
 import base_teste  # noqa: E402
@@ -89,6 +90,7 @@ def main():
     print("derivação: filmes/sessoes do payload cru, tipos crus, UTC — ok")
 
     # ── busca textual: gêneros entram no tsvector (sem acento acha) ──
+    trat_slug.aplicar(con)
     busca.reconstruir_fts(con)
     # commit explícito: desde a fatia 7 os passos do tratamento não
     # comitam sozinhos (o ciclo é uma transação só) e a consulta abre
@@ -140,6 +142,22 @@ def main():
         "cinemas do filme são as opções do filtro da página"
     assert "erro" in consulta.sessoes_filme("inexistente xyz")
     print("sessoes_filme: título parcial resolve; inexistente explica — ok")
+
+    # ── endereço público do filme (spec 20260729_urls-semanticas) ──
+    # O card do site linka por `slug`, então ele tem que vir na busca; e o slug
+    # tem que resolver o filme, senão a página de detalhe 404 no próprio link.
+    porslug = {f["titulo"]: f["slug"] for f in consulta.buscar_filmes()}
+    assert all(porslug.values()), f"filme sem slug na busca: {porslug}"
+    assert porslug["Toy Story 5"] == "toy-story-5", porslug
+    d_slug = consulta.sessoes_filme("toy-story-5")
+    assert d_slug.get("id") == "100", d_slug.get("erro", d_slug.get("id"))
+    # o ano vem do TMDB: sem ele o slug é curto, e quando ele chega o slug curto
+    # tem que continuar resolvendo (o link compartilhado não pode morrer)
+    con.execute("UPDATE tratado.filmes SET ano = 1999 WHERE id = '100'")
+    trat_slug.aplicar(con)
+    con.commit()
+    assert consulta.sessoes_filme("toy-story-5").get("slug") == "toy-story-5-1999"
+    print("slug: filme linkável por slug; slug curto resolve depois do ano — ok")
 
     # ── sessoes_filme com os filtros do rework: cinema/hora filtram as
     # sessões, mas `cinemas` (as OPÇÕES) segue sem filtro ──

@@ -9,6 +9,7 @@ tudo para ISO UTC na escrita (invariante do schema). Aqui basta normalizar os
 PARAMETROS (tempo.norm_ts) — a comparacao no SQL volta a ser lexical, segura.
 """
 
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,10 +35,14 @@ from base import conexao, tempo  # noqa: E402
 # no mapa" prefere coordenada ao endereco textual das fontes, que as vezes e
 # sujo. Coordenada de local publico nao e dado pessoal — diferente do
 # `organizador`, que a API do site continua ocultando.
+# `slug` entrou em 2026-07-29 (spec 20260729_urls-semanticas): e o endereco do
+# evento no site (/evento/<slug>), e vem no retorno para o front nunca calcular
+# endereco — ele usa o que a base atribuiu. Tambem e o que permite a pagina
+# saber que chegou por um endereco antigo e responder 308 para o canonico.
 CAMPOS = ["id", "nome", "fonte", "start_date", "end_date", "cidade", "estado",
           "local_nome", "endereco", "bairro", "lat", "lon", "categoria",
           "organizador", "url", "imagem", "atracoes", "preco_min",
-          "tem_gratis", "esgotado", "popularidade"]
+          "tem_gratis", "esgotado", "popularidade", "slug"]
 
 # A descricao completa de dezenas de eventos e peso morto no contexto do agente;
 # um trecho basta para ele entender o estilo do evento (o texto inteiro fica na
@@ -266,6 +271,25 @@ def facetas_eventos(cidade=None, con=None):
     return {"dias": dias, "bairros": bairros, "tipos": tipos}
 
 
+def _por_slug_antigo(con, entidade, slug, campos="id, dedupe_grupo, dedupe_canonico"):
+    """O CAMINHO TRISTE do endereço: slug que não existe mais na prata.
+
+    2,3% dos eventos trocam de nome durante a vida (medido no cru), e trocar de
+    nome troca o slug — o link que alguém mandou no WhatsApp morreria. A view
+    `public.slugs_antigos` guarda todo endereço já atribuído e só devolve os que
+    ainda têm registro, então quem chega por um slug velho é atendido e a página
+    responde 308 para o endereço de hoje (a comparação `ev.slug != parâmetro`).
+
+    Roda SÓ depois de a busca normal falhar: uma consulta a mais no 404, nenhuma
+    no caminho feliz.
+    """
+    tabela = "public.eventos" if entidade == "eventos" else "public.filmes"
+    return con.execute(
+        f"SELECT {campos} FROM {tabela} t "
+        "JOIN public.slugs_antigos h ON h.registro_id = t.id "
+        "WHERE h.entidade = %s AND h.slug = %s", (entidade, slug)).fetchone()
+
+
 def detalhar_evento(url, con=None):
     """Devolve UM evento completo: os mesmos campos da busca, a descricao
     INTEIRA (sem o corte de DESCRICAO_MAX) e a lista de lotes de ingresso com
@@ -276,17 +300,35 @@ def detalhar_evento(url, con=None):
     Se a url for de um membro nao-canonico de grupo de dedupe, responde o
     canonico. Nao achou -> {"erro": ...}.
 
-    Aceita tambem o ID interno (`<fonte>:<id_nativo>`) no lugar da url — o
-    site publico precisa de endereco proprio por evento (uma pagina por
-    evento e o que a Fase 2 marca em JSON-LD), e a url da fonte nao serve de
-    identificador de rota. A tool MCP continua passando url; quem chama com
-    id e a API do site.
+    O argumento e um IDENTIFICADOR, e o formato dele decide a coluna. Sao tres,
+    e nenhum se confunde com os outros:
+
+        comeca com "http"  -> `url`   (a tool MCP passa a url da fonte)
+        contem ":" ou "~"  -> `id`    (`<fonte>:<id_nativo>`; o `~` e a grafia
+                                       do MESMO id na rota antiga do site —
+                                       `/evento/sympla~3520331` —, porque `:`
+                                       nao vive bem numa URL)
+        senao              -> `slug`  (`forro-na-varanda-26-07`, o endereco
+                                       publico desde 2026-07-29)
+
+    O `~` continua atendido de proposito, e nao por descuido: e o endereco que
+    esteve no ar e no sitemap, e quem chega por ele recebe 308 para o slug (o
+    front compara `ev.slug` com o parametro da rota). Nenhum id de fonte contem
+    `~`, entao a troca e sem ambiguidade.
+
+    O nome do parametro segue `url` por compatibilidade: e o contrato que o MCP
+    ja usa, e renomear a chave da API do site quebraria o cliente por nada.
     """
     con, meu = _con(con)
     alvo = (url or "").strip()
-    coluna = "url" if alvo.startswith("http") else "id"
+    if not alvo.startswith("http") and "~" in alvo:
+        alvo = alvo.replace("~", ":")
+    coluna = ("url" if alvo.startswith("http")
+              else "id" if ":" in alvo else "slug")
     row = con.execute(f"SELECT id, dedupe_grupo, dedupe_canonico FROM public.eventos "
                       f"WHERE {coluna} = %s", (alvo,)).fetchone()
+    if not row and coluna == "slug":
+        row = _por_slug_antigo(con, "eventos", alvo)
     if row and not row["dedupe_canonico"] and row["dedupe_grupo"]:
         row = con.execute(
             "SELECT id FROM public.eventos WHERE dedupe_grupo = %s "
@@ -321,7 +363,12 @@ def detalhar_evento(url, con=None):
 CAMPOS_FILME = ["id", "titulo", "titulo_original", "generos", "duracao_min",
                 "classificacao", "distribuidora", "url", "poster",
                 "poster_proprio", "em_pre_venda", "sinopse", "ano", "nota",
-                "votos", "tmdb_id"]
+                "votos", "tmdb_id", "slug"]
+
+# Forma de um slug nosso: so [a-z0-9-]. Serve de GUARDA antes de qualquer
+# interpolacao em LIKE/regex — ver sessoes_filme.
+_E_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
 
 def _lista(v):
     """Normaliza um filtro múltiplo: None/''→[], 'a,b'→['a','b'], lista→lista.
@@ -472,8 +519,9 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     """Sessões detalhadas de UM filme (horário, cinema, sala, tipos, preço,
     link de compra) — o análogo do detalhar_evento para o cinema.
 
-    `filme` é o id ou o título (busca parcial, sem caixa/acento via ILIKE +
-    unaccent); com mais de um candidato, responde o com mais sessões futuras.
+    `filme` é o slug (`homem-aranha-um-novo-dia-2026`), o id ou o título (busca
+    parcial, sem caixa/acento via ILIKE + unaccent); com mais de um candidato,
+    responde o com mais sessões futuras.
     Mesma janela default da busca: sessões passadas ficam de fora.
     `cinema` (parcial, CSV/lista) e `hora_de`/`hora_ate` (hora LOCAL, `ate`
     exclusivo) filtram as sessões — mesmos filtros da busca, para achar o
@@ -484,8 +532,25 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     con, meu = _con(con)
     alvo = (filme or "").strip()
     agora = datetime.now(timezone.utc).isoformat()
-    row = con.execute("SELECT id FROM public.filmes WHERE id = %s",
-                      (alvo,)).fetchone()
+    row = con.execute("SELECT id FROM public.filmes WHERE slug = %s OR id = %s",
+                      (alvo, alvo)).fetchone()
+    if not row and _E_SLUG.match(alvo):
+        # Slug curto: o `ano` vem do TMDB e pode chegar uma rodada depois do
+        # filme, então um link compartilhado nesse intervalo aponta para
+        # `/cinema/mil-luas` enquanto o endereço de hoje é `/cinema/mil-luas-2026`.
+        # Só resolve quando o prefixo identifica UM filme — com dois candidatos
+        # não há o que adivinhar, e cai no casamento por título abaixo.
+        #
+        # A guarda `_E_SLUG` é o que torna a interpolação segura: sem ela, `_` e
+        # `%` do parâmetro seriam curinga do LIKE e os metacaracteres iriam para
+        # dentro da regex. Rota é entrada de estranho.
+        candidatos = con.execute(
+            "SELECT id FROM public.filmes WHERE slug ~ %s",
+            (f"^{alvo}-[0-9]{{4}}$",)).fetchall()
+        row = candidatos[0] if len(candidatos) == 1 else None
+    if not row and _E_SLUG.match(alvo):
+        # endereço de antes de um renome (ver _por_slug_antigo)
+        row = _por_slug_antigo(con, "filmes", alvo, campos="id")
     if not row and alvo:
         # título parcial, sem caixa/acento; empate vai para quem tem mais
         # sessões futuras (o "em cartaz de verdade")

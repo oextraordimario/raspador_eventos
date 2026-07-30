@@ -28,6 +28,7 @@ from base import conexao
 from coleta import gravar
 from tratamento import busca
 from tratamento import comum
+from tratamento import slug
 from servico import feedback as svc_feedback
 
 import base_teste  # noqa: E402
@@ -110,6 +111,9 @@ gravar.gravar_cinema_raw(con, [("128", _daqui.date().isoformat(),
                                    _filme("901", "Bonequinhos", ["Animação"], "Livre"),
                                ]}])], AGORA.isoformat())
 trat_cinema.aplicar(con)
+# o endereço público faz parte do cenário: sem ele a API devolveria slug NULL e
+# o front não teria href (spec 20260729_urls-semanticas)
+slug.aplicar(con)
 busca.reconstruir_fts(con)
 # commit explícito: desde a fatia 7 os passos do tratamento não comitam
 # sozinhos (o ciclo é uma transação só) e a API abre a própria conexão.
@@ -151,6 +155,18 @@ checar(len(det["descricao"]) <= api_dados.DESCRICAO_SITE + 1,
 checar(det["descricao"].endswith("…"), "trecho marcado com reticências")
 checar(det.get("descricao_truncada") is True, "sinaliza que truncou")
 checar(isinstance(det.get("lotes"), list), "detalhe traz a lista de lotes")
+
+# O endereço público (spec 20260729_urls-semanticas): a API tem que ENTREGAR o
+# slug — o front monta href com ele e não calcula endereço — e tem que ACEITAR o
+# slug como identificador, no mesmo parâmetro que já recebe url e id.
+lista, _ = api_dados.rota("/api/dados/eventos", {})
+checar(all(e.get("slug") for e in lista["eventos"]),
+       "todo evento da lista vem com slug (o front não calcula endereço)")
+um = [e for e in lista["eventos"] if e["url"].endswith("sympla:1")][0]
+por_slug, _ = api_dados.rota("/api/dados/evento", {"url": [um["slug"]]})
+checar(por_slug.get("url") == um["url"],
+       f"/evento?url=<slug> resolve o mesmo evento ({um['slug']})")
+checar(por_slug.get("slug") == um["slug"], "o detalhe devolve o slug canônico")
 
 erro, _ = api_dados.rota("/api/dados/evento", {"url": ["https://nao.existe/x"]})
 checar("erro" in erro, "url desconhecida devolve erro, não estoura")

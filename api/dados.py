@@ -27,6 +27,11 @@ Rotas (o vercel.json reescreve /api/dados/* para cá):
     GET  /api/dados/evento?url=
     GET  /api/dados/filmes?texto=&cinema=&de=&ate=&limite=
     GET  /api/dados/sessoes?filme=&cinema=
+
+`?url=` e `?filme=` são IDENTIFICADORES, não formatos fixos: aceitam o slug do
+endereço público (`forro-na-varanda-26-07`), o id interno e a url da fonte, e
+quem fareja qual é qual é a `consulta.py` — aqui não se decide nada. O nome
+`url` ficou por compatibilidade com o MCP, que sempre passou url.
     GET  /api/dados/procedencia
     POST /api/dados/feedback          (form urlencoded — a ÚNICA escrita)
 
