@@ -28,6 +28,16 @@ CREATE TABLE IF NOT EXISTS tratado.filmes (
     votos         INTEGER,
     tmdb_id       TEXT,
     raspado_em    TEXT,              -- ISO UTC "+00:00"
+    -- Endereco publico do filme: "<titulo>-<ano>", padrao IMDB (o ano distingue
+    -- remake e reestreia). O `ano` vem do TMDB, entao pode faltar: sem ele o
+    -- slug fica so com o titulo, e a resolucao aceita o slug curto quando o ano
+    -- aparece depois (consulta.sessoes_filme). Preenchido por
+    -- src/tratamento/slug.py. Spec: docs/specs/20260729_urls-semanticas/.
+    slug          TEXT,
     busca         TSVECTOR           -- titulo + generos + sinopse; preenchida pelo reconstruir_fts.sql
 );
 CREATE INDEX IF NOT EXISTS idx_filmes_busca ON tratado.filmes USING GIN (busca);
+
+-- Mudanca ADITIVA (ver a alinea (a) da politica em tratado/eventos.sql).
+ALTER TABLE tratado.filmes ADD COLUMN IF NOT EXISTS slug TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_filmes_slug ON tratado.filmes(slug);

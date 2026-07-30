@@ -32,6 +32,7 @@ from coleta import sympla as sympla_coleta  # noqa: E402
 from coleta import zig as zig_coleta  # noqa: E402
 from pipeline import atualizar  # noqa: E402
 from tratamento import comum
+from tratamento import slug  # noqa: E402
 from tratamento import bairros as regioes  # `bairros` já é variável local aqui
 from servico import consulta  # noqa: E402
 
@@ -379,6 +380,16 @@ def main():
     assert obtido == esperado, f"a prata não se reconstrói: {obtido} != {esperado}"
     print(f"FRONTEIRA: prata apagada e reconstruída do cru — {esperado[1]} "
           f"eventos e {esperado[2]} lotes idênticos — ok")
+
+    # O endereço público volta com a prata, e volta ÚNICO. `slug` não entra na
+    # `impressao` acima (ela compara COLS_EVENTO, e o slug tem outro dono), então
+    # sem esta asserção a reconstrução poderia deixar a base inteira sem endereço
+    # e o teste de fronteira passaria.
+    slug.aplicar(con)
+    n = con.execute("SELECT count(*) tot, count(slug) com, count(DISTINCT slug) uni "
+                    "FROM tratado.eventos").fetchone()
+    assert n["tot"] == n["com"] == n["uni"], f"slug não reconstruiu: {dict(n)}"
+    print(f"FRONTEIRA: {n['com']} endereços públicos reatribuídos e únicos — ok")
 
     con.commit()
 

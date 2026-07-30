@@ -26,5 +26,6 @@ SELECT id, fonte, id_nativo, nome, start_date, end_date, cidade, estado,
        -- coluna ao final, mas nao renomear nem reordenar as que ja existem —
        -- inserir no meio faz o deploy falhar com "cannot change name of view
        -- column". Ordem estetica nao vale um DROP VIEW.
-       tipo
+       tipo,
+       slug
 FROM tratado.eventos;

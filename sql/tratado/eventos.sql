@@ -84,6 +84,21 @@ CREATE TABLE IF NOT EXISTS tratado.eventos (
     -- rodada. O dono dela e o enriquecer, como de `ruido` e `dedupe_*`.
     tipo            TEXT,
 
+    -- Endereco publico do evento: "<titulo-limpo>-<dd>-<mm>" (o titulo que a
+    -- pessoa le na pagina + o dia local de Brasilia). Quem preenche e
+    -- src/tratamento/slug.py, DEPOIS da curadoria — nome e start_date sao
+    -- curaveis, e a URL tem que refletir a correcao humana.
+    --
+    -- ATENCAO: `slug` NAO entra em comum.COLS_EVENTO — mesma armadilha do
+    -- `tipo`. Aquela lista e reescrita inteira a cada reconstrucao da prata, e
+    -- a coluna seria zerada toda rodada.
+    --
+    -- Unico por INDICE, nao por convencao: a escada de desempate do slug.py
+    -- (dia-mes -> +ano -> ordinal) existe para nunca colidir, e o indice e
+    -- quem garante que um bug nela vire erro em vez de evento inalcancavel.
+    -- Spec: docs/specs/20260729_urls-semanticas/.
+    slug          TEXT,
+
     -- Indice de busca textual (nome/categoria/atracoes/descricao +
     -- local_nome/organizador — "o que tem no Ordinario?" acha pela casa) para
     -- as consultas em linguagem natural. NAO e coluna gerada (unaccent nao e
@@ -103,4 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_eventos_busca ON tratado.eventos USING GIN (busca
 -- resolve.
 ALTER TABLE tratado.eventos
     ADD COLUMN IF NOT EXISTS dedupe_score DOUBLE PRECISION,
-    ADD COLUMN IF NOT EXISTS tipo TEXT;
+    ADD COLUMN IF NOT EXISTS tipo TEXT,
+    ADD COLUMN IF NOT EXISTS slug TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_eventos_slug ON tratado.eventos(slug);

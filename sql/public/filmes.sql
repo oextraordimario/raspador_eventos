@@ -3,5 +3,8 @@
 CREATE OR REPLACE VIEW public.filmes AS
 SELECT id, titulo, titulo_original, generos, duracao_min, classificacao,
        distribuidora, url, poster, poster_proprio, trailer, em_pre_venda,
-       sinopse, ano, nota, votos, tmdb_id, raspado_em, busca
+       sinopse, ano, nota, votos, tmdb_id, raspado_em, busca,
+       -- coluna nova vai no FIM (ver a nota em public/eventos.sql: CREATE OR
+       -- REPLACE VIEW acrescenta ao final, mas nao reordena)
+       slug
 FROM tratado.filmes;

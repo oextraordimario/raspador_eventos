@@ -859,6 +859,15 @@ def main():
         if novos:
             saida = ciclo.executar(con, so_enriquecer=so_enriquecer)
 
+    # Desempate de slug não é rotina: quando aparece, é sintoma (dedupe frouxo
+    # ou teto de comprimento agressivo). Silêncio aqui esconderia um endereço
+    # com `-2` no fim que ninguém pediu.
+    desempates = saida["slugs"]["desempates"]
+    if desempates:
+        print(f"\n[slug] {len(desempates)} endereço(s) precisaram de desempate:")
+        for d in desempates[:10]:
+            print(f"  - {d['id']} -> /{d['slug']}")
+
     cur = saida["curadoria"]
     if cur["aplicadas"] or cur["orfas"]:
         print(f"\n[curadoria] {cur['aplicadas']} correções reaplicadas"

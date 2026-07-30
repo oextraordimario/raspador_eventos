@@ -15,21 +15,26 @@ mas toma `ACCESS EXCLUSIVE`: os leitores BLOQUEIAM até o commit em vez de
 enxergar a versão anterior. A diferença é invisível em desenvolvimento e visível
 em produção. Nenhum passo daqui pode usar TRUNCATE.
 
-**A ORDEM importa em quatro pontos, e só neles:**
+**A ORDEM importa em cinco pontos, e só neles:**
   1. `instagram` depois de `comum`, que apaga `tratado.lotes` inteira (o lote
      sintético do flyer é reinserido depois);
   2. `enriquecer` depois de TODAS as fontes — o dedupe é cross-fonte, e é ele
      que concilia Instagram ↔ plataforma;
   3. `curadoria` depois do `enriquecer` (precisa poder derrubar uma decisão
      dele, como desfazer um dedupe errado) e antes do FTS;
-  4. `busca` por último, para indexar o texto já corrigido.
+  4. `slug` depois da `curadoria` (nome e start_date são curáveis, e o endereço
+     público tem que refletir a correção humana) e depois do `enriquecer` (a
+     escada de desempate dá o slug limpo ao canônico) — e também depois do
+     `cinema`, de onde sai o `ano` do filme;
+  5. `busca` por último, para indexar o texto já corrigido.
 Entre si, as cinco trilhas de plataforma são independentes.
 
-Spec: docs/specs/20260728_arquitetura-medalhao/ §8.1.
+Specs: docs/specs/20260728_arquitetura-medalhao/ §8.1 e
+docs/specs/20260729_urls-semanticas/ §3.4.
 """
 
 from tratamento import (busca, cinema, comum, curadoria, enriquecer, instagram,
-                        sumido)
+                        slug, sumido)
 
 
 def executar(con, so_enriquecer=False):
@@ -56,7 +61,9 @@ def executar(con, so_enriquecer=False):
                **curadoria.locais_canonicos(con)}
     enriq = enriquecer.aplicar(con, aliases_local=aliases)
     cur = curadoria.aplicar(con)
+    slugs = slug.aplicar(con)
     busca.reconstruir_fts(con)
     con.commit()
     return {"derivado": derivado, "instagram": insta, "cinema": cine,
-            "sumidos": sumidos, "enriquecimento": enriq, "curadoria": cur}
+            "sumidos": sumidos, "enriquecimento": enriq, "curadoria": cur,
+            "slugs": slugs}
