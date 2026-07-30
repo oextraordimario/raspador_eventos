@@ -469,7 +469,9 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
 
     Returns:
         Lista de dicts: campos do filme + sessoes (contagem na janela),
-        cinemas (nomes, ordenados), primeira_sessao/ultima_sessao (ISO UTC).
+        cinemas (nomes, ordenados), audios (quais das sessões da janela são
+        dubladas/legendadas/nacionais) e primeira_sessao/ultima_sessao
+        (ISO UTC).
     """
     con, meu = _con(con)
     where = ["s.inicio >= %s"]
@@ -496,6 +498,7 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
     rows = con.execute(
         f"SELECT {campos}, COUNT(s.id) AS sessoes, "
         "string_agg(DISTINCT s.cinema, ', ' ORDER BY s.cinema) AS cinemas, "
+        "string_agg(DISTINCT s.tipos, '|') AS tipos_agg, "
         "MIN(s.inicio) AS primeira_sessao, MAX(s.inicio) AS ultima_sessao "
         "FROM public.filmes f JOIN public.sessoes s ON s.filme_id = f.id "
         f"WHERE {' AND '.join(where)} "
@@ -503,7 +506,14 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
         [*params, limite]).fetchall()
     if meu:
         con.close()
-    return [dict(r) for r in rows]
+    filmes = []
+    for r in rows:
+        d = dict(r)
+        # o `tipos` cru não sai daqui: quem consome a lista quer saber se dá
+        # para ver o filme dublado, não que exista uma sessão "3D/D-Box/Dublado"
+        d["audios"] = _audios_de([d.pop("tipos_agg")])
+        filmes.append(d)
+    return filmes
 
 
 def facetas_filmes(con=None):

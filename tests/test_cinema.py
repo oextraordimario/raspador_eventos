@@ -146,6 +146,11 @@ def main():
     assert len(consulta.buscar_filmes(audio="drop table")) == \
         len(consulta.buscar_filmes()), "valor fora da lista é ignorado, não filtra"
     assert fac["audios"] == ["Dublado", "Legendado"], fac
+    # o áudio também vem POR FILME na lista — é dele que sai a faixa
+    # "Produções nacionais" da vitrine, sem uma segunda ida à base
+    porfilme = {f["titulo"]: f["audios"] for f in consulta.buscar_filmes()}
+    assert porfilme["Toy Story 5"] == ["Dublado", "Legendado"], porfilme
+    assert porfilme["Um Drama Qualquer"] == [], "sessão 2D não declara idioma"
     print("áudio: casa dentro do tipos composto; 2D não vira idioma; "
           "valor inválido é ignorado — ok")
 
