@@ -143,6 +143,15 @@ export default async function Filmes({ searchParams }) {
                         opcoes={facetas.classificacoes.map((c) => ({ valor: c, rotulo: c }))} />
           )}
 
+          {/* O "limpar" pertence aos drops acima: é o que desfaz o que eles
+              fizeram. Por isso fica deste lado da divisória. */}
+          {nFiltros > 0 && (
+            <Link className="drop-limpar"
+                  href={texto ? `/cinema?texto=${encodeURIComponent(texto)}` : '/cinema'}>
+              limpar
+            </Link>
+          )}
+
           {/* "todos os filmes" não recorta a grade como os drops acima: ele
               troca a vitrine pela lista A-Z inteira. Categoria diferente,
               separador no meio. */}
@@ -152,13 +161,6 @@ export default async function Filmes({ searchParams }) {
                 data-on={todos ? '1' : '0'}>
             todos os filmes
           </Link>
-
-          {nFiltros > 0 && (
-            <Link className="drop-limpar"
-                  href={texto ? `/cinema?texto=${encodeURIComponent(texto)}` : '/cinema'}>
-              limpar
-            </Link>
-          )}
 
           {/* Como em /festas: a contagem fica na ponta direita da própria
               barra de filtros (o `margin-left: auto` do .drops .count), e
