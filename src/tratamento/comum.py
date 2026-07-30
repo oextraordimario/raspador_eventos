@@ -20,7 +20,7 @@ cada uma dona das suas colunas.
 
 import json
 
-from base import tempo
+from base import tempo, texto
 from tratamento import bairros, ingresse, shotgun, sympla, ticketandgo, zig
 
 # fonte -> módulo de tratamento. Uma trilha por fonte (spec D6):
@@ -43,6 +43,15 @@ COLS_EVENTO = ["id", "fonte", "id_nativo", "nome", "start_date", "end_date",
 # tempo.norm_ts) — é o que torna a comparação lexical no SQL segura.
 _COLS_DATA = {"start_date", "end_date", "raspado_em"}
 
+# Colunas com transformação na ESCRITA. A ideia é a mesma das datas: o
+# invariante mora no único ponto que grava, não espalhado em quem chama.
+#   nome -> título limpo (NI-33): o organizador repete a data no nome
+#   ("Forró na Varanda | 28.07 | Varanda do Contexto"), e daqui saem ao mesmo
+#   tempo o <h1>, o FTS, o nome que o agente do MCP recebe e o slug — que por
+#   isso não podem divergir.
+_TRANSFORMA = {"nome": texto.titulo_limpo,
+               **{c: tempo.norm_ts for c in _COLS_DATA}}
+
 
 def upsert_eventos(con, eventos):
     """Grava uma lista de eventos já normalizados (dicts) em tratado.eventos.
@@ -51,8 +60,17 @@ def upsert_eventos(con, eventos):
     função também gravava o payload bruto — a coleta a chamava e ganhava a
     escrita da bronze de brinde, que era a violação de camada do NI-55.
 
-    As colunas de data passam por tempo.norm_ts aqui: é o único ponto de
-    escrita, então é ele que garante o invariante do schema.
+    As colunas de `_TRANSFORMA` (datas e `nome`) passam pela transformação
+    AQUI: é o único ponto de escrita da coluna — inclusive para o Instagram,
+    que tem trilha própria mas chama esta função —, então é ele que garante o
+    invariante. Repetir a transformação em cada trilha daria cinco lugares para
+    esquecer um.
+
+    O `nome` é limpo aqui, e não em `_tratar`, por um motivo específico: as
+    guardas de id trocado (`CONFERIR`/`texto.mesmo_nome`) comparam o nome do
+    payload de detalhe com o nome do catálogo, e comparar um nome cru com um
+    já limpo reprovaria descrição boa — "28/07 - Festa da Firma" não é prefixo
+    de "Festa da Firma". A limpeza acontece depois de toda comparação.
 
     Não há COALESCE: toda coluna de COLS_EVENTO é reescrita com o valor novo.
     Preservar valor antigo por COALESCE só faz sentido quando a escrita é
@@ -66,7 +84,7 @@ def upsert_eventos(con, eventos):
            f"VALUES ({placeholders}) "
            f"ON CONFLICT(id) DO UPDATE SET {updates}")
     con.cursor().executemany(sql, [
-        [tempo.norm_ts(e.get(c)) if c in _COLS_DATA else e.get(c)
+        [_TRANSFORMA[c](e.get(c)) if c in _TRANSFORMA else e.get(c)
          for c in COLS_EVENTO]
         for e in eventos])
     return len(eventos)

@@ -536,76 +536,11 @@
     Vale um teste em tests/test_observabilidade.py travando o caso: fonte que
     devolve [] sem erro NÃO pode marcar sumido.
 
-- codigo: NI-33
-  status: pendente
-  prioridade: alta
-  rank: 2
-  esforco: M
-  eixo: produto
-  fase: 1
-  titulo: "Promover a limpeza de título para a derivação — hoje ela conserta só o site"
-  resumo: "o organizador enfia a data no nome do evento ('Forró na Varanda | 28.07 | Varanda do Contexto'); a regra que remove isso vive em lib/formato.js e beneficia só o front — o agente que consulta pelo MCP continua recebendo o título sujo"
-  data: 2026-07-27
-  depende_de: []
-  relacionado: [NI-05]
-  caso_real: ["a lista de 27/07 tinha 3 dos 4 primeiros eventos com data repetida no título, consumindo as duas linhas do card"]
-  detalhe: |
-    Implementado em 2026-07-27 como `tituloLimpo()` em `lib/formato.js`, usado
-    pelo card, pelo <h1>, pelo <title> e pelo JSON-LD. A regra é conservadora
-    de propósito: só remove um trecho de data quando ele está ISOLADO por
-    separador (|, –, -, ·), o que preserva "Rock dos 80/90", "Baile 24/7" e
-    "Aniversário 10/10 anos". Casos verificados à mão antes de subir.
-
-    **A dívida:** o lugar certo é `derivar.py`, junto das outras colunas da
-    camada Prata. O nome limpo é enriquecimento de DADO, não de apresentação —
-    quem consulta pelo MCP merece o mesmo título que quem abre o site, e hoje
-    não recebe. Ficou no front para não misturar mudança de base com mudança
-    visual na mesma leva.
-
-    Ao migrar: o original continua preservado em `eventos_raw` (Bronze), então
-    sobrescrever `eventos.nome` na derivação é reversível por `--so-derivar` —
-    é exatamente o padrão das outras colunas derivadas. Portar os casos de
-    teste junto; a regra em JS e a em Python precisam concordar, ou o site e o
-    agente passam a divergir no nome do mesmo evento.
-
-# NI-34 (imagem do Instagram no site) foi IMPLEMENTADO em 2026-07-27, de
-# carona no NI-37 (mesma infra de mídia): o flyer local sobe pro Vercel Blob
-# com pathname estável (instagram/<code>) e a derivação grava a URL própria
-# em eventos.imagem via instagram_raw origem='midia'. Postura de ToS mantida
-# (cópia com atribuição; o post continua linkado). 60 flyers no backfill.
-
-# NI-35 (rework da página de cinema), NI-36 (TMDB) e NI-37 (storage de mídia)
-# foram IMPLEMENTADOS em 2026-07-27, no MESMO DIA do pedido — as 4 etapas da
-# spec docs/specs/20260727_rework-pagina-cinema/. NI-35: vitrine em faixas
-# estilo streaming (heurísticas em lib/cinema.js), filtros sempre visíveis em
-# dropdown (gênero/classificação/rede/cinema multi + horário em hora LOCAL +
-# calendário do mês honesto com a janela de ~8 dias), card com pôster 2:3 e
-# sinopse, detalhe /filmes/[id] com grade por cinema×dia e JSON-LD Movie
-# (embed de trailer testado e rejeitado pelo autor — ficou link). NI-36:
-# scrapers/tmdb.py com matching conservador → Bronze cinema_extra_raw
-# (acumulativa, sobrevive ao snapshot); 39/39 filmes com match na 1ª carga.
-# NI-37: src/midia.py → Vercel Blob (store rolebsb-midia), pôster copiado
-# (38/39) + flyer do Instagram (fechou o NI-34 junto). Schema mudou ⇒ base
-# dropada e re-raspada. A re-carga expôs e corrigiu de brinde: conexões
-# CURTAS por bloco no atualizar.py e FORCAR_IPV4 opt-in (rede local com IPv6
-# quebrado fazia urllib/psycopg pagarem ~50s por request).
-
-# ─────────────────────────── Feedback do beta (2026-07-27) ───────────────────
-# Rodada de feedback do autor + vários amigos após a abertura do site. A spec
-# docs/specs/20260728_rework-site/ (a pasta se chamava `20260728_rework-eventos`
-# até 28/07) foi EXECUTADA em 28/07 e entregou dez dos doze itens, que saíram
-# desta lista: NI-38 (resumo no card), NI-39 (ver no mapa), NI-41 (busca por
-# casa), NI-43 (calendário), NI-46 (perto de mim), NI-47 (coleções sazonais),
-# NI-50 (velocidade), NI-51 (Google Agenda), NI-52 (canal de feedback) e
-# NI-53 (compartilhar). O git e a §14 da spec registram o que cada um virou.
-#
-# Os DOIS que ficaram (NI-44 e NI-45) continuam abaixo com o estado real: os
-# dois tiveram a infraestrutura inteira entregue e esbarraram na COBERTURA DO
-# DADO, que é o que falta — não código.
-#
-# NI-54 (instrumentar o site) NÃO está mais aqui: a revisão da spec em 28/07
-# descobriu que ele já estava em produção havia dois dias — ver o bloco no fim
-# desta seção.
+# NI-33 (limpeza de título na derivação) saiu daqui em 2026-07-29:
+# `base/texto.titulo_limpo` aplicada em `comum.upsert_eventos` — o `nome` da
+# prata já vem limpo, e quem consulta pelo MCP recebe o mesmo título que o
+# site. Foi junto com as URLs semânticas, que precisavam do título limpo para
+# montar o slug. Spec: docs/specs/20260729_urls-semanticas/ §5.
 
 - codigo: NI-40
   status: nao-iniciado
@@ -618,7 +553,7 @@
   resumo: "hoje o card navega para /evento/[id] (decisão da spec do site: URL própria, SSR, JSON-LD); expansão inline/overlay seria progressive enhancement por cima, como o detalhe de filme cogitou via intercepting route"
   data: 2026-07-27
   depende_de: []
-  relacionado: [NI-33]
+  relacionado: []
   caso_real: ["beta com amigos (2026-07-27): 'clicar pra expandir o evento (prioridade baixa, checar UX/UI)'"]
   detalhe: |
     A página própria por evento NÃO pode sair (é a Porta B da Fase 2: URL
