@@ -282,7 +282,10 @@ export default async function Festas({ searchParams }) {
           {/* "próximos" saiu do drop de data (era um atalho de período
               interno) e virou este botão: é a agenda inteira, sem teto —
               categoria diferente dos atalhos de "quando", mais parecida com
-              um "tira o filtro de data" declarado. */}
+              um "tira o filtro de data" declarado. Daí o divisor: o que vem
+              antes recorta a lista, este a abre inteira. */}
+          <span className="drops-sep" aria-hidden="true" />
+
           <Link className="chip" href={comFiltro({ periodo: 'proximos', dia: '', mesCal: '' })}
                 data-on={!dia && periodo === 'proximos' ? '1' : '0'}>
             todos os eventos

@@ -140,6 +140,11 @@ export default async function Filmes({ searchParams }) {
                         opcoes={facetas.classificacoes.map((c) => ({ valor: c, rotulo: c }))} />
           )}
 
+          {/* "todos os filmes" não recorta a grade como os drops acima: ele
+              troca a vitrine pela lista A-Z inteira. Categoria diferente,
+              separador no meio. */}
+          <span className="drops-sep" aria-hidden="true" />
+
           <Link className="chip" href={href({ todos: todos ? '' : '1' })}
                 data-on={todos ? '1' : '0'}>
             todos os filmes

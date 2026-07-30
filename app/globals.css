@@ -567,6 +567,15 @@ a.nota-fonte:hover { color: var(--zu-green); text-decoration: underline; }
 .drop-limpar { font-size: 12.5px; color: var(--zu-fg-3); white-space: nowrap; padding: 6px 4px; }
 .drop-limpar:hover { color: var(--zu-error); }
 
+/* Divisor dentro da barra de filtros, para separar os drops que RECORTAM a
+   grade do chip que troca a VISÃO da página. Sem ele os dois grupos ficam
+   colados, com a mesma cara de chip e nenhuma pista de que fazem coisas
+   diferentes. `flex: none` para o divisor não encolher na quebra de linha. */
+.drops-sep {
+  flex: none; width: 1px; height: 20px; margin: 0 4px;
+  background: var(--zu-divider);
+}
+
 /* Lugar guardado para um <Drop> que ainda está sendo carregado: mesma caixa,
    sem interação. Sem isto a barra de filtros pula quando o calendário chega. */
 .drop-fantasma {
