@@ -408,9 +408,40 @@ def _filtro_cinemas(where, params, cinema, col="s.cinema"):
         params.extend(f"%{c}%" for c in cinemas)
 
 
+# Como se ouve o filme. A fonte não tem campo próprio para isso: manda tudo
+# junto em `tipos`, componentes separados por "/" ("3D/XD/Dublado",
+# "Vip/Legendado"). Casar por substring é seguro porque nenhum OUTRO
+# componente carrega essas palavras — os demais são formato (3D), sala (XD,
+# Vip, D-Box) ou sessão temática (Cine Inclusivo, Sessão Azul).
+AUDIOS = ("Dublado", "Legendado", "Nacional")
+
+
+def _audios(v):
+    """Só os valores conhecidos, na ordem de AUDIOS. Filtro vem da
+    querystring, que é entrada de estranho: o que não é áudio some aqui, em
+    vez de virar um ILIKE que não casa com nada e devolve tela vazia."""
+    pedidos = {a.strip().lower() for a in _lista(v)}
+    return [a for a in AUDIOS if a.lower() in pedidos]
+
+
+def _filtro_audio(where, params, audio, col="s.tipos"):
+    """Um ou mais áudios (dublado/legendado/nacional), OR entre eles."""
+    escolhidos = _audios(audio)
+    if escolhidos:
+        where.append("(" + " OR ".join([f"{col} ILIKE %s"] * len(escolhidos)) + ")")
+        params.extend(f"%{a}%" for a in escolhidos)
+
+
+def _audios_de(tipos):
+    """Quais áudios aparecem numa coleção de `tipos` crus — é o que vira as
+    OPÇÕES do filtro (só existe no drop o que tem sessão)."""
+    vistos = " | ".join(t or "" for t in tipos).lower()
+    return [a for a in AUDIOS if a.lower() in vistos]
+
+
 def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
                   generos=None, classificacao=None, hora_de=None,
-                  hora_ate=None, limite=20, con=None):
+                  hora_ate=None, audio=None, limite=20, con=None):
     """Filmes em cartaz nos cinemas-alvo de Brasília, agregados por filme.
 
     Sessões passadas não contam: sem data_inicio, a janela começa AGORA.
@@ -431,6 +462,9 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
         hora_de/hora_ate: janela da HORA LOCAL de Brasília do início da sessão
             (ints 0–23; `ate` exclusivo). hora_de > hora_ate vira janela que
             cruza a meia-noite (ex.: 22→6 = sessão coruja).
+        audio: como se ouve o filme, um ou mais de "Dublado", "Legendado",
+            "Nacional" (CSV ou lista, OR entre eles). Valor fora dessa lista
+            é ignorado.
         limite: máximo de filmes.
 
     Returns:
@@ -457,6 +491,7 @@ def buscar_filmes(texto=None, data_inicio=None, data_fim=None, cinema=None,
         where.append("f.classificacao = ANY(%s)")
         params.append(classes)
     _filtro_hora(where, params, hora_de, hora_ate)
+    _filtro_audio(where, params, audio)
     campos = ", ".join(f"f.{c}" for c in CAMPOS_FILME)
     rows = con.execute(
         f"SELECT {campos}, COUNT(s.id) AS sessoes, "
@@ -477,9 +512,11 @@ def facetas_filmes(con=None):
     opção que devolve vazio.
 
     Returns:
-        {"generos": [...], "classificacoes": [...], "cinemas": [...]} —
-        gêneros desmembrados do CSV da fonte, classificações no texto exato
-        (ordenadas Livre→18), cinemas pelos apelidos canônicos.
+        {"generos": [...], "classificacoes": [...], "cinemas": [...],
+        "audios": [...], "dias": [...]} — gêneros desmembrados do CSV da
+        fonte, classificações no texto exato (ordenadas Livre→18), cinemas
+        pelos apelidos canônicos, áudios (dublado/legendado/nacional) que
+        têm sessão, e os dias LOCAIS com sessão futura.
     """
     con, meu = _con(con)
     agora = datetime.now(timezone.utc).isoformat()
@@ -496,6 +533,9 @@ def facetas_filmes(con=None):
     cinemas = [r["cinema"] for r in con.execute(
         "SELECT DISTINCT cinema FROM public.sessoes WHERE inicio >= %s "
         "ORDER BY cinema", (agora,))]
+    audios = _audios_de(r["tipos"] for r in con.execute(
+        "SELECT DISTINCT tipos FROM public.sessoes WHERE inicio >= %s",
+        (agora,)))
     # dias LOCAIS com sessão futura — é o que o calendário do site habilita
     # (a grade real cobre ~8 dias; o resto do mês fica desabilitado)
     dias = [r["dia"] for r in con.execute(
@@ -511,11 +551,11 @@ def facetas_filmes(con=None):
         return (0, 0) if not digitos else (1, int(digitos))
     return {"generos": sorted(generos),
             "classificacoes": sorted(classes, key=_ordem_classe),
-            "cinemas": cinemas, "dias": dias}
+            "cinemas": cinemas, "audios": audios, "dias": dias}
 
 
 def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
-                  hora_de=None, hora_ate=None, con=None):
+                  hora_de=None, hora_ate=None, audio=None, con=None):
     """Sessões detalhadas de UM filme (horário, cinema, sala, tipos, preço,
     link de compra) — o análogo do detalhar_evento para o cinema.
 
@@ -523,10 +563,11 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
     parcial, sem caixa/acento via ILIKE + unaccent); com mais de um candidato,
     responde o com mais sessões futuras.
     Mesma janela default da busca: sessões passadas ficam de fora.
-    `cinema` (parcial, CSV/lista) e `hora_de`/`hora_ate` (hora LOCAL, `ate`
-    exclusivo) filtram as sessões — mesmos filtros da busca, para achar o
-    lugar/horário certo de ver ESTE filme. `cinemas` no retorno lista onde o
-    filme passa SEM o filtro aplicado (são as opções do filtro, não o
+    `cinema` (parcial, CSV/lista), `hora_de`/`hora_ate` (hora LOCAL, `ate`
+    exclusivo) e `audio` (Dublado/Legendado/Nacional) filtram as sessões —
+    mesmos filtros da busca, para achar o lugar, a hora e a versão certa de
+    ver ESTE filme. `cinemas` e `audios` no retorno listam onde e como o
+    filme passa SEM os filtros aplicados (são as opções do filtro, não o
     resultado dele).
     """
     con, meu = _con(con)
@@ -573,6 +614,9 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
         "SELECT DISTINCT cinema FROM public.sessoes "
         "WHERE filme_id = %s AND inicio >= %s ORDER BY cinema",
         (row["id"], inicio_janela))]
+    f["audios"] = _audios_de(r["tipos"] for r in con.execute(
+        "SELECT DISTINCT tipos FROM public.sessoes "
+        "WHERE filme_id = %s AND inicio >= %s", (row["id"], inicio_janela)))
     where = ["filme_id = %s", "inicio >= %s"]
     params = [row["id"], inicio_janela]
     if data_fim:
@@ -580,6 +624,7 @@ def sessoes_filme(filme, data_inicio=None, data_fim=None, cinema=None,
         params.append(tempo.norm_ts(data_fim))
     _filtro_cinemas(where, params, cinema, col="cinema")
     _filtro_hora(where, params, hora_de, hora_ate, col="inicio")
+    _filtro_audio(where, params, audio, col="tipos")
     f["sessoes"] = [dict(r) for r in con.execute(
         "SELECT cinema, inicio, sala, tipos, preco, url_compra FROM public.sessoes "
         f"WHERE {' AND '.join(where)} ORDER BY inicio, cinema", params)]

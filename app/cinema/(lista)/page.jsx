@@ -26,13 +26,15 @@ export default async function Filmes({ searchParams }) {
   const classes = (sp?.classificacao ?? '').split(',').filter(Boolean)
   const redes = (sp?.rede ?? '').split(',').filter(Boolean)
   const cinemas = (sp?.cinema ?? '').split(',').filter(Boolean)
+  const audios = (sp?.audio ?? '').split(',').filter(Boolean)
   const hora = sp?.hora ?? ''
   // dia local escolhido no calendário (querystring é entrada de estranho)
   const data = /^\d{4}-\d{2}-\d{2}$/.test(sp?.data ?? '') ? sp.data : ''
   const todos = sp?.todos === '1'
 
   const temFiltro = Boolean(texto || generos.length || classes.length ||
-                            redes.length || cinemas.length || hora || data)
+                            redes.length || cinemas.length || audios.length ||
+                            hora || data)
 
   // rede e preset de horário são açúcar da UI: viram os params genéricos da
   // API aqui (cinema CSV / hora_de+hora_ate), nunca chegam ao backend.
@@ -41,6 +43,7 @@ export default async function Filmes({ searchParams }) {
   if (classes.length) params.classificacao = classes.join(',')
   if (cinemas.length) params.cinema = cinemas.join(',')
   else if (redes.length) params.cinema = redesParaCinemas(redes).join(',')
+  if (audios.length) params.audio = audios.join(',')
   if (hora && HORARIOS[hora]) {
     const h = HORARIOS[hora]
     if (h.hora_de != null) params.hora_de = h.hora_de
@@ -61,7 +64,8 @@ export default async function Filmes({ searchParams }) {
   // strings, para o "aplicar" preservar os demais filtros ao navegar.
   // Rede e cinema se excluem (os dois viram o MESMO param da API).
   const atual = { texto, generos, classificacao: classes, rede: redes,
-                  cinema: cinemas, hora, data, todos: todos ? '1' : '' }
+                  cinema: cinemas, audio: audios, hora, data,
+                  todos: todos ? '1' : '' }
   const href = (mudanca) => {
     const novo = { ...atual, ...mudanca }
     const q = new URLSearchParams()
@@ -73,11 +77,12 @@ export default async function Filmes({ searchParams }) {
     return qs ? `/cinema?${qs}` : '/cinema'
   }
   const estado = { texto, generos: generos.join(','), classificacao: classes.join(','),
-                   rede: redes.join(','), cinema: cinemas.join(','), hora, data,
+                   rede: redes.join(','), cinema: cinemas.join(','),
+                   audio: audios.join(','), hora, data,
                    todos: todos ? '1' : '' }
 
   const nFiltros = generos.length + classes.length + redes.length +
-    cinemas.length + (hora ? 1 : 0) + (data ? 1 : 0)
+    cinemas.length + audios.length + (hora ? 1 : 0) + (data ? 1 : 0)
   // "todos os filmes" força a grade plana (sem vitrine) mesmo sem filtro
   // nenhum ativo, e nesse caso o padrão é alfabético — a API ordena por
   // relevância (nº de sessões), que não é o que faz sentido numa lista A-Z
@@ -136,6 +141,16 @@ export default async function Filmes({ searchParams }) {
                       param="hora" selecionados={hora ? [hora] : []} unico
                       opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
                         ({ valor: chave, rotulo: h.rotulo }))} />
+
+          {/* Dublado/Legendado/Nacional. A fonte não tem campo próprio: o
+              áudio vem embutido no `tipos` da sessão, e quem o extrai é a
+              consulta. Com uma opção só o drop não aparece — filtro que não
+              recorta nada é ruído na barra. */}
+          {facetas?.audios?.length > 1 && (
+            <DropFiltro rotulo="áudio" base="/cinema" estado={estado}
+                        param="audio" selecionados={audios}
+                        opcoes={facetas.audios.map((a) => ({ valor: a, rotulo: a }))} />
+          )}
 
           {facetas?.classificacoes?.length > 0 && (
             <DropFiltro rotulo="classificação" base="/cinema" estado={estado}

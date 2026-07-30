@@ -25,8 +25,8 @@ regra de negócio, e ambas decorrem da spec:
 Rotas (o vercel.json reescreve /api/dados/* para cá):
     GET  /api/dados/eventos?texto=&de=&ate=&limite=&gratis=&bairro=&tipo=&perto=
     GET  /api/dados/evento?url=
-    GET  /api/dados/filmes?texto=&cinema=&de=&ate=&limite=
-    GET  /api/dados/sessoes?filme=&cinema=
+    GET  /api/dados/filmes?texto=&cinema=&de=&ate=&limite=&audio=
+    GET  /api/dados/sessoes?filme=&cinema=&audio=
 
 `?url=` e `?filme=` são IDENTIFICADORES, não formatos fixos: aceitam o slug do
 endereço público (`forro-na-varanda-26-07`), o id interno e a url da fonte, e
@@ -215,6 +215,7 @@ def rota(caminho, q, con=None):
             classificacao=_str(q, "classificacao"),
             hora_de=int(hora_de) if hora_de and hora_de.isdigit() else None,
             hora_ate=int(hora_ate) if hora_ate and hora_ate.isdigit() else None,
+            audio=_str(q, "audio"),
             limite=_int(q, "limite", 40, 100), con=con),
             "facetas": consulta.facetas_filmes(con=con)}, CACHE
 
@@ -229,7 +230,7 @@ def rota(caminho, q, con=None):
             filme, data_inicio=de, data_fim=ate, cinema=_str(q, "cinema"),
             hora_de=int(hora_de) if hora_de and hora_de.isdigit() else None,
             hora_ate=int(hora_ate) if hora_ate and hora_ate.isdigit() else None,
-            con=con,
+            audio=_str(q, "audio"), con=con,
         ), CACHE
 
     if caminho.endswith("/procedencia"):

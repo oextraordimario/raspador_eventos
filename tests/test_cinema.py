@@ -133,6 +133,22 @@ def main():
     print("filtros novos: multi gênero/classificação, cinema CSV, hora local, "
           "facetas — ok")
 
+    # ── áudio: dublado/legendado/nacional saem do `tipos` cru, que mistura
+    # formato, sala e idioma numa string só ("3D/XD/Legendado") ──
+    assert {f["titulo"] for f in consulta.buscar_filmes(audio="Legendado")} \
+        == {"Toy Story 5"}, "o legendado do Toy é a s2, dentro de 3D/XD/Legendado"
+    assert consulta.buscar_filmes(audio="Nacional") == [], \
+        "nenhuma sessão da fixture é Nacional"
+    # a sessão do drama é "2D": sem idioma no dado, o filme não entra em
+    # NENHUM recorte de áudio — o filtro promete o que a fonte marcou
+    assert {f["titulo"] for f in consulta.buscar_filmes(audio="Dublado,Legendado")} \
+        == {"Toy Story 5"}
+    assert len(consulta.buscar_filmes(audio="drop table")) == \
+        len(consulta.buscar_filmes()), "valor fora da lista é ignorado, não filtra"
+    assert fac["audios"] == ["Dublado", "Legendado"], fac
+    print("áudio: casa dentro do tipos composto; 2D não vira idioma; "
+          "valor inválido é ignorado — ok")
+
     # ── sessoes_filme: por título parcial sem acento; erro claro ──
     d = consulta.sessoes_filme("toy story")
     assert d["id"] == "100" and len(d["sessoes"]) == 3, d
@@ -168,7 +184,11 @@ def main():
     na_hora_d = consulta.sessoes_filme("100", hora_de=h_s1,
                                        hora_ate=(h_s1 + 1) % 24)
     assert len(na_hora_d["sessoes"]) == 1, na_hora_d["sessoes"]
-    print("sessoes_filme: filtros de cinema/hora; opções não encolhem — ok")
+    so_leg = consulta.sessoes_filme("100", audio="Legendado")
+    assert [s["tipos"] for s in so_leg["sessoes"]] == ["3D/XD/Legendado"], so_leg
+    assert so_leg["audios"] == ["Dublado", "Legendado"], \
+        "audios do filme são as OPÇÕES do drop: não encolhem com o filtro"
+    print("sessoes_filme: filtros de cinema/hora/áudio; opções não encolhem — ok")
 
     # ── enriquecimento externo (NI-36/NI-37): Bronze fora do snapshot ──
     gravar.gravar_tmdb(con, "100", {

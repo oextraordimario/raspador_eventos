@@ -58,12 +58,14 @@ export default async function Filme({ params, searchParams }) {
   // ESTE filme. Vivem na URL e descem como params genéricos da API.
   const redes = (sp?.rede ?? '').split(',').filter(Boolean)
   const cinemas = (sp?.cinema ?? '').split(',').filter(Boolean)
+  const audios = (sp?.audio ?? '').split(',').filter(Boolean)
   const hora = sp?.hora ?? ''
   // dia da strip (querystring é entrada de estranho, valida o formato)
   const data = /^\d{4}-\d{2}-\d{2}$/.test(sp?.data ?? '') ? sp.data : ''
   const paramsApi = {}
   if (cinemas.length) paramsApi.cinema = cinemas.join(',')
   else if (redes.length) paramsApi.cinema = redesParaCinemas(redes).join(',')
+  if (audios.length) paramsApi.audio = audios.join(',')
   if (hora && HORARIOS[hora]) {
     const h = HORARIOS[hora]
     if (h.hora_de != null) paramsApi.hora_de = h.hora_de
@@ -87,7 +89,8 @@ export default async function Filme({ params, searchParams }) {
   const dias = [...new Set(todas.map((s) => chaveDia(s.inicio)))].sort()
   const diaSel = dias.includes(data) ? data : dias[0]
   const grade = porCinemaTipo(todas.filter((s) => chaveDia(s.inicio) === diaSel))
-  const temFiltro = redes.length > 0 || cinemas.length > 0 || Boolean(hora)
+  const temFiltro = redes.length > 0 || cinemas.length > 0 ||
+                    audios.length > 0 || Boolean(hora)
 
   // Quantos meses a grade encosta: decide só a largura do menu (um calendário
   // ou dois lado a lado), não o que o Calendario mostra.
@@ -100,7 +103,8 @@ export default async function Filme({ params, searchParams }) {
 
   // estado atual da URL, p/ a strip e o "aplicar" dos DropFiltro preservarem
   // os demais parâmetros ao navegar
-  const estado = { rede: redes.join(','), cinema: cinemas.join(','), hora, data }
+  const estado = { rede: redes.join(','), cinema: cinemas.join(','),
+                   audio: audios.join(','), hora, data }
   const hrefDia = (dia) => {
     const q = new URLSearchParams()
     for (const [k, v] of Object.entries({ ...estado, data: dia })) if (v) q.set(k, v)
@@ -200,6 +204,15 @@ export default async function Filme({ params, searchParams }) {
                       param="hora" selecionados={hora ? [hora] : []} unico
                       opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
                         ({ valor: chave, rotulo: h.rotulo }))} />
+
+          {/* As opções saem do que ESTE filme tem (mesmo contrato de
+              `filme.cinemas`: a lista vem sem os filtros aplicados). Filme
+              nacional costuma ter só "Nacional" — aí o drop não aparece. */}
+          {(filme.audios || []).length > 1 && (
+            <DropFiltro rotulo="áudio" base={`/cinema/${filme.slug}`} estado={estado}
+                        param="audio" selecionados={audios}
+                        opcoes={filme.audios.map((a) => ({ valor: a, rotulo: a }))} />
+          )}
 
           {redesDoFilme.length > 1 && (
             <DropFiltro rotulo="rede" base={`/cinema/${filme.slug}`} estado={estado}
