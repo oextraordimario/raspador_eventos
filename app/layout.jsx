@@ -21,7 +21,7 @@ const mono = Fira_Code({
 export const metadata = {
   metadataBase: new URL(ORIGEM),
   title: {
-    default: `${MARCA.nome} — o que rola em ${MARCA.cidade}`,
+    default: `${MARCA.nome}: o que rola em ${MARCA.cidade}`,
     template: `%s · ${MARCA.nome}`,
   },
   description: MARCA.descricao,
@@ -79,7 +79,7 @@ export default function RootLayout({ children }) {
         <main className="wrap">{children}</main>
 
         <footer className="foot">
-          não vendemos ingresso — cada evento leva para quem está vendendo
+          não vendemos ingresso: cada evento leva para quem está vendendo
           <div className="foot-linha">
             <span>
               <Link href="/sobre">sobre</Link> ·{' '}

@@ -53,7 +53,7 @@ export function Corpo({ ev, titulo, horario, pagina }) {
         </div>
         <div className="where">
           {ev.local_nome || 'local a confirmar'}
-          {ev.bairro && ` — ${ev.bairro}`}
+          {ev.bairro && ` · ${ev.bairro}`}
           {ev.endereco && <><br /><span className="also">{ev.endereco}</span></>}
         </div>
 
@@ -63,7 +63,7 @@ export function Corpo({ ev, titulo, horario, pagina }) {
             <div className="desc">{ev.descricao}</div>
             {ev.descricao_truncada && (
               <div className="desc-corte">
-                Texto do organizador, em trecho — o resto está na página da fonte.
+                Texto do organizador, em trecho. O resto está na página da fonte.
               </div>
             )}
           </div>

@@ -33,7 +33,7 @@ export default async function Home({ searchParams }) {
       <div className="hall-head">
         <h2>O que rola em {MARCA.cidade}, num lugar só.</h2>
         <p>
-          Festas, shows e cinema — coletados todo dia das plataformas de
+          Festas, shows e cinema, coletados todo dia das plataformas de
           ingresso, da grade dos cinemas e do Instagram das casas.
         </p>
       </div>
@@ -42,8 +42,8 @@ export default async function Home({ searchParams }) {
         <Link className="portal" href="/festas">
           <span className="portal-title">festas &amp; shows</span>
           <span className="portal-desc">
-            A noite da cidade: baladas, shows e festas, com preço, line-up e
-            link para o ingresso.
+            Baladas, shows e festas da cidade, com preço, line-up e o link de
+            quem está vendendo o ingresso.
           </span>
           <span className="portal-foot">
             {eventos.length > 0 && (
@@ -58,8 +58,8 @@ export default async function Home({ searchParams }) {
         <Link className="portal" href="/cinema">
           <span className="portal-title">cinema</span>
           <span className="portal-desc">
-            O que está em cartaz nos cinemas da cidade, com horários, salas e
-            preço de cada sessão.
+            O que está em cartaz nos cinemas de {MARCA.cidade}, com horário,
+            sala e preço de cada sessão.
           </span>
           <span className="portal-foot">
             {filmes.length > 0 && (

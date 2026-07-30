@@ -73,7 +73,7 @@ export default function PertoDeMim({ ativo, base, estado: params }) {
       </button>
       {estado === 'negado' && (
         <span className="chip-aviso">
-          sem acesso à localização — o filtro de bairro resolve
+          sem acesso à localização, o filtro de bairro resolve
         </span>
       )}
     </>

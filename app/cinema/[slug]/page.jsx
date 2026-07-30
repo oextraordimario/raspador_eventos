@@ -16,7 +16,7 @@ export async function generateMetadata({ params }) {
   if (!filme) return { title: 'filme não encontrado' }
   return {
     title: filme.titulo,
-    description: `Sessões de ${filme.titulo} nos cinemas de Brasília — horários, salas e onde comprar.`,
+    description: `Sessões de ${filme.titulo} nos cinemas de Brasília: horários, salas e onde comprar.`,
     // como na página de evento: o canônico é o slug do filme, não o parâmetro
     // pelo qual se chegou (id numérico antigo, ou slug sem o ano)
     alternates: { canonical: `${ORIGEM}/cinema/${filme.slug}` },
@@ -213,8 +213,8 @@ export default async function Filme({ params, searchParams }) {
             <strong>{temFiltro ? 'Nenhuma sessão com esses filtros' : 'Sem sessões futuras'}</strong>
             <span>
               {temFiltro
-                ? 'Afrouxe um dos filtros — as opções acima mostram onde o filme passa.'
-                : 'O filme saiu de cartaz ou a grade ainda não foi coletada.'}
+                ? 'Afrouxe um dos filtros: as opções acima mostram onde o filme passa.'
+                : 'O filme saiu de cartaz, ou ainda não coletamos a grade desta semana.'}
             </span>
           </div>
         ) : (

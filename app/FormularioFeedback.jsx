@@ -17,10 +17,10 @@ const PADRAO = 'bug'
 // parado no texto do assunto padrão (PADRAO), que é o que o servidor já
 // renderiza de cara.
 const PLACEHOLDERS = {
-  bug: 'Conte com as suas palavras o que aconteceu. Se for sobre um evento específico, cola o link dele aqui.',
+  bug: 'Conta com as suas palavras o que aconteceu. Se for sobre um evento específico, cola o link dele aqui.',
   casa: 'Qual é o nome do evento ou da casa, quando é e onde? Se tiver um link (Instagram, site do ingresso), cola aqui.',
-  sugestao: 'Conta sua ideia com detalhes — o que você mudaria e por quê.',
-  outro: 'Conte com as suas palavras.',
+  sugestao: 'Conta sua ideia com detalhes: o que você mudaria e por quê.',
+  outro: 'Conta com as suas palavras.',
 }
 
 // Campos do canal de feedback (NI-52), compartilhados entre a página

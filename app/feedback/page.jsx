@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic'
 const ERROS = {
   vazio: 'Faltou escrever a mensagem.',
   tipo: 'Escolha um dos assuntos da lista.',
-  muitos: 'Chegou muita coisa ao mesmo tempo agora. Tente de novo em um minuto.',
+  muitos: 'Chegou muita coisa ao mesmo tempo por aqui. Tente de novo em um minuto.',
   interno: 'Deu erro do nosso lado. Se puder, tente de novo daqui a pouco.',
 }
 
@@ -40,8 +40,8 @@ export default async function Feedback({ searchParams }) {
         {ok ? (
           <>
             <div className="note">
-              <strong>Recebido.</strong> Obrigado — isso vira trabalho de
-              verdade por aqui. Se você deixou contato, a gente responde.
+              <strong>Recebido.</strong> Obrigado. Isso vira trabalho de
+              verdade por aqui, e se você deixou contato a gente responde.
             </div>
             <p>
               <Link className="cta ghost" href="/feedback">enviar outro</Link>
@@ -51,8 +51,8 @@ export default async function Feedback({ searchParams }) {
           <>
             <p>
               O {MARCA.nome} é feito por uma pessoa só e depende de gente
-              contando o que está errado. Preço desatualizado, evento que não
-              existe, casa faltando, ideia de melhoria — manda.
+              contando o que está errado. Achou preço desatualizado, evento que
+              não existe ou casa faltando? Tem ideia de melhoria? Manda.
             </p>
 
             {erro && <div className="note erro">{erro}</div>}

@@ -44,15 +44,15 @@ export default function Sobre() {
         <h2>não vendemos ingresso</h2>
         <p>
           Nenhum. Cada evento leva pro link de quem está vendendo, e é lá que a
-          compra acontece — a gente não intermedia, não cobra taxa e não fica com
+          compra acontece. A gente não intermedia, não cobra taxa e não fica com
           nada. O preço que aparece aqui é o que a plataforma publicou na última
           coleta e pode ter mudado desde então.
         </p>
 
         <h2>a descrição vem cortada</h2>
         <p>
-          De propósito. O texto do evento é escrito por quem organiza, e ele
-          pertence a quem escreveu — mostramos o suficiente pra você entender o
+          De propósito. O texto do evento é escrito por quem organiza, e
+          pertence a quem escreveu. Mostramos o suficiente pra você entender o
           estilo da noite e decidir se abre o link. O texto completo fica na
           página da fonte.
         </p>
@@ -60,7 +60,7 @@ export default function Sobre() {
         <h2>achou um erro? quer sua casa aqui?</h2>
         <p>
           Preço desatualizado, evento que não existe mais, casa que devia estar
-          e não está — todo aviso vira trabalho por aqui.{' '}
+          e não está: todo aviso vira trabalho por aqui.{' '}
           <Link href="/feedback?de=/sobre">fale com a gente</Link>.
         </p>
         <p>
@@ -75,7 +75,7 @@ export default function Sobre() {
         <p>
           O botão “perto de mim” pede a sua localização ao navegador só para
           ordenar a lista pelo que está mais próximo. A coordenada vai na
-          consulta e <strong>não é guardada em lugar nenhum</strong> — nem na
+          consulta e <strong>não é guardada em lugar nenhum</strong>: nem na
           nossa base, nem em registro de acesso, nem nas ferramentas de
           medição de audiência (ela sai mascarada do endereço antes disso). Se
           você não autorizar, o filtro de bairro faz um trabalho parecido.
@@ -83,8 +83,8 @@ export default function Sobre() {
 
         <h2>é uma casa ou plataforma?</h2>
         <p>
-          Se você quer que um evento, um perfil ou uma casa saia daqui, é só pedir
-          — a gente tira, sem discussão.{' '}
+          Se você quer que um evento, um perfil ou uma casa saia daqui, é só
+          pedir. A gente tira, sem discussão.{' '}
           <a className="cta ghost" style={{ marginTop: 10 }}
              href="https://github.com/oextraordimario/raspador_eventos/issues/new"
              target="_blank" rel="noopener">

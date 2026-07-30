@@ -7,7 +7,7 @@ import FormularioFeedback from './FormularioFeedback'
 const ERROS = {
   vazio: 'Faltou escrever a mensagem.',
   tipo: 'Escolha um dos assuntos da lista.',
-  muitos: 'Chegou muita coisa ao mesmo tempo agora. Tente de novo em um minuto.',
+  muitos: 'Chegou muita coisa ao mesmo tempo por aqui. Tente de novo em um minuto.',
   interno: 'Deu erro do nosso lado. Se puder, tente de novo daqui a pouco.',
 }
 
@@ -79,8 +79,8 @@ export default function ModalFeedback({ aberto, aoFechar, pagina }) {
 
         {recebido ? (
           <div className="note">
-            <strong>Recebido.</strong> Obrigado — isso vira trabalho de
-            verdade por aqui. Se você deixou contato, a gente responde.
+            <strong>Recebido.</strong> Obrigado. Isso vira trabalho de
+            verdade por aqui, e se você deixou contato a gente responde.
           </div>
         ) : (
           <div onSubmit={aoSubmeter}>

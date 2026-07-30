@@ -164,13 +164,13 @@ export default async function Filmes({ searchParams }) {
               <div className="empty">
                 <strong>Nada em cartaz com esses filtros</strong>
                 <span>
-                  {texto ? `Nenhum filme casa com “${texto}”.` : 'Afrouxe um dos filtros.'}
+                  {texto ? `Nenhum filme bate com “${texto}”.` : 'Afrouxe um dos filtros.'}
                 </span>
               </div>
             ) : (
               <div className="empty">
                 <strong>Nada em cartaz</strong>
-                <span>A grade ainda não foi coletada.</span>
+                <span>Ainda não coletamos a grade desta semana.</span>
               </div>
             )
           ) : (

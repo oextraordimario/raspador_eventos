@@ -20,16 +20,16 @@ export async function GET() {
 
 ## O que há aqui
 
-- ${ORIGEM}/ — porta de entrada, com as duas seções do site
-- ${ORIGEM}/festas — festas e shows, com filtros de período
+- ${ORIGEM}/: porta de entrada, com as duas seções do site
+- ${ORIGEM}/festas: festas e shows, com filtros de período
   (?periodo=hoje|amanha|fds|semana|proximos), busca textual (?texto=) e
   só-gratuitos (?gratis=1)
-- ${ORIGEM}/cinema — filmes em cartaz nos cinemas de ${MARCA.cidade}
-- ${ORIGEM}/evento/<titulo>-<dia>-<mes> — uma página por evento, com JSON-LD
+- ${ORIGEM}/cinema: filmes em cartaz nos cinemas de ${MARCA.cidade}
+- ${ORIGEM}/evento/<titulo>-<dia>-<mes>: uma página por evento, com JSON-LD
   schema.org/Event (ex.: /evento/forro-na-varanda-26-07)
-- ${ORIGEM}/cinema/<titulo>-<ano> — uma página por filme em cartaz, com
+- ${ORIGEM}/cinema/<titulo>-<ano>: uma página por filme em cartaz, com
   JSON-LD schema.org/Movie e a grade de sessões
-- ${ORIGEM}/sobre — procedência do dado e canal de remoção
+- ${ORIGEM}/sobre: procedência do dado e canal de remoção
 
 ## Cobertura atual
 
