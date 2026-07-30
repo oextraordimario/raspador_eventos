@@ -1089,8 +1089,8 @@
 
 - codigo: NI-66
   status: nao-iniciado
-  prioridade: media
-  rank: 3
+  prioridade: alta
+  rank: 1
   esforco: P
   eixo: produto
   fase: 2
