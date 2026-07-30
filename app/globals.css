@@ -316,7 +316,7 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--zu-mono); font-size: 11px; color: var(--zu-fg-3);
   text-transform: uppercase; letter-spacing: .1em; padding: 20px 2px 2px; margin: 0;
 }
-/* Em /festas a contagem mora na própria linha de filtros (.drops), não mais
+/* Em /festas e /cinema a contagem mora na própria linha de filtros (.drops), não mais
    acima da lista — empurra pro canto direito e não herda o respiro de cima,
    que era pensado pra ficar logo antes dos cards. */
 .drops .count { margin-left: auto; padding: 6px 2px; white-space: nowrap; }

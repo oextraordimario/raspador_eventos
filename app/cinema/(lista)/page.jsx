@@ -86,6 +86,9 @@ export default async function Filmes({ searchParams }) {
   const listaFilmes = todos
     ? [...filmes].sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
     : filmes
+  // a vitrine repete o mesmo filme em várias faixas, então quem conta é o
+  // conjunto que veio da API, nunca a soma das faixas
+  const total = grade ? listaFilmes.length : filmes.length
 
   return (
     <>
@@ -156,14 +159,19 @@ export default async function Filmes({ searchParams }) {
               limpar
             </Link>
           )}
+
+          {/* Como em /festas: a contagem fica na ponta direita da própria
+              barra de filtros (o `margin-left: auto` do .drops .count), e
+              aparece também na vitrine — ali ela é o tamanho do cartaz da
+              cidade, não o resultado de um filtro. */}
+          <p className="count">
+            {total} {total === 1 ? 'filme' : 'filmes'}
+          </p>
         </div>
       </div>
 
       {grade ? (
         <>
-          <p className="count">
-            {listaFilmes.length} {listaFilmes.length === 1 ? 'filme' : 'filmes'}
-          </p>
           {listaFilmes.length === 0 ? (
             temFiltro ? (
               <div className="empty">
