@@ -235,6 +235,9 @@ export default async function Festas({ searchParams }) {
   const mesCal = /^\d{4}-\d{2}$/.test(sp?.mesCal ?? '') ? sp.mesCal : ''
 
   const filtros = { periodo, texto, gratis, dia, bairros, tipo, perto }
+  // "agenda inteira" ligada: nenhum dia escolhido no calendário e o período
+  // resolvido é o mais largo que existe
+  const aberto = !dia && periodo === 'proximos'
 
   // Preserva os outros filtros ao trocar um deles — sem isso, escolher
   // "grátis" apagaria a busca que a pessoa acabou de digitar.
@@ -286,8 +289,14 @@ export default async function Festas({ searchParams }) {
               antes recorta a lista, este a abre inteira. */}
           <span className="drops-sep" aria-hidden="true" />
 
-          <Link className="chip" href={comFiltro({ periodo: 'proximos', dia: '', mesCal: '' })}
-                data-on={!dia && periodo === 'proximos' ? '1' : '0'}>
+          {/* Alterna, como todo chip da barra: aceso, o clique volta pra
+              "hoje" — o recorte mais estreito que existe. Sem isso o botão
+              era o único que não respondia ao segundo clique, porque o
+              destino era a URL em que a pessoa já estava. */}
+          <Link className="chip"
+                href={comFiltro({ periodo: aberto ? 'hoje' : 'proximos',
+                                  dia: '', mesCal: '' })}
+                data-on={aberto ? '1' : '0'}>
             todos os eventos
           </Link>
 
