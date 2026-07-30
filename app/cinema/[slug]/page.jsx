@@ -5,7 +5,9 @@ import { ORIGEM } from '../../../lib/config'
 import { chaveDia, rotuloDia, diaMes } from '../../../lib/formato'
 import { REDES, HORARIOS, redesParaCinemas, notaFmt } from '../../../lib/cinema'
 import Cartaz from '../Cartaz'
+import Drop from '../../Drop'
 import DropFiltro from '../../DropFiltro'
+import Calendario from '../../Calendario'
 import SessaoLink from './SessaoLink'
 
 export const revalidate = 300
@@ -86,6 +88,15 @@ export default async function Filme({ params, searchParams }) {
   const diaSel = dias.includes(data) ? data : dias[0]
   const grade = porCinemaTipo(todas.filter((s) => chaveDia(s.inicio) === diaSel))
   const temFiltro = redes.length > 0 || cinemas.length > 0 || Boolean(hora)
+
+  // Quantos meses a grade encosta: decide só a largura do menu (um calendário
+  // ou dois lado a lado), não o que o Calendario mostra.
+  const meses = new Set(dias.map((d) => d.slice(0, 7))).size
+  // O rótulo do drop carrega o dia que está na tela. Colapsar a strip sem
+  // isso tiraria da página a única indicação de QUAL dia a grade abaixo é.
+  const rotuloData = diaSel
+    ? `${rotuloDia(diaSel).texto} ${diaMes(`${diaSel}T12:00:00-03:00`)}`
+    : 'data'
 
   // estado atual da URL, p/ a strip e o "aplicar" dos DropFiltro preservarem
   // os demais parâmetros ao navegar
@@ -169,22 +180,27 @@ export default async function Filme({ params, searchParams }) {
 
         <h2>encontre sua sessão</h2>
 
-        {dias.length > 0 && (
-          <nav className="dias" aria-label="Escolher o dia">
-            {dias.map((dia) => {
-              const r = rotuloDia(dia)
-              return (
-                <Link key={dia} href={hrefDia(dia)} className="dia-tab"
-                      data-on={dia === diaSel ? '1' : undefined}
-                      aria-current={dia === diaSel ? 'date' : undefined}>
-                  {r.texto} <span className="num">{diaMes(`${dia}T12:00:00-03:00`)}</span>
-                </Link>
-              )
-            })}
-          </nav>
-        )}
-
         <div className="drops" role="group" aria-label="Filtrar sessões">
+          {/* A strip de abas de dia virou um drop só, com o mesmo calendário
+              das páginas de lista. Sem setas de mês de propósito: a grade da
+              fonte cobre ~8 dias, então `maxMeses=0` (o default do
+              Calendario) mostra exatamente os meses que existem — um, ou dois
+              quando a semana atravessa a virada. Navegar para um mês vazio
+              não teria o que mostrar. */}
+          {dias.length > 0 && (
+            <Drop rotulo={rotuloData} aberto={Boolean(data)}
+                  classeMenu={meses > 1 ? 'drop-menu-data' : ''}>
+              <Calendario dias={dias} selecionado={diaSel} hrefDia={hrefDia} />
+            </Drop>
+          )}
+
+          {/* Quando e a que horas andam juntos: são as duas perguntas que a
+              pessoa faz antes de escolher ONDE. */}
+          <DropFiltro rotulo="horário" base={`/cinema/${filme.slug}`} estado={estado}
+                      param="hora" selecionados={hora ? [hora] : []} unico
+                      opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
+                        ({ valor: chave, rotulo: h.rotulo }))} />
+
           {redesDoFilme.length > 1 && (
             <DropFiltro rotulo="rede" base={`/cinema/${filme.slug}`} estado={estado}
                         param="rede" selecionados={redes} limpa="cinema"
@@ -196,10 +212,6 @@ export default async function Filme({ params, searchParams }) {
                         param="cinema" selecionados={cinemas} limpa="rede"
                         opcoes={filme.cinemas.map((c) => ({ valor: c, rotulo: c }))} />
           )}
-          <DropFiltro rotulo="horário" base={`/cinema/${filme.slug}`} estado={estado}
-                      param="hora" selecionados={hora ? [hora] : []} unico
-                      opcoes={Object.entries(HORARIOS).map(([chave, h]) =>
-                        ({ valor: chave, rotulo: h.rotulo }))} />
           {temFiltro && (
             <Link className="drop-limpar"
                   href={data ? `/cinema/${filme.slug}?data=${data}` : `/cinema/${filme.slug}`}>

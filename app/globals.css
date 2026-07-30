@@ -681,20 +681,9 @@ a.cal-dia:focus-visible { outline: 1px solid var(--zu-green); outline-offset: 1p
   .filme-topo { grid-template-columns: 220px 1fr; gap: 24px; }
 }
 
-/* Strip de dias: a grade mostra UM dia por vez (tudo aberto era um paredão
-   de centenas de pills). Cada aba é um link com ?data= — estado na URL. */
-.dias { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.dia-tab {
-  flex: none; display: inline-flex; align-items: baseline; gap: 5px;
-  border: 1px solid var(--zu-divider); border-radius: var(--zu-r-sm);
-  padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--zu-fg-2);
-  background: var(--zu-card); transition: border-color 120ms, color 120ms;
-}
-.dia-tab .num { font-family: var(--zu-mono); font-size: 11px; color: var(--zu-fg-3); font-weight: 400; }
-.dia-tab:hover { border-color: var(--zu-green); color: var(--zu-green); }
-.dia-tab[data-on='1'] { background: var(--zu-green); color: var(--zu-on-green); border-color: var(--zu-green); }
-.dia-tab[data-on='1'] .num { color: var(--zu-on-green); opacity: .75; }
-
+/* A strip de abas de dia (`.dias`/`.dia-tab`) virou o drop de calendário da
+   barra de filtros — a grade continua mostrando UM dia por vez, mas quem
+   escolhe é o mesmo controle das páginas de lista. */
 .sess-cinema-nome { font-weight: 600; font-size: 14.5px; background: var(--zu-ink-2); }
 /* Linha por FORMATO (Dublado, 3D/Legendado...): o rótulo sai da pill e
    aparece uma vez à esquerda; a pill fica só com a hora. */
