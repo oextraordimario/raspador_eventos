@@ -1086,3 +1086,40 @@
     expor isso (uma linha de texto, não um CTA) especificamente quando as
     fontes do grupo são diferentes — o que exigiria a página saber a fonte de
     cada item de `outras_urls`, que hoje ela não sabe (só guarda a URL).
+
+- codigo: NI-66
+  status: nao-iniciado
+  prioridade: media
+  rank: 3
+  esforco: P
+  eixo: produto
+  fase: 2
+  titulo: "Sitemap não lista NENHUM filme — a página de cinema é invisível para o buscador"
+  resumo: "app/sitemap.js lista home, /festas, /cinema, /sobre e uma entrada por evento futuro; as páginas /cinema/<slug> ficaram de fora e nenhuma delas é alcançável por link do sitemap, apesar de cada uma ter JSON-LD schema.org/Movie"
+  data: 2026-07-29
+  depende_de: []
+  relacionado: [NI-63]
+  caso_real: ["achado em 29/07 investigando as URLs semânticas: o sitemap tem 200 eventos e 4 páginas fixas, zero filmes — enquanto 23 filmes em cartaz têm página própria, cartaz, sinopse, nota do TMDB e grade de sessões"]
+  detalhe: |
+    O DESEQUILÍBRIO: a Porta B da Fase 2 (ser achado por buscador e por LLM) foi
+    implementada para eventos e ficou pela metade no cinema. Cada /cinema/<slug>
+    já traz JSON-LD schema.org/Movie, `canonical` e a grade de sessões — só não
+    está listada em lugar nenhum que um crawler leia.
+
+    O QUE FAZER: acrescentar `listarFilmes()` ao app/sitemap.js, uma entrada por
+    filme em cartaz, com `ev.slug` (o endereço semântico de 29/07 —
+    /cinema/homem-aranha-um-novo-dia-2026). Mesma postura dos eventos: só o que
+    está em cartaz entra, porque sitemap com filme que saiu gasta orçamento de
+    rastreamento em página que não serve mais.
+
+    CUIDADO DE DESENHO (é o que faz o item não ser trivial): a lista de filmes é
+    SNAPSHOT — reconstruída do zero a cada rodada. Filme que sai de cartaz perde
+    a página, então a URL sai do sitemap e passa a responder 404. Isso está
+    correto (é a verdade: a sessão não existe mais), mas vale decidir de forma
+    consciente se o certo é 404 ou uma página "saiu de cartaz" com o histórico —
+    hoje o `tratado.filmes` não guarda filme fora de cartaz, mas `cru.tmdb` é
+    acumulativo e `operacao.slugs` passou a guardar o endereço, então a segunda
+    opção é possível sem raspar nada de novo.
+
+    Só vale medir depois do NI-63 (Search Console): sem ele não há como saber se
+    o buscador leu o sitemap nem o que a pessoa digitou para chegar.
