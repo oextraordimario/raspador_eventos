@@ -134,6 +134,7 @@ src/
                cinema.py  instagram.py                   # domínios de contrato próprio
                bairros.py   # dicionário de regiões do DF (roda DENTRO do comum)
                sumido.py  enriquecer.py  curadoria.py  busca.py
+               slug.py      # o endereço público de cada evento/filme
                ciclo.py     # o ciclo inteiro numa transação só
   servico/     consulta.py  mcp_server.py  auth.py  feedback.py
   pipeline/    atualizar.py  execucoes.py            # orquestração
@@ -278,6 +279,14 @@ aqui + `--so-derivar`, **sem re-raspar**.
   confiança ALTA + nome + data resolvida (errar p/ o lado de NÃO criar). Preço do
   flyer vira lote sintético. Roda DEPOIS de `comum.aplicar()`, que apaga `lotes`.
   Specs: `20260710_camada-bronze/`, `-camada-prata/`, `-lotes-ingressos/`.
+- `src/tratamento/slug.py` — o **endereço público**: `tratado.eventos.slug`
+  (`<titulo-limpo>-<dd>-<mm>`, dia LOCAL de Brasília) e `tratado.filmes.slug`
+  (`<titulo>-<ano>`, padrão IMDB). Roda DEPOIS da curadoria (nome e data são
+  curáveis, e a URL segue a correção humana) e do enriquecer (o endereço limpo
+  fica com o canônico). Escada de desempate: dia-mês → +ano (colisão entre anos)
+  → ordinal (mesmo dia). Unicidade por **índice único**, não por convenção;
+  `slug` NÃO entra em `comum.COLS_EVENTO` (a armadilha do `tipo`). Registra tudo
+  em `operacao.slugs`, e é isso que faz link antigo virar 308 em vez de 404.
 - `src/tratamento/sumido.py` — deriva `sumido` de `operacao.coletas`: evento FUTURO
   cujo `raspado_em` ficou atrás do início da última coleta boa da fonte não reapareceu
   no catálogo. As três guardas saem do SQL, não de `if` no orquestrador: fonte que
@@ -325,7 +334,8 @@ aqui + `--so-derivar`, **sem re-raspar**.
   serve agente em contexto privado, não página indexada) e `organizador` NUNCA é
   exposto (às vezes é pessoa física → LGPD). Rotas sob `/api/dados/*`.
 - `app/` + `lib/` — **site público** (Next.js App Router). Rotas: `/` (home),
-  `/festas`, `/cinema`, `/evento/[id]`, `/sobre`, `/feedback`. Os filtros vivem
+  `/festas`, `/cinema`, `/evento/[slug]`, `/cinema/[slug]`, `/sobre`,
+  `/feedback`. Os filtros vivem
   na URL (`?periodo=&texto=&gratis=&dia=&bairro=&tipo=&perto=`), não em estado
   de cliente: funciona sem JS, cada
   combinação é endereço compartilhável e o SSR entrega HTML pronto — que é o que a
@@ -357,7 +367,7 @@ só p/ post NOVO ≤ 60 dias; falha re-tenta na próxima rodada) → flyer para 
 
 **2. Tratamento (a seco), em `ciclo.executar`, numa transação só.**
 `comum.aplicar()` → `instagram.aplicar()` → `cinema.aplicar()` → `sumido.aplicar()` →
-`enriquecer.aplicar(aliases_local=...)` → `curadoria.aplicar()` →
+`enriquecer.aplicar(aliases_local=...)` → `curadoria.aplicar()` → `slug.aplicar()` →
 `reconstruir_fts()` (eventos E filmes) → **um commit**.
 
 Depois: TMDB e cópia de pôster (que só sabem o que buscar depois de a grade existir,
@@ -425,6 +435,19 @@ filmes, título/gêneros.
   SÓ na coleta, de propósito: repeti-la na leitura do payload foi medido contra a base
   real e descartava descrição boa toda vez que o produtor renomeava o evento entre uma
   raspagem e outra (o nome do catálogo se move; a comparação só vale fresca).
+- **`loading.jsx` custa o status HTTP da rota inteira, inclusive das filhas.**
+  Ele cria uma fronteira de Suspense, e o Next despacha um shell **200** antes de
+  resolver a página — então `notFound()` e `permanentRedirect()` acontecem no
+  CLIENTE. O 404 vira soft-404 e o 308 vira redirecionamento que só navegador
+  executa: para o buscador, o endereço antigo continua sendo uma página que
+  responde 200. Medido no build de produção em 29/07 (no `dev` é igual, mas só o
+  build prova). E a fronteira desce a árvore: `app/cinema/loading.jsx` cobria
+  também `app/cinema/[slug]`, por isso a lista mora num route group
+  `app/cinema/(lista)/` — o grupo não aparece na URL e mantém o esqueleto na
+  lista sem estragar o status do detalhe. Colocar `loading.jsx` num segmento com
+  filhas que dependem de status HTTP é o jeito silencioso de quebrar SEO.
+  Testar redirecionamento com `curl -o /dev/null -w '%{http_code}'` no
+  `next start`, nunca só clicando no navegador — no navegador os dois passam.
 - **`loading.jsx` NÃO cobre troca de filtro.** Ele só entra quando o SEGMENTO
   de rota muda, e `/festas?periodo=hoje` → `?periodo=7d` é a mesma rota — ou
   seja, justamente o gesto de que o beta reclamou ficava sem sinal de vida. O
@@ -467,6 +490,16 @@ filmes, título/gêneros.
   `$set_once` (o hook antigo, `sanitize_properties`, nem enxergava os dois
   últimos, onde mora o `$initial_current_url` do perfil da pessoa). Ao proteger
   um parâmetro novo, proteja por PADRÃO do valor, nunca por nome de campo.
+- **Endereço público é DADO, não cálculo na borda.** O `slug` de evento e de
+  filme é coluna da prata, atribuída por `tratamento/slug.py`; o front usa
+  `ev.slug`/`filme.slug` e **não existe regra de slug em JavaScript**. A razão é
+  a de sempre: duas implementações da mesma regra em duas linguagens divergem, e
+  aqui a divergência não seria um título feio — seria 404. A resolução é uma
+  regra só, sem farejar formato: *se o slug do registro difere do parâmetro da
+  rota, 308 para o do registro* — cobre id antigo (`sympla~3520331`, que o
+  farejador da `consulta.py` ainda entende), slug de antes de um renome (via
+  `operacao.slugs`), filme por id numérico ou sem o ano, e duplicata → canônico.
+  Spec: `docs/specs/20260729_urls-semanticas/`.
 - **Ruído conhecido:** o filtro `themes=99` do Sympla deixa passar anúncios/cursos —
   tratados pelo filtro v1 de `enriquecer.py` (na dúvida, a regra NÃO marca: falso
   positivo esconde festa real; termos já descartados em `docs/backlogs/rejeitado.yaml`).

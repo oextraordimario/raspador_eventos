@@ -1,10 +1,11 @@
-# Spec — URLs semânticas para evento e filme (RASCUNHO, não aprovada)
+# Spec — URLs semânticas para evento e filme
 
 **Data:** 2026-07-29
-**Status:** rascunho — as quatro perguntas abertas foram respondidas em 29/07
-(§13); nada implementado.
-**Backlog:** consome **NI-33** (limpeza de título na derivação); adjacente a
-NI-63 (Search Console).
+**Status:** **IMPLEMENTADA** em 2026-07-29, nas seis fatias da §9. As quatro
+decisões de rumo estão na §13 e **o que a execução desmentiu do plano está na
+§14** — é a leitura mais curta sobre por que o desenho ficou assim.
+**Backlog:** consumiu o **NI-33** (limpeza de título na derivação), que saiu da
+lista; adjacente a NI-63 (Search Console).
 
 ---
 
@@ -552,3 +553,87 @@ cara de spam) é exatamente o que o teto conserta.
 **D4 — `operacao.slugs` entra nesta leva** (§7.3). 2,3% dos eventos trocam de
 nome: sem o histórico, "URL bonita" duraria até o primeiro renome de um evento
 que alguém compartilhou. É a fatia 6, a única que poderia esperar — e não vai.
+
+---
+
+## 14. O que a execução mudou (2026-07-29)
+
+Implementada no mesmo dia, nas seis fatias da §9. O plano sobreviveu inteiro —
+mas **quatro coisas só apareceram rodando**, e três delas eram bugs meus.
+
+### 14.1 O placar
+
+| fatia | resultado |
+|---|---|
+| 1. `slugificar` + `titulo_limpo` | 21 asserções, todas contra nomes reais da base |
+| 2. NI-33 na base | dedupe **idêntico**: 42 grupos, 105 agrupados, 63 não-canônicos, 7 ruído — antes e depois |
+| 3. coluna + passo no ciclo | 551 eventos e 23 filmes, **574/574 endereços únicos** |
+| 4. resolução | slug, id, url, título e slug-sem-ano resolvem o mesmo registro |
+| 5. front | 8 pontos de `href` migrados; `idParaSlug`/`slugParaId`/`tituloLimpo` deletados |
+| 6. `operacao.slugs` | endereço antigo → 308; registro sumido → 404 |
+
+Testes: `tests/test_slug.py` (novo, 33 asserções) + os 7 de fumaça, todos
+passando. Nenhum teste existente precisou ser afrouxado.
+
+### 14.2 A ordenação por instante era um bug (fatia 3)
+
+A §4 dizia `start_date ASC`, e parecia obviamente certo: o passado não se move.
+Na primeira rodada, o canônico de "Festa Junina | Roça N' Roll" levou
+`...-31-07-2` e uma **duplicata** ficou com o endereço limpo — porque as quatro
+cópias têm horas diferentes, e o instante desempatava antes do
+`dedupe_canonico`. A chave virou **(dia local, canônico, não-ruído, id)**: o dia
+preserva a estabilidade histórica, o canônico garante que o endereço bonito fica
+com a linha que o site linka. Está no teste.
+
+### 14.3 O degrau do ano estava mentindo (fatia 3)
+
+A escada oferecia `-aaaa` sempre que o slug base estava tomado, então duas
+cópias do mesmo evento no mesmo dia produziam `aj-trio-29-07` e
+`aj-trio-29-07-2026`: único, mas o ano ali sugere desambiguação de aniversário
+onde só havia duplicata. Hoje o degrau 2 só é oferecido quando o conflito é com
+**outro ano de verdade**. Efeito colateral bom: o relatório passou de 28
+desempates por rodada (todos duplicatas, ruído puro) para **zero** — porque
+desempate de duplicata deixou de ser reportado, e só canônico levando ordinal
+vira aviso.
+
+### 14.4 O título limpo estava trocando a tipografia do organizador (fatia 2)
+
+A primeira rodada alterou **125 nomes**, e a medição mostrou que a maioria não
+tinha data nenhuma: era travessão virando barra ("Bernardo Rosa Trio — O melhor
+do Pop Rock" → "... | ..."), porque a regra original remontava os segmentos com
+`" | "` fixo. Invisível enquanto ela só pintava a tela; degradação de dado ao
+virar `nome` da prata, FTS e resposta do MCP. Com o separador do autor
+preservado, ficaram **116 alterações, 115 remoções de data + 1 colapso de espaço
+duplo** — verificado uma por uma por comparação normalizada.
+
+### 14.5 O `loading.jsx` come o status HTTP (fatia 5) — a que não era minha
+
+A §7.1 prometia 308 permanente. Medido no build de produção: **200 em tudo**,
+inclusive num slug inexistente. A causa é a fronteira de Suspense do
+`loading.jsx`: o Next despacha o shell antes de resolver a página, então
+`notFound()` e `permanentRedirect()` só acontecem no cliente — funciona no
+navegador, e para o buscador o endereço antigo continua respondendo 200. O
+soft-404 do evento inexistente, aliás, **já era assim antes desta spec**; ninguém
+tinha medido.
+
+Tentativa descartada: mover a decisão para `generateMetadata`, esperando que o
+Next a aguardasse antes do shell. Não aguarda — 200 igual.
+
+Decidido com o autor (a alternativa contradizia uma decisão explícita do NI-50,
+registrada em comentário no próprio `loading.jsx`): **status real ganha**. O
+`loading.jsx` do detalhe de evento saiu, e a lista de cinema foi para um route
+group `app/cinema/(lista)/` — o grupo não aparece na URL, mantém o esqueleto na
+lista (a página mais pesada, duas consultas) e tira a fronteira de cima do
+`[slug]`. Custo aceito: o detalhe abre sem esqueleto, ~300 ms medidos com o Neon
+quente.
+
+A armadilha virou verbete no CLAUDE.md, com o modo de testar: `curl -o /dev/null
+-w '%{http_code}'` contra `next start`. No navegador, as duas versões passam.
+
+### 14.6 Duas coisas que a spec previu e a base confirmou
+
+- **Zero colisão entre eventos visíveis** — as 28 previstas eram todas
+  duplicatas, e todas caíram no ordinal sem tocar em nenhum endereço linkável.
+- **O bug de conteúdo duplicado existia mesmo**: `/evento/<slug-de-duplicata>`
+  agora responde 308 para o canônico. Antes servia o conteúdo do canônico num
+  endereço próprio, com `canonical` apontando para o endereço errado.
