@@ -87,6 +87,10 @@ python tests/test_mcp_server.py                 # age como cliente MCP real (std
 
 # Redescobrir a API interna do Sympla, se ela mudar
 python src/ferramentas/discover_sympla.py          # gera capturas_sympla.json (na raiz)
+
+# Mapa de linhagem (docs/linhagem/): de onde vem cada dado e por onde passou.
+# Lê o próprio código — rodar depois de mexer em fonte, trilha, ciclo ou sql/.
+python src/ferramentas/linhagem.py
 ```
 
 Não há suíte de testes formal nem linter. O interpretador do ambiente é
@@ -139,6 +143,7 @@ src/
   servico/     consulta.py  mcp_server.py  auth.py  feedback.py
   pipeline/    atualizar.py  execucoes.py            # orquestração
   ferramentas/ curar.py  feedback.py  discover_sympla.py   # fora do pipeline
+               linhagem.py  # gera docs/linhagem/ a partir do próprio código
 api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
   index.py     #   MCP remoto (ASGI do FastMCP)
   dados.py     #   API de leitura do site — traduz querystring p/ consulta.py
@@ -560,3 +565,17 @@ Não faça commit sem pedido. Mensagens em português.
   bugs que só apareceram rodando, e os dois itens que ficaram parciais por
   cobertura de dado, não por código).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.
+- `docs/linhagem/` — o mapa da trajetória do dado, em duas peças:
+  - `LINHAGEM.md` — **arquivo gerado, não editar**: seis diagramas Mermaid
+    (panorâmica, plataformas, cinema, instagram, curadoria/telemetria, ciclo),
+    a trilha por fonte e o inventário por camada com a política de cada tabela.
+    Regravado por `python src/ferramentas/linhagem.py`, que lê o próprio código
+    — fonte nova aparece sozinha. O porquê de ser um gerador caseiro, e não
+    Marquez/DataHub/OpenMetadata, está em
+    `docs/pesquisas/20260802_ferramentas-linhagem.md`.
+  - `linhagem.excalidraw` (+ `.png`) — a mesma trajetória desenhada à mão, para
+    apresentar: caixas arrastáveis, editável em excalidraw.com. É **snapshot**,
+    feito em 02/08/2026 — não se regenera com o `linhagem.py` e não acompanha
+    mudança no pipeline. Em qualquer divergência, quem vale é o `LINHAGEM.md`.
+    Re-renderizar o PNG: `uv run python render_excalidraw.py <arq> --scale 1`,
+    na pasta `references/` da skill `excalidraw-diagram`.
