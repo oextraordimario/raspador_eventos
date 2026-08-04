@@ -143,7 +143,21 @@ def _rodar(endpoint, query, timeout=180, pausa_poll=5):
         if status in TERMINAIS:
             if status != "COMPLETED":
                 raise RuntimeError(f"run monid {run_id} terminou em {status}")
-            return payload.get("output") or payload.get("result") or payload
+            saida = payload.get("output") or payload.get("result") or payload
+            # COMPLETED é o status do RUN, não da fonte: o monid entrega com
+            # sucesso a resposta do provedor mesmo quando ela é um erro HTTP, e
+            # aí `data` não vem. Sem esta guarda o chamador lê `items` de um
+            # dict vazio e a coleta reporta "0 posts" — catálogo vazio plausível
+            # em vez de fonte quebrada, o antipadrão que custou três dias de
+            # Shotgun (NI-59). Em 2026-08-04 os dois endpoints v2 do Instagram
+            # passaram a devolver 400 assim, nos cinco perfis.
+            http = (saida.get("providerResponse") or {}).get("httpStatus")
+            if isinstance(http, int) and http >= 400:
+                erro = (saida.get("providerResponse") or {}).get("error")
+                raise RuntimeError(
+                    f"provedor devolveu HTTP {http} em {endpoint}: "
+                    f"{json.dumps(erro, ensure_ascii=False)[:300]}")
+            return saida
         time.sleep(pausa_poll)
     raise TimeoutError(f"run monid {run_id} não terminou em {timeout}s")
 
