@@ -3,8 +3,10 @@
 Descoberta em discover_sympla.py: o front do Sympla lista eventos chamando
   https://www.sympla.com.br/api/discovery-bff/search/category-type
 que devolve JSON paginado {data, total, limit, page}. Sem navegador, sem HTML.
+Desde 2026-08-04 a chamada e POST com os parametros no CORPO (JSON) — GET
+devolve 405. Ver _post().
 
-Parametros uteis:
+Parametros uteis (no corpo do POST):
   q         busca textual (ex.: "pagode")
   city      slug da cidade (ex.: "sao-paulo")
   state     UF (ex.: "SP")
@@ -21,7 +23,6 @@ docs/specs/20260710_camada-bronze/spec.md.
 import re
 import time
 import json
-import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -73,9 +74,25 @@ def _get_url(url):
         return json.load(r)
 
 
-def _get(params):
-    qs = urllib.parse.urlencode(params, safe="/,")
-    return _get_url(f"{API}?{qs}")
+def _post(params):
+    """Chama a API de descoberta. Os MESMOS parametros de sempre, mas no CORPO.
+
+    Em 2026-08-04 o endpoint passou a recusar GET com 405 (Kong, corpo vazio) e
+    a aceitar so POST com JSON — resposta identica, mesmas chaves
+    ({data,total,limit,page}), mesmo parser. Por isso a era em gravar.ERAS
+    continua "discovery-bff": mudou como se pergunta, nao o que a fonte
+    responde. `service` segue obrigatorio (sem ele a resposta e um HTML de
+    erro 500).
+    """
+    corpo = json.dumps(params).encode()
+    req = urllib.request.Request(
+        API, data=corpo, method="POST",
+        headers={"User-Agent": UA, "Accept": "application/json",
+                 "Content-Type": "application/json",
+                 "Referer": "https://www.sympla.com.br/"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
 
 
 def raspar_descricao(id_url):
@@ -146,7 +163,7 @@ def raspar(city="brasilia", state="DF", location="Brasília",
             params["themes"] = tema
         if q:
             params["q"] = q
-        resp = _get(params)
+        resp = _post(params)
         data = resp.get("data") or []
         total = resp.get("total")
         if not data:
