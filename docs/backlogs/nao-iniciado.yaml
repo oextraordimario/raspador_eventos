@@ -976,12 +976,12 @@
   esforco: M
   eixo: raspagem
   fase: 1
-  titulo: "Coordenada de local errada por algumas ruas (Sympla) + validar coordenada no geral"
-  resumo: "lat/lon do evento 'Terapia Sertaneja | Varanda do Contexto' (sympla:3479367) cai no bairro certo mas no lugar errado por algumas ruas; o botão 'ver no mapa' do PRÓPRIO Sympla acerta — sinal de que talvez dê pra raspar coordenada melhor da fonte, e falta validação de coordenada implausível no geral"
+  titulo: "Coordenada de local errada (Sympla/Ingresse) — de algumas ruas a dezenas de km, + pin genérico do centro em 24 eventos"
+  resumo: "lat/lon vem da fonte sem validação nossa e mente de dois jeitos: geocode grosseiro (Oscarito no Torto, sendo no SIG — ~10 km; Santa Maria e Sobradinho piores) e pin genérico do centro do Plano repetido em 24 eventos futuros de 6 locais distintos, em duas fontes. O endereço TEXTUAL da fonte está certo nesses casos, e o mapa do site prefere justamente a coordenada"
   data: 2026-07-29
   depende_de: []
   relacionado: []
-  caso_real: "sympla:3479367 — Contexto Bar e Restaurante, SCES Trecho 2: nosso mapa cai a algumas ruas do local real; o mapa do Sympla acerta"
+  caso_real: "sympla:3526448 'ARRAIÁ NO SÁBADO DO OSCARITO' — endereço/CEP certos (SIG Q.01 lote 985, 70610-410) e coordenada no Torto, ~10 km fora; antes: sympla:3479367 (Contexto Bar, erro de algumas ruas)"
   detalhe: |
     Conferido em 29/07: tanto `cru.sympla` origem `catalogo` (campo
     `location.lat/lon`) quanto origem `detalhe` (campo
@@ -1018,6 +1018,105 @@
     qualquer lat/lon que a fonte mandar. Isso beneficia direto o "perto de mim"
     (`consulta.py`) e o embed de mapa da página de evento (a mudança mais
     recente do site), não só este caso.
+
+    --- 08/08: NÃO é "algumas ruas". Medido na base, o erro chega a DEZENAS DE KM,
+    e existe um segundo modo de falha, maior que o primeiro.
+
+    O caso que reabriu isto foi "ARRAIÁ NO SÁBADO DO OSCARITO" (sympla:3526448):
+    o pino cai na região da Granja do Torto e a casa é no SIG — ~10 km de erro. O
+    payload confirma o diagnóstico de 29/07 e o agrava: endereço ("SIG, Quadra 01,
+    lotes 985"), CEP (70610-410), cidade e estado estão TODOS certos, e só a
+    coordenada mente. Catálogo e detalhe concordam de novo (`-15.70842,
+    -47.9147688` / `POINT(-15.708420 -47.914769)`). Ou seja: a fonte tem o
+    endereço certo e o geocode errado, e nós preferimos justamente o campo errado.
+
+    Cruzando lat/lon (que vem da fonte) com `bairro` (derivado do TEXTO por
+    `bairros.py`, portanto independente), os futuros da base dão:
+      - MODO 1 — geocode grosseiramente errado, ainda dentro do DF:
+          Oscarito / SIG            -15.70842,-47.91477  → cai no Torto  (~10 km)
+          Bahrein / Santa Maria     -15.78269,-47.98905  → cai no SIA    (~27 km)
+          Sobradinho Q.1            -15.82958,-48.05385  → Taguatinga    (~30 km)
+      - MODO 2 (o maior, e o que ninguém tinha visto) — PIN GENÉRICO DO CENTRO:
+          `-15.79752,-47.89189` está em 24 eventos futuros, 6 locais distintos,
+          em DUAS fontes (sympla E ingresse). É o fallback do geocoder delas: leva
+          pro centro do Plano quem é do Guará (Pontão do Cave), do Polo JK
+          (INTENSE LOUNGES, 8 eventos) e da UnB (ICB/Darcy Ribeiro). Coordenada
+          repetida em locais que não têm nada a ver entre si é a assinatura
+          procurável desse modo, e dá pra detectar A SECO: mesma lat/lon em N
+          locais distintos = suspeita, sem geocoder nenhum.
+      (o Contexto Bar, caso original, é `-15.82632,-47.88761` — 14 eventos.)
+
+    Isso reordena o conserto. O `MapaEmbed` (`app/evento/[slug]/Acoes.jsx:18-33`)
+    faz a coordenada VENCER o endereço textual, e o comentário no código justifica
+    pela sujeira do texto. A medição inverte a premissa: nos três casos do modo 1 o
+    texto está certo e a coordenada está errada — e errada de um jeito PIOR, porque
+    mapa no lugar errado passa por certo, enquanto endereço sujo o Google ainda
+    resolve por fuzzy. O experimento que decide é um só: ver se o embed textual
+    (`local_nome, endereco, cidade`) acha o Oscarito. Se achar, a regra vira "texto
+    primeiro, coordenada como desempate" — e o mapa para de mentir sem geocoder,
+    sem curadoria e sem tabela nova.
+
+    Vale para o "perto de mim" também, e ali é pior: os 24 eventos do pin do centro
+    entram como se estivessem em cima de quem pesquisa do Plano, e o `distancia_km`
+    exibido é falso. Esse lado NÃO se resolve com fallback textual (precisa de
+    coordenada de verdade) — é onde a coordenada curada por local, ou descartar a
+    coordenada suspeita, passa a valer.
+
+    --- 08/08, EXPERIMENTO RODADO (11 locais, embed real de produção). O fallback
+    textual GANHA. A hipótese (a) de 29/07 está confirmada: não há coordenada
+    melhor pra raspar, e não precisa ter.
+
+    Método: o embed recusa carregar fora de iframe ("must be used in an iframe"),
+    então o teste serve um HTML local que hospeda o iframe, igual ao site, e
+    screenshota. Script em scratchpad (teste_mapa2/3/4.py) — descartável, o que
+    importa é o resultado.
+
+    Nos 5 outliers (amostra escolhida a dedo, os suspeitos):
+      Oscarito/SIG        TEXTO pino exato + ficha 4,4★ | COORD Granja do Torto
+      Bahrein/Sta Maria   TEXTO pino exato + ficha 4,3★ | COORD região do SIA
+      INTENSE/Polo JK     TEXTO pino exato + ficha 4,1★ | COORD centro do Plano
+      Pontão do Cave      TEXTO ambíguo, sem pino       | COORD centro do Plano
+      Sobradinho Q.1      TEXTO ambíguo, sem pino       | COORD Taguatinga
+    No CONTROLE (6 locais de maior volume com coordenada NÃO suspeita — a pergunta
+    inversa: trocar por texto piora onde a coordenada está boa?):
+      Arena Dose Dupla    TEXTO pino + ficha (o endereço no cru é só "QNM 09"!)
+      Eye Patch Panda     TEXTO pino + ficha
+      GALPÃO 17           TEXTO pino + ficha
+      Arena CCB           TEXTO pino no POI | COORD erra algumas ruas — MESMO NO
+                          CONTROLE. É o sintoma do Contexto Bar de novo, ou seja:
+                          a imprecisão da coordenada da Sympla é sistemática, não
+                          são casos isolados.
+      Infinu (shotgun)    TEXTO e COORD no mesmo ponto — a do Shotgun é boa
+      LAH (shotgun)       TEXTO acerta a 31 m mas a UI entra em MODO DIREÇÕES
+
+    Placar: texto resolve com pino+ficha em 8 de 11; fica ambíguo em 3. Coordenada
+    errou em 6 dos 7 comparáveis (a boa é do Shotgun, não da Sympla).
+
+    Três achados que mudam o conserto, além do placar:
+     1. Quem carrega o acerto é o `local_nome`, não o endereço. Controle no
+        Oscarito: só o nome + cidade dá o MESMO pino exato; só o endereço acha o
+        SIG certo mas sem pino único. Ou seja, o Google reconhece as casas como
+        POI — e o `local_nome` sujo que o comentário do `MapaEmbed` usa como
+        justificativa para preferir a coordenada é justamente o campo que funciona.
+     2. O embed textual é PRODUTO MELHOR, não só mais correto: vem com a ficha do
+        lugar (nome, nota, nº de avaliações, "abrir no Maps"). O pino por
+        coordenada é anônimo.
+     3. O modo de falha do texto é honesto: onde erra (nome genérico e descritivo,
+        tipo "Sobradinho Quadra 1 ao lado Porks"), devolve mapa afastado com vários
+        candidatos em vez de um pino confiante no lugar errado. Trocar pino falso
+        por incerteza visível é ganho, não empate.
+
+    Conserto do mapa (o que o experimento autoriza): inverter a precedência no
+    `MapaEmbed` — texto quando houver `local_nome`, coordenada só como fallback.
+    Cuidado medido junto: o endereço do Shotgun já termina em ", Brasília - DF, ...,
+    Brasil", e concatenar `cidade` em cima duplica a cidade no alvo — foi o que
+    ajudou a jogar o LAH no modo direções. Montar o alvo sem repetir cidade que o
+    endereço já contém.
+
+    Segue ABERTO depois disso (é outro conserto, e não sai com texto): o "perto de
+    mim" e o `distancia_km` continuam consumindo a coordenada mentirosa. O pin
+    genérico é detectável A SECO — mesma lat/lon em N locais distintos —, e essa é
+    a via mais barata de marcar coordenada não confiável sem geocoder nenhum.
 
 - codigo: NI-65
   status: pendente
@@ -1123,3 +1222,55 @@
 
     Só vale medir depois do NI-63 (Search Console): sem ele não há como saber se
     o buscador leu o sitemap nem o que a pessoa digitou para chegar.
+
+- codigo: NI-67
+  status: nao-iniciado
+  prioridade: alta
+  rank: 1
+  esforco: P
+  eixo: produto
+  fase: 1
+  titulo: "\"todos os eventos\" não limpa a busca — o botão promete abrir a agenda inteira e devolve a lista ainda filtrada"
+  resumo: "o chip 'todos os eventos' de /festas só mexe em periodo/dia/mesCal; texto, grátis, região, tipo e perto continuam na URL, então quem buscou 'Vitrine Bar' e clicou no botão continua vendo só os eventos do Vitrine Bar, sem nada na tela explicando por quê"
+  data: 2026-08-08
+  depende_de: []
+  relacionado: [NI-50]
+  caso_real: ["relatado pelo Mário em 08/08/2026 usando o site: buscou 'Vitrine Bar' em /festas, clicou em 'todos os eventos' e a lista continuou presa ao termo — ele leu como falha grande do sistema"]
+  detalhe: |
+    O QUE ACONTECE (app/festas/page.jsx, o chip por volta da linha 296): o href é
+    `comFiltro({ periodo: aberto ? 'hoje' : 'proximos', dia: '', mesCal: '' })`, e
+    `comFiltro` existe justamente para PRESERVAR o resto — foi escrito assim de
+    propósito, para que marcar "grátis" não apagasse a busca recém-digitada. Só
+    que o rótulo deste chip não diz "período: todos", diz "todos os eventos". A
+    pessoa lê como "tira os filtros" e recebe a mesma lista de antes, com o campo
+    de busca ainda preenchido lá em cima — mas ela não está olhando para o campo,
+    está olhando para a lista.
+
+    Fica pior porque o chip acende (`data-on=1` quando `aberto`): o estado visual
+    confirma "está tudo aberto" enquanto a lista segue recortada por `texto`. E o
+    mesmo vale para os outros filtros que ele não zera: `gratis`, `bairro`,
+    `tipo`, `perto`.
+
+    DECIDIR O DESENHO (é isso que faz o item não ser só uma linha de código):
+
+    (a) Fazer o chip zerar tudo — `comFiltro({ periodo: 'proximos', texto: '',
+        gratis: '', dia: '', mesCal: '', bairro: '', tipo: '', perto: '' })`. Vira
+        um "limpar filtros" honesto com o rótulo que já tem. Cuidado: o
+        `SearchForm` usa `defaultValue={texto}`, então o input precisa realmente
+        re-renderizar com o valor vazio (a navegação troca a URL mas é a mesma
+        rota — conferir no navegador, não só no raciocínio).
+
+    (b) Manter o comportamento e trocar o rótulo para algo que só fale de data
+        ("qualquer data", "toda a agenda"), acrescentando um "limpar filtros"
+        separado que aparece quando há qualquer filtro ativo.
+
+    Preferência: (a) para o botão + (b) como reforço, porque o problema real é a
+    AUSÊNCIA DE SINAL — em nenhum dos dois casos a página diz, perto da lista, o
+    que está recortando o resultado. Um resumo do tipo "mostrando resultados para
+    'Vitrine Bar'" com um × ao lado resolve a classe inteira de confusão, não só
+    este botão: hoje só o `<Contagem>` ("N eventos") acompanha a lista, e ele não
+    distingue "a agenda tem 12 eventos" de "sua busca achou 12".
+
+    Ao mexer, lembrar do NI-50: a `<Suspense key={JSON.stringify(filtros)}>` já
+    cobre a troca de filtro, então o esqueleto aparece — o que não aparece é a
+    explicação do recorte.
