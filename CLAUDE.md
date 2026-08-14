@@ -565,6 +565,12 @@ Não faça commit sem pedido. Mensagens em português.
   bugs que só apareceram rodando, e os dois itens que ficaram parciais por
   cobertura de dado, não por código).
 - `docs/TESTE_MCP.md` — como plugar o MCP server nos clientes de IA.
+- `docs/DAGSTER.md` — a instância de Dagster do homelab (GraphQL na tailnet via
+  `tailscale serve`, **sem auth**, só POST, alcançável só de dentro da tailnet).
+  Ainda não integrada ao pipeline; o doc registra o estado verificado e as
+  armadilhas do schema 1.13. **A URL não é versionada** — repo público, e o host
+  entrega o nome da máquina e o da tailnet: ela vive no `.env` como
+  `DAGSTER_URL`, e no repo se escreve só `$DAGSTER_URL`.
 - `docs/linhagem/` — o mapa da trajetória do dado, em duas peças:
   - `LINHAGEM.md` — **arquivo gerado, não editar**: seis diagramas Mermaid
     (panorâmica, plataformas, cinema, instagram, curadoria/telemetria, ciclo),
