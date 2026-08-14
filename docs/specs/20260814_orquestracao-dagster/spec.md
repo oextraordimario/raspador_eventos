@@ -506,31 +506,39 @@ homelab (que é para ter outros usos).
 
 Junto vêm três mudanças pequenas e necessárias no que já existe:
 
-- **um volume nomeado `dagster_home` montado nos TRÊS serviços** em
-  `/opt/dagster/home`. A UI lê compute log do disco *dela* — sem volume
-  compartilhado, o log do run some da interface, mesmo existindo no container
-  que o produziu;
-- **montar `workspace.yaml` e `dagster.yaml` de fora**, senão declarar a code
-  location nova, ou mexer em pool, exige rebuild da imagem;
+- **um `/opt/dagster/home` compartilhado pelos TRÊS serviços**. A UI lê compute
+  log do disco *dela* — sem disco compartilhado, o log do run some da interface,
+  mesmo existindo no container que o produziu;
+- **`workspace.yaml` e `dagster.yaml` vindo de fora da imagem**, senão declarar
+  a code location nova, ou mexer em pool, exige rebuild;
 - **pinar a versão do Dagster** no `Dockerfile` — hoje é `pip install dagster`
   sem versão (ver o risco na §6.1).
 
-⚠️ **A armadilha da combinação volume nomeado + `COPY`.** Os dois arquivos de
-config vêm por `COPY` para dentro de `/opt/dagster/home`, e é exatamente esse
-diretório que passa a receber o volume. Quando um volume **nomeado e vazio** é
-montado sobre um diretório que tem conteúdo na imagem, o Docker copia o
-conteúdo para dentro do volume **uma única vez**, na criação. A partir daí o
-volume manda: um `docker compose build` com `dagster.yaml` novo **não muda
-nada**, e o sintoma é a configuração antiga continuar valendo sem erro nenhum —
-horas de depuração garantidas. A saída é montar os dois arquivos por cima, como
-bind mount explícito (mount mais específico vence), e deixar o volume cuidando
-só de `storage/` e `compute_logs/`:
+⚠️ **A armadilha do `DAGSTER_HOME`, corrigida em execução (14/08).** O plano
+original era volume nomeado + os dois YAMLs montados por cima como bind mount de
+arquivo. A razão continua válida — volume nomeado montado sobre diretório que
+tem conteúdo na imagem copia esse conteúdo **uma única vez**, na criação, e a
+partir daí congela a config sem erro nenhum na tela. Mas a saída proposta tinha
+o mesmo defeito por outro mecanismo, e ele só apareceu ao testar:
+
+> **Bind mount de ARQUIVO é preso ao inode.** `sed -i` e `git pull` não editam o
+> arquivo no lugar: escrevem um temporário e renomeiam por cima. Inode novo, e o
+> container segue lendo o antigo. **Medido:** host com `max_concurrent_runs: 2`,
+> `docker exec ... grep` dentro do container mostrando `1`, e o GraphQL
+> (`instance { runQueueConfig { maxConcurrentRuns } }`) confirmando `1`. Como
+> toda mudança de configuração chega por `git pull`, isso significaria config do
+> repositório ignorada em silêncio — exatamente o que a armadilha original
+> descrevia.
+
+A saída é **bind mount de DIRETÓRIO**: `dagster/home/` no repo `homelab` vira o
+`DAGSTER_HOME` inteiro, com os dois YAMLs versionados lá dentro e
+`storage/`/`compute_logs/` gitignorados. Diretório não sofre do problema de
+inode (o container enxerga a substituição na hora), é o mesmo disco para os três
+serviços, é inspecionável sem `docker volume inspect` e não congela nada:
 
 ```yaml
     volumes:
-      - dagster_home:/opt/dagster/home
-      - ./dagster.yaml:/opt/dagster/home/dagster.yaml:ro
-      - ./workspace.yaml:/opt/dagster/home/workspace.yaml:ro
+      - ./home:/opt/dagster/home
 ```
 
 ```yaml
@@ -545,11 +553,11 @@ só de `storage/` e `compute_logs/`:
       DAGSTER_HOME: /opt/dagster/home
       DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD}
       TZ: America/Sao_Paulo
-    env_file: /srv/secrets/raspador.env      # EVENTOS_DB_URL, TMDB, BLOB (§6.3)
+    env_file: .env                           # EVENTOS_DB_URL, TMDB, BLOB (§6.3)
     volumes:
       - /srv/raspador_eventos:/opt/raspador  # o clone git (D1)
       - /srv/claude-home:/root/.claude       # credencial da assinatura (§6.4)
-      - dagster_home:/opt/dagster/home       # o mesmo volume do webserver/daemon
+      - ./home:/opt/dagster/home             # o mesmo disco do webserver/daemon
 ```
 
 ```yaml
@@ -747,7 +755,7 @@ Dagster é o `LocalComputeLogManager`, que grava `stdout`/`stderr` em
 Dois problemas reais, ambos resolvidos pela §6.0:
 
 1. **O log é gravado no disco do container que rodou** e lido pelo container do
-   webserver. Sem o volume `dagster_home` compartilhado, a UI mostra run bem
+   webserver. Sem o `/opt/dagster/home` compartilhado, a UI mostra run bem
    sucedido com aba de log vazia.
 2. **É efêmero.** `/opt/dagster/home` não tem volume hoje: o relatório de saúde
    de todas as rodadas some no próximo rebuild. Aceitável (a fonte da verdade é
@@ -944,18 +952,19 @@ Medidas mínimas antes de a migração ir a sério:
 
 | Risco | Probabilidade | Impacto | Mitigação |
 |---|---|---|---|
-| Homelab cai (energia, internet, disco) | média — **sem no-break** (§15) | base envelhece em silêncio | Actions como fallback (D3) + freshness policy + a notificação da §8.1 + `run_monitoring` para o run zumbi |
+| Homelab cai (energia, internet, disco) | média — **sem no-break** (§15) | base envelhece em silêncio | Actions como fallback (D3) + freshness policy + a notificação da §8.1 + `dagster/max_runtime` para o run zumbi (ver a linha abaixo) |
 | O login da assinatura não sobrevive no servidor | média (autorizado, mas não testado) | extração de flyer continua local | Fatia 5 por último; dois planos B na §6.4, sendo o primeiro sem custo de código |
 | Shotgun também falha headless no Linux | média | continua como está hoje | Testar na fatia 4; o scraper já despeja diagnóstico |
 | Refactor de `passos.py` muda comportamento sem querer | média | dado errado na base | §13: comparação antes/depois em `--so-derivar` + suíte + rodada comparada |
 | Código do clone defasado (a doença do §1.3b, de novo) | **alta** | roda-se o código errado | `git pull` no início do job + SHA em metadata + check `codigo_atualizado` |
 | Dagster vira dependência do pipeline por conveniência | média | perde-se o rollback e o teste barato | D5, escrito no CLAUDE.md |
 | Versão do `dagster` na code location ≠ do daemon | **alta** (o `pip install` do homelab não tem pin) | erros obscuros de serialização | pinar a MESMA versão exata nos dois Dockerfiles, subir junto (§6.1) |
-| Config congelada no volume nomeado sobre o `DAGSTER_HOME` | **alta, se não tratada** | `dagster.yaml` novo não vale e nada avisa | bind mount dos dois arquivos por cima do volume (§6.0) |
+| Config do repositório não chega ao container | **MEDIDA na fatia 0** | `dagster.yaml` novo não vale e nada avisa | bind mount de DIRETÓRIO no `DAGSTER_HOME` — bind mount de arquivo é preso ao inode e `git pull` o substitui (§6.0) |
+| Run travado fica `STARTED` para sempre | **MEDIDA na fatia 0** | a rodada some sem falhar; o alarme de frescor é o único a perceber | `dagster/max_runtime` em TODO job: `run_monitoring` não detecta worker morto com o `DefaultRunLauncher` (§6.0) |
 | Alarme mora na mesma máquina que ele vigia | **certa** | queda do homelab não avisa ninguém | vigia externo (Actions ou site), além do sensor → n8n (§8.1) |
 | Perda do `pg-data` do Dagster | baixa | some a série histórica de custo/tempo | é o motivo nº 3 da migração morando sem backup: um `pg_dump` semanal resolve (§9) |
 | Chromium + 5 fontes consomem o servidor | baixa | outros serviços do homelab sofrem | limites de concorrência (§7.2); medir na fatia 4 |
-| Log do run invisível na UI (volume não compartilhado) | **certa, se não tratada** | rodada "verde" com aba de log vazia | §6.0/§6.6 — o volume `dagster_home` é parte da fatia 0 |
+| Log do run invisível na UI (disco não compartilhado) | **certa, se não tratada** | rodada "verde" com aba de log vazia | §6.0/§6.6 — o `./home` compartilhado é parte da fatia 0 |
 | Raspagem rodar dentro do webserver e derrubar a UI | **certa, sem a §6.0** | UI cai junto com um pico de memória do Chromium | serviço `raspador_code` dedicado |
 
 ---
@@ -980,7 +989,7 @@ nada que esteja em produção hoje.
 
 | Fatia | Onde | ✅ meu | 👤 teu | Feita em |
 |---|---|---|---|---|
-| 0 — compose | `homelab` | ☐ | ☐ | |
+| 0 — compose | `homelab` | ✅ | ✅ | **14/08/2026** |
 | 1 — `passos.py` | `raspador_eventos` | ☐ | ☐ | |
 | 2 — imagem do raspador | ambos | ☐ | ☐ | |
 | 3 — grafo em `eventos_teste` | `raspador_eventos` | ☐ | ☐ | |
@@ -1046,41 +1055,64 @@ Actions, e produzir os diffs para você revisar.
 raspador feito no servidor, `env_file` criado com os segredos e conferido fora
 do git. Sem os quatro, a fatia não começa — o `raspador_code` sobe e morre no
 primeiro import.
-**O quê:** serviço `raspador_code` (ainda com a imagem atual, magra); volume
-nomeado `dagster_home` nos quatro serviços com `dagster.yaml`/`workspace.yaml`
-montados por cima (§6.0); `dagster==1.13.17` pinado no Dockerfile existente;
-`max_concurrent_runs: 1`, pools (§7.2) e `run_monitoring` no `dagster.yaml`.
+**O quê:** serviço `raspador_code` (ainda com a imagem atual, magra); `./home`
+bind-montado nos quatro serviços, com `dagster.yaml`/`workspace.yaml` dentro
+(§6.0); `dagster==1.13.17` pinado no Dockerfile existente; `max_concurrent_runs:
+1`, pools (§7.2) e `run_monitoring` no `dagster.yaml`.
+
+**Feita em 14/08/2026.** Commits no `homelab`: `429d475` (o arranjo),
+`c1a280e` + `8564117` (cobaias de teste e sua limpeza), `5407afc` (a correção
+que o teste forçou).
 
 **✅ Meu checklist**
 
-- [ ] 🔑 `docker compose config` valida sem erro e mostra os quatro serviços.
-- [ ] 🔑 `dagster --version` **idêntica** nos três containers (webserver, daemon,
-      `raspador_code`) — é o risco da §6.1.
-- [ ] A code location `raspador` aparece como `LOADED` na consulta GraphQL
+- [x] 🔑 `docker compose config` valida sem erro e mostra os quatro serviços.
+- [x] 🔑 `dagster --version` **idêntica** nos três containers (webserver, daemon,
+      `raspador_code`) — é o risco da §6.1. → 1.13.17 nos três.
+- [x] A code location `raspador` aparece como `LOADED` na consulta GraphQL
       (`repositoriesOrError`), servida por gRPC e não por `python_file`.
-- [ ] `hello_homelab` migrado para a code location nova materializa **pelo botão**
-      e o `print` aparece na aba de log.
-- [ ] O mesmo asset materializa **por schedule** (um schedule de teste, a cada
-      5 min) e o `print` também aparece — é o teste do volume compartilhado, e
-      só ele prova que webserver e daemon enxergam o mesmo disco.
-- [ ] 🔑 **Teste da armadilha do volume:** mudar um valor visível no `dagster.yaml`
-      (ex.: `max_concurrent_runs: 2`), `docker compose restart`, e conferir o
-      valor novo em Deployment → Configuration na UI. Voltar para 1 depois.
-- [ ] 🔑 **Teste do `run_monitoring`:** derrubar o container no meio de um run
-      (`docker kill`) e conferir que o run termina como `FAILURE`, não fica
-      `STARTED` para sempre.
-- [ ] O schedule de teste é removido ao final.
+- [x] `hello_homelab` migrado para a code location nova materializa **pelo botão**
+      e o `print` aparece na aba de log. → run `e5dc9e00`, SUCCESS.
+- [x] O mesmo asset materializa **por schedule** e o `print` também aparece — é o
+      teste do disco compartilhado, e só ele prova que webserver e daemon
+      enxergam o mesmo disco. → run `4edbf3c7`, mesmo container (`1cb159a1fd2c`
+      = `raspador_code`), stdout legível pelo webserver.
+- [x] 🔑 **Teste da armadilha do `DAGSTER_HOME`:** mudar um valor visível no
+      `dagster.yaml`, reiniciar, e conferir o valor novo. **FALHOU na primeira
+      forma** e é o achado principal da fatia — ver a §6.0. Passou depois de o
+      mount virar diretório: `maxConcurrentRuns` foi a 2 e voltou a 1.
+- [x] 🔑 **Teste do run travado.** O item original dizia "`docker kill` no meio de
+      um run e conferir que ele termina como `FAILURE`" — e estava **errado**:
+      `run_monitoring` não detecta worker morto com o `DefaultRunLauncher`.
+      Medido: o run ficou `STARTED` por mais de 5 min depois de o processo
+      morrer, e ficaria para sempre. Com `dagster/max_runtime: 60`, o mesmo run
+      virou `FAILURE` em ~100s, com a mensagem "Canceling due to exceeding
+      maximum runtime of 60 seconds". **Consequência para o resto da spec:** a
+      tag passa a ser obrigatória em todo job, não opcional.
+- [x] O schedule de teste é removido ao final. → `8564117`.
 
 **👤 Teu checklist**
 
-- [ ] Abrir a UI e ver a code location `raspador` na lista, sem erro vermelho.
-- [ ] Clicar "Materialize" no `hello_homelab` e ver o log aparecer na tela.
-- [ ] Confirmar que a UI seguiu respondendo enquanto o run acontecia.
-- [ ] Rodar `tailscale serve status` na máquina e confirmar **serve**, não funnel
+- [x] Abrir a UI e ver a code location `raspador` na lista, sem erro vermelho.
+- [x] Clicar "Materialize" no `hello_homelab` e ver o log aparecer na tela.
+- [x] Confirmar que a UI seguiu respondendo enquanto o run acontecia.
+- [x] Rodar `tailscale serve status` na máquina e confirmar **serve**, não funnel
       (§10.1) — é a reconferência que a spec pede a cada mexida no compose.
-- [ ] Dar o ok no diff do `homelab` antes do commit.
+- [x] Dar o ok no diff do `homelab` antes do commit.
 
-**Portão:** os dois checklists completos. Sem isto, a fatia 1 não começa.
+**Portão:** os dois checklists completos. Sem isto, a fatia 1 não começa. ✅
+
+> **Três coisas que a execução ensinou, e que valem além desta fatia.**
+> 1. Bind mount de arquivo é preso ao inode — a config do repo não chegava ao
+>    container (§6.0). Vale para qualquer arquivo montado individualmente daqui
+>    para a frente.
+> 2. `run_monitoring` + `DefaultRunLauncher` não fecha run órfão. Só o teto de
+>    duração fecha.
+> 3. `docker kill` é tratado pelo Docker como **parada manual**: o
+>    `restart: unless-stopped` não religa o container depois dele. A política
+>    vale para container que morre por conta própria — o caso da queda de
+>    energia. A simulação foi mais dura que o cenário real, e o veredito sobre o
+>    run vale igual.
 
 ---
 
@@ -1366,7 +1398,7 @@ daqui que se remonta o teste.
 |---|---|---|
 | Serviços existentes | webserver + daemon (mesma imagem, `build: .`) + `dagster_pg` | §6.0: falta a code location — é o serviço novo |
 | Onde mora o `definitions.py` | bind mount `./pipelines`, mas o `workspace.yaml` está dentro da imagem | §6.0: montar o workspace de fora |
-| Volume para `DAGSTER_HOME` | **não existe** | §6.0 e §6.6: volume nomeado nos três (quatro) serviços |
+| Disco compartilhado para `DAGSTER_HOME` | **não existe** | §6.0 e §6.6: bind mount de `./home` nos quatro serviços |
 | `compute_logs` | não configurado → `LocalComputeLogManager` (default) | §6.6 **corrigida**: os `print` aparecem; o risco é o volume, não a config |
 | `run_retries` / concorrência | nada configurado | §7.2: acrescentar `max_concurrent_runs` e pools |
 | Fuso | `TZ: America/Sao_Paulo` nos dois serviços | §7.1: o schedule em horário local já casa com a instância |
@@ -1379,7 +1411,7 @@ daqui que se remonta o teste.
 |---|---|---|
 | `Dockerfile` da imagem atual | `python:3.12-slim` + `pip install dagster dagster-webserver dagster-postgres pandas requests`, **sem pin** | §6.1: imagem própria para o raspador, e pinar a versão nos dois |
 | Modo de carregamento | `python_file` (in-process), `pipelines/` por bind mount | §6.0 confirmada; e valida o D1 — bind mount de código já é o padrão da casa |
-| Onde ficam `dagster.yaml`/`workspace.yaml` | `COPY` para dentro da imagem | §6.0: montar de fora, e a armadilha do volume nomeado |
+| Onde ficam `dagster.yaml`/`workspace.yaml` | `COPY` para dentro da imagem | §6.0: em `dagster/home/`, montado como diretório — nem `COPY`, nem bind mount de arquivo |
 | O que mais roda no homelab | `n8n` (:5678) e `metabase` (:3000, com Postgres local) | §8.1: o alarme tem canal pronto; stacks têm redes separadas |
 | Segredos | `.env` gitignorado ao lado do compose (`DAGSTER_PG_PASSWORD`) | §6.3: o padrão da casa já é esse; o raspador entra com `env_file` próprio |
 | SO | Linux (bind mounts POSIX, `pg-data` local) | §6.5: Chromium headless em container Linux, como previsto |
@@ -1398,7 +1430,8 @@ daqui que se remonta o teste.
 
 **A queda de energia é o que sobrou.** Sem no-break, um apagão no meio da
 rodada mata o run e o Postgres do Dagster junto. Três coisas já previstas
-cobrem quase tudo: `run_monitoring` fecha o run zumbi (fatia 0),
+cobrem quase tudo: o `dagster/max_runtime` fecha o run zumbi (fatia 0 — e
+medido lá que sem ele o run fica `STARTED` para sempre),
 `restart: unless-stopped` + Docker no boot religam sozinhos, e o Actions
 continua como fallback (D3). O que **não** está coberto é o `pg-data` sem
 backup — apagão não costuma corromper Postgres (o WAL existe para isso), mas o
