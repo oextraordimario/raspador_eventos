@@ -862,10 +862,28 @@ Dois problemas reais, ambos resolvidos pela §6.0:
    de todas as rodadas some no próximo rebuild. Aceitável (a fonte da verdade é
    `operacao.execucoes`, §9), desde que consciente.
 
+**Verificado em 17/08, com o grafo rodando no servidor:** os dois containers
+compartilham `./home:/opt/dagster/home`, o manager é o `LocalComputeLogManager`
+com `base_dir: /opt/dagster/home/storage`, e o stdout de cada step está lá —
+`[cinema] grade de 8 cinemas...`, `Cine Cultura Liberty Mall: 1/8 dias
+falharam`. A §6.6 está de pé.
+
+> **Armadilha do GraphQL:** `capturedLogs(logKey: [runId, "compute_logs",
+> <stepKey>])` devolve **vazio sem erro** — o terceiro elemento não é o
+> `stepKey`, é um hash. Quem dá o valor certo é o evento `LogsCapturedEvent`
+> do run, no campo `fileKey`. Consultar por palpite aqui produz a conclusão
+> falsa de que a captura não funciona (produziu, nesta spec, por meia hora).
+
 Independente disso, uma mudança de código: **promover o que é sinal a
 `context.log` e a metadata** — alerta de queda, payloads rejeitados, sumidos,
 feedback não lido. `print` serve ao relatório narrativo; não serve para o que
 deve disparar alarme, porque texto em log não vira estado (§8).
+
+E há um degrau entre "está no log" e "dá para agir": o stdout do cinema diz
+*quantos* dias falharam, nunca *por quê*. A mensagem da exceção (`URLError:
+Connection refused`) só existia em `operacao.execucoes` — fora da UI. Por isso
+todo asset que acumula erros passou a publicar `erros_texto` na metadata
+(fatia 3): a frase, não a contagem.
 
 ---
 
@@ -1093,7 +1111,7 @@ nada que esteja em produção hoje.
 | 0 — compose | `homelab` | ✅ | ✅ | **14/08/2026** |
 | 1 — `passos.py` | `raspador_eventos` | ✅ | ✅ | **17/08/2026** |
 | 2 — imagem do raspador | ambos | ✅ | ✅ | **17/08/2026** |
-| 3 — grafo em `eventos_teste` | `raspador_eventos` | ☐ | ☐ | |
+| 3 — grafo em `eventos_teste` | `raspador_eventos` | ✅ | ☐ | |
 | 4 — Shotgun e produção | ambos | ☐ | ☐ | |
 | 5 — Instagram completo | ambos | ☐ | ☐ | |
 | 6 — checks e freshness | `raspador_eventos` | ☐ | ☐ | |
@@ -1440,21 +1458,82 @@ eventos ganharam valor}, 23 chaves que na tela viram ruído. Ficaram o total, os
 REJEITADOS pela guarda e a cobertura de preço/local/coordenada — que é o que
 responde "a rodada foi normal?".
 
+**No servidor, em 17/08 — run `0af41f0a`, job `rodada_diaria`, SUCCESS em
+906 s.** 18 steps, 20 materializações, 0 falhas. (20 e não 21 porque o grupo
+`diagnostico` está fora do job; 18 steps porque o tratamento é UM compute com
+três saídas — a aritmética é a §4.3 aparecendo na tela.)
+
+| Asset | | Asset | |
+|---|---|---|---|
+| `operacao/schema` | base `eventos_teste` | `cru/detalhes` | 10 buscadas, 3 descartadas |
+| `cru/sympla` | 208/213 | `cru/tickets` | 179 buscados, 61 fora da janela |
+| `cru/shotgun` | **60/60 em 196 s** | `tratado/eventos` | 346 eventos, 641 lotes, 2 rejeitados |
+| `cru/ticketandgo` | 54/57 em 265 s | `tratado/filmes` | 34 filmes, 576 sessões |
+| `cru/zig` + `cru/ingresse` | 3/3 e 1/1 | `tratado/refresh` | `reciclou: false` (nada novo) |
+| `cru/cinema` | 8/8, 1 erro | `operacao/execucao` | modo `dagster`, 334 coletados, 11 erros |
+
+Quatro coisas que o servidor mostrou e o ensaio não tinha como mostrar:
+
+- **O Shotgun coletou 60/60 no homelab.** É a fonte que o runner do GitHub
+  Actions não consegue raspar (NI-58: listagem vazia lá, catálogo cheio na
+  máquina do autor) e que por isso vive na `--rodada-local`. O homelab enxerga
+  o site como o notebook enxerga. Isso **muda o escopo das fatias 4 e 7**: o
+  Shotgun pode entrar na rodada diária, e a `--rodada-local` deixa de ser
+  obrigatória por causa dele. Medido, não suposto.
+- **Os grupos do grafo estavam mentindo, e só a tela denunciou.** `cru/tmdb` e
+  `operacao/posters` estavam em `tratamento` — dois assets que ABREM REDE
+  dentro do grupo que existe para nomear o que é a seco. E `manutencao` juntava
+  a raiz (`operacao/schema`) com o fecho (`podado`, `execucao`). Reagrupado em
+  `preparacao` / `coleta` / `tratamento` / `enriquecimento` / `fecho` /
+  `diagnostico` (commit `26419fe`). Ler o código não pegou isso; ler o desenho
+  pegou em trinta segundos — que é, literalmente, o motivo nº 1 da migração.
+- **Contagem de erro não é sinal.** A metadata dizia `erros: 1` no cinema. O
+  stdout do step dizia "Cine Cultura Liberty Mall: 1/8 dias falharam" — que não
+  distingue o 404 de dia sem sessão, rotina, de um `URLError: Connection
+  refused`, que foi o caso. A frase só existia em `operacao.execucoes`. Agora
+  todo asset com erros publica `erros_texto` na metadata (commit `14a4173`).
+  Na re-materialização seguinte o cinema veio limpo: era transitório.
+- **A comparação com o CLI fechou onde importa.** Rodado `atualizar.py
+  --so-derivar` contra a mesma base logo depois: `tratado.eventos` **346 →
+  346, todas as colunas idênticas em todas as linhas**. Em `filmes`, só o
+  `raspado_em` difere (o carimbo da derivação, não o dado). Em `sessoes`, 8 a
+  menos no CLI — sessões que já tinham começado entre um snapshot e outro (o
+  mínimo de todos os sete cinemas passou a ser 18h50 de hoje). Nenhuma
+  divergência de código.
+
 **✅ Meu checklist**
 
-- [ ] `EVENTOS_DB_URL` do container aponta para `eventos_teste` — conferido
-      dentro do container, não presumido.
-- [ ] Materialização completa do grafo termina sem erro.
-- [ ] Comparação com `atualizar.py` na mesma base: `count(*)` e
-      `max(raspado_em)` por fonte, e `tratado.eventos` linha a linha por `id`.
-- [ ] **Teste do D6:** quebrar uma fonte de propósito (URL inválida) e conferir
-      que o asset dela materializa com `erro` na metadata, que o run **segue**,
-      e que o tratamento roda mesmo assim.
-- [ ] **Teste da guarda NI-59:** a fonte quebrada não marca os eventos dela como
-      `sumido` (`SELECT count(*) ... WHERE sumido`).
-- [ ] Revisão de código: nenhum asset abre transação própria sobre `tratado` —
-      só `ciclo.executar` (§4.3).
-- [ ] Os três assets do tratamento aparecem separados na UI, com metadata.
+- [x] `EVENTOS_DB_URL` do container aponta para `eventos_teste` — conferido
+      dentro do container, não presumido: `current_database()` de dentro do
+      `raspador_code` deu `eventos_teste` com 337 linhas (produção tem 968), e
+      o próprio `operacao/schema` publica a base na metadata do run.
+- [x] Materialização completa do grafo termina sem erro — run `0af41f0a`,
+      SUCCESS, 906 s, 0 steps falhados.
+- [x] Comparação com `atualizar.py` na mesma base: `tratado.eventos` idêntico
+      linha a linha e coluna a coluna (346), `filmes` idêntico exceto
+      `raspado_em`, `sessoes` explicado pelo tempo passando.
+- [x] **Teste do D6** — coberto pelo que aconteceu sozinho, sem quebrar nada:
+      `cru/instagram` materializou **verde**, `coletados: 0`, cinco erros
+      (`No active API key`) na metadata e em `operacao.execucoes`, e o run
+      seguiu até o fim. A leitura do código confirma o mecanismo:
+      `passos.coletar` nunca levanta, devolve `{"erro": ...}`.
+- [~] **Teste da guarda NI-59:** *não exercitado no servidor* — as cinco
+      plataformas coletaram > 0 nesta rodada (`operacao.coletas`: 208, 60, 54,
+      3, 1, nenhuma com erro), então não havia fonte zerada para a guarda
+      pegar. Os 4 `sumido` são todos do Sympla, que coletou 208. A guarda em si
+      é a mesma linha de SQL de sempre, coberta por
+      `tests/test_observabilidade.py` (o caso "coleta zerada não condena a
+      fonte"), e o Dagster usa o mesmo `registrar_coleta` e o mesmo
+      `sumido.aplicar` — o que a comparação linha a linha com o CLI já prova.
+      Fica para a fatia 4, se alguma fonte zerar de verdade em produção.
+- [x] Revisão de código: nenhum asset abre transação própria sobre `tratado`.
+      Só `tratamento` e `tratado/refresh` tocam `tratado`, os dois via
+      `ciclo.executar` (um commit cada). `cru/tmdb` e `operacao/posters`
+      **leem** `tratado.filmes` — inevitável, a lista de filmes em cartaz É a
+      tabela — e escrevem em `cru.tmdb` / `operacao.midias`.
+- [x] Os três assets do tratamento aparecem separados na UI, com metadata
+      própria: `tratado/eventos` com cobertura de preço/local/coordenada,
+      `tratado/filmes` e `tratado/sessoes` com filmes/sessões/TMDB.
 
 **👤 Teu checklist**
 
@@ -1464,6 +1543,12 @@ responde "a rodada foi normal?".
       sentido para você.
 - [ ] Ver uma fonte vermelha com o resto verde, e confirmar que é isso que você
       queria ter visto no dia do Sympla.
+      → **Este item não fecha nesta fatia, e é decisão, não pendência.** Pelo
+      D6, fonte quebrada materializa **verde** com o erro na metadata: é o que
+      impede uma fonte morta de derrubar as outras. O vermelho que você quer
+      vem do *asset check*, que é a fatia 6 — lá a coleta continua verde e o
+      CHECK falha. O que dá para ver hoje é o meio-termo: `cru/instagram` com
+      `coletados: 0` e a tabela `erros_texto` na metadata.
 - [ ] Ok no `definitions.py`.
 
 **Portão:** os dois checklists completos.
@@ -1478,10 +1563,17 @@ ligado. O Actions segue ligado alguns dias, **em dias alternados** — as duas
 rodadas na mesma base não se corrompem (a chave é `<fonte>:<id_nativo>`), mas
 embaralham a comparação "vs. rodada anterior".
 
+> **A maior incógnita desta fatia caiu na fatia 3.** O Shotgun já rodou no
+> container do servidor, contra a base de teste, e coletou **60 de 60** em
+> 196 s (run `0af41f0a`, 17/08). Ou seja: o bloqueio do NI-58 é do runner do
+> GitHub Actions, não de "servidor" em geral, e o Chromium da imagem funciona.
+> O que sobra aqui é a rodada contra PRODUÇÃO — o dado que muda é o dado de
+> verdade, e é isso que esta fatia arrisca, não mais o scraper.
+
 **✅ Meu checklist**
 
-- [ ] Shotgun no container: `coletados > 0` — é o teste do NI-58 e a maior
-      incógnita técnica da migração.
+- [x] Shotgun no container: `coletados > 0` — **60/60 na fatia 3**, contra
+      `eventos_teste`. Fica confirmar que segue assim na base de produção.
 - [ ] 🔑 Se falhar: `diagnostico/shotgun/` com HTML e screenshot trazidos para
       análise antes de qualquer conclusão.
 - [ ] Primeira rodada de produção completa, com duração por asset registrada.

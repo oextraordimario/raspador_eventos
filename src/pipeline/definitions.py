@@ -84,12 +84,12 @@ _ERROS_NA_TELA = 10
 def _tabela_de_erros(erros):
     """O TEXTO do que quebrou, na tela do próprio asset.
 
-    Sem isto a metadata diz `erros: 1` e a mensagem só existe na linha de
-    `operacao.execucoes` — e foi exatamente esse percurso (UI -> compute log
-    vazio -> consulta na base) que precisei fazer em 17/08 para descobrir que
-    o "1 erro" do cinema era um `Connection refused`, e não o 404 de dia sem
-    sessão, que é rotina. Contagem não deixa ninguém decidir se aquilo
-    importa; a frase, sim.
+    Sem isto a metadata diz `erros: 1` e mais nada. O stdout do step (que É
+    capturado — os `print` do pipeline chegam lá) dizia, em 17/08, "Cine
+    Cultura Liberty Mall: 1/8 dias falharam", que não distingue o 404 de dia
+    sem sessão — rotina — de um `Connection refused`. A frase da exceção só
+    existia na linha de `operacao.execucoes`, ou seja, fora da UI. Contagem
+    não deixa ninguém decidir se aquilo importa; a mensagem, sim.
     """
     linhas = ["| onde | o quê |", "| --- | --- |"]
     for e in erros[:_ERROS_NA_TELA]:
