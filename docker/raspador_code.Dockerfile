@@ -70,6 +70,13 @@ RUN python -m playwright install --with-deps chromium \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
+# O clone montado pertence ao usuário do HOST e aqui dentro se roda como root:
+# sem isto, todo comando git responde "detected dubious ownership" e o SHA do
+# run sai vazio — silenciosamente, porque quem lê o SHA trata falha como "não
+# sei o commit". `--system` e não `--global`: vale para qualquer usuário do
+# container, e sobrevive a um `docker compose exec -u`.
+RUN git config --system --add safe.directory /opt/raspador
+
 # O código é montado aqui pelo compose; `PYTHONPATH` e `DAGSTER_HOME` também
 # vêm de lá, junto do `env_file` com os segredos.
 WORKDIR /opt/raspador
