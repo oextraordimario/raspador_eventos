@@ -1,0 +1,10 @@
+# Contexto de build de `docker/raspador_code.Dockerfile` (a imagem do serviço
+# `raspador_code` do Dagster no homelab). O único arquivo que a imagem precisa
+# do repo é o `requirements.txt`: o CÓDIGO chega no container por bind mount de
+# `/srv/raspador_eventos`, para que `git pull` baste e commit não peça rebuild.
+#
+# Excluir tudo e liberar o que entra, e não o contrário: assim `midias/`,
+# `diagnostico/`, `node_modules/`, `.next/` e o `.git` inteiro não viajam para o
+# daemon do Docker a cada build — e nada novo passa a viajar por descuido.
+*
+!requirements.txt

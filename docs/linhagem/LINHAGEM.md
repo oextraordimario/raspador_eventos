@@ -324,6 +324,7 @@ flowchart LR
   end
   subgraph g_pipeline["pipeline/ — orquestração da rodada"]
     direction TB
+    pipeline_definitions["pipeline/definitions.py"]
     pipeline_execucoes["pipeline/execucoes.py"]
     pipeline_passos["pipeline/passos.py"]
   end
@@ -344,6 +345,7 @@ flowchart LR
   tratamento_slug --> operacao_slugs
   operacao_coletas --> tratamento_sumido
   tratamento_sumido --> tratado_eventos
+  tratado_eventos --> pipeline_definitions
   pipeline_execucoes --> operacao_coletas
   pipeline_execucoes --> operacao_execucoes
   cru_instagram --> pipeline_passos
@@ -368,7 +370,7 @@ flowchart LR
   classDef operacao fill:#e6ecd8,stroke:#6b7f3a,color:#2f3a19
   class operacao_coletas,operacao_execucoes,operacao_midias,operacao_slugs operacao
   classDef pipeline fill:#e3e6e9,stroke:#5b6b7a,color:#232c33
-  class pipeline_execucoes,pipeline_passos pipeline
+  class pipeline_definitions,pipeline_execucoes,pipeline_passos pipeline
   classDef ferramentas fill:#f0e8dd,stroke:#8a7154,color:#3d3125
   class ferramentas_curar,ferramentas_linhagem ferramentas
 ```
@@ -446,7 +448,7 @@ creditadas à tabela que elas espelham.
 
 | objeto | tipo | política declarada | DDL | escrito por | lido por |
 |---|---|---|---|---|---|
-| `tratado.eventos` | table | descartavel POR DESENHO — tem que se reconstruir a seco a partir do cru. | [sql/tratado/eventos.sql](../../sql/tratado/eventos.sql) | `tratamento/busca.py`, `tratamento/comum.py`, `tratamento/curadoria.py`, `tratamento/enriquecer.py`, `tratamento/instagram.py`, `tratamento/sumido.py`, `ferramentas/linhagem.py` | `tratamento/slug.py`, `pipeline/passos.py`, `ferramentas/curar.py` |
+| `tratado.eventos` | table | descartavel POR DESENHO — tem que se reconstruir a seco a partir do cru. | [sql/tratado/eventos.sql](../../sql/tratado/eventos.sql) | `tratamento/busca.py`, `tratamento/comum.py`, `tratamento/curadoria.py`, `tratamento/enriquecer.py`, `tratamento/instagram.py`, `tratamento/sumido.py`, `ferramentas/linhagem.py` | `tratamento/slug.py`, `pipeline/definitions.py`, `pipeline/passos.py`, `ferramentas/curar.py` |
 | `tratado.filmes` | table | 100% descartavel — derivar.aplicar_cinema reconstroi filmes e sessoes do zero a partir do cru a cada rodada (SNAPSHOT). | [sql/tratado/filmes.sql](../../sql/tratado/filmes.sql) | `tratamento/busca.py`, `tratamento/cinema.py` | `tratamento/slug.py`, `pipeline/passos.py` |
 | `tratado.lotes` | table | 100% descartavel e ja e reconstruida do zero a cada aplicar() (DELETE + INSERT — por isso sem PK natural). | [sql/tratado/lotes.sql](../../sql/tratado/lotes.sql) | `tratamento/comum.py`, `tratamento/instagram.py` | — |
 | `tratado.sessoes` | table | 100% descartavel. | [sql/tratado/sessoes.sql](../../sql/tratado/sessoes.sql) | `tratamento/cinema.py` | — |

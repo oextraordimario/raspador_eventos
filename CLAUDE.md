@@ -143,6 +143,7 @@ src/
   servico/     consulta.py  mcp_server.py  auth.py  feedback.py
   pipeline/    passos.py    # os passos da rodada, chamáveis por qualquer orquestrador
                atualizar.py # o CLI: lê sys.argv, chama os passos na ordem
+               definitions.py # o Dagster: o ÚNICO arquivo que importa dagster
                execucoes.py # telemetria da rodada
   ferramentas/ curar.py  feedback.py  discover_sympla.py   # fora do pipeline
                linhagem.py  # gera docs/linhagem/ a partir do próprio código
@@ -151,6 +152,8 @@ api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
   dados.py     #   API de leitura do site — traduz querystring p/ consulta.py
 app/  lib/     # front Next.js (App Router) do site público — NA RAIZ, não em web/
 .github/workflows/raspar.yml   # cron diário da raspagem (NI-10)
+docker/        # a imagem do serviço `raspador_code` do Dagster (o compose que a
+               #   declara mora no repo `homelab`; ver docs/DAGSTER.md)
 sql/           # UM ARQUIVO POR TABELA, em pastas por camada (fonte única do DDL)
 dados/         # dado curado à mão, versionado (perfis_instagram.yaml — a watchlist)
 docs/          # PRD, backlogs/, specs/
