@@ -748,6 +748,34 @@ de ontem rodou sem o patch e mesmo assim foi normal. A variável continua no
 `env_file` do servidor por precaução (é opt-in e barata), mas quem decide se
 ela fica é a medição de uma requisição HTTP lá, não a da base.
 
+**Medido no servidor em 17/08, com o container da fatia 2 de pé**
+(`src/ferramentas/diag_rede.py`, dois subprocessos, um com a variável e outro
+sem):
+
+| | DNS (v4/v6) | Neon | HTTP (Sympla) |
+|---|---|---|---|
+| sem `FORCAR_IPV4` | 9 / 9 | 0,26 s | 0,19 s |
+| com `FORCAR_IPV4` | 9 / 0 | 0,19 s | 0,13 s |
+
+**O IPv6 do servidor funciona** — nada trava, e a diferença é de centésimos,
+não as dezenas de segundos que a memória `neon-ipv6-lento-local` descreve. Ou
+seja: aquela rede é a do notebook, não a do servidor.
+
+Duas coisas que só a execução mostrou:
+
+1. **A primeira leitura mentiu**, e mentiu no sentido de confirmar a hipótese:
+   0,73 s sem o patch contra 0,25 s com. Era aquecimento (cache de DNS, sessão
+   TLS) — e como o script mede sempre o lado "sem" primeiro, a conta caía
+   sempre no mesmo lado. Repetir foi o que desmentiu. O `diag_rede.py` passou a
+   fazer uma passada de aquecimento descartada, senão ele recomenda ligar a
+   variável em rede que não precisa dela.
+2. **Decisão: a variável FICA**, agora declarada como cinto de segurança e não
+   como remédio. A assimetria é o argumento: manter custa zero (é um filtro na
+   resolução, e todo host do projeto tem A record) e protege de um modo de
+   falha caro; tirar não ganha nada. O que não pode é ela virar folclore — daí
+   a tabela acima e a ferramenta versionada para remedir quando o hospedeiro
+   mudar de novo.
+
 ### 6.4 O `claude` CLI na assinatura — o item mais arriscado
 
 `instagram.extrair` chama `claude -p --model sonnet --output-format json
@@ -1064,7 +1092,7 @@ nada que esteja em produção hoje.
 |---|---|---|---|---|
 | 0 — compose | `homelab` | ✅ | ✅ | **14/08/2026** |
 | 1 — `passos.py` | `raspador_eventos` | ✅ | ✅ | **17/08/2026** |
-| 2 — imagem do raspador | ambos | ☐ | ☐ | |
+| 2 — imagem do raspador | ambos | ✅ | ☐ | |
 | 3 — grafo em `eventos_teste` | `raspador_eventos` | ☐ | ☐ | |
 | 4 — Shotgun e produção | ambos | ☐ | ☐ | |
 | 5 — Instagram completo | ambos | ☐ | ☐ | |
@@ -1274,23 +1302,45 @@ Node + Monid, Chromium, `claude` —, com o clone git montado, `PYTHONPATH`,
 - `linhagem.py` regravado: o gerador enxergou o `definitions.py` sozinho e já o
   lista como leitor de `tratado.eventos`.
 
+**Executado no servidor em 17/08.** Uma coisa quebrou, e é a que vale
+registrar: **o git dentro do container recusava o clone montado** —
+`detected dubious ownership in repository at '/opt/raspador'`, porque o
+diretório é do usuário do host e o container roda como root. Não atrapalha
+nada hoje, e é exatamente por isso que era perigoso: o SHA do run — o que a
+§6.2 pede para desfazer a doença do bind mount — sairia vazio sem nada na tela
+dizendo por quê. Resolvido na imagem (`git config --system --add
+safe.directory`, commit `7eb5508`), e não com um `git config` avulso dentro do
+container, que sumiria no rebuild seguinte.
+
 **✅ Meu checklist**
 
-- [ ] 🔑 Imagem builda; tamanho final reportado na conversa (para você decidir se
-      incomoda).
-- [ ] 🔑 Dentro do container: `import psycopg`, `playwright --version`,
-      `node --version`, `monid --version` — todos respondem.
-- [ ] 🔑 `dagster --version` continua idêntica à do webserver.
-- [ ] 🔑 `git rev-parse HEAD` dentro do container == SHA do repo local (a
-      partir da fatia 3 isso vira metadata de run e deixa de ser manual).
-- [ ] A code location carrega o `definitions.py` **do repo do raspador** (não de
+- [x] 🔑 Imagem builda; tamanho final reportado na conversa (para você decidir se
+      incomoda). → **458 MB**, com o Chromium dentro (`/opt/playwright` tem
+      `chromium-1234`, `chromium_headless_shell-1234`, `ffmpeg-1011`). Não
+      incomoda — não há motivo para separar a imagem que serve a code location
+      da que executa a raspagem.
+- [x] 🔑 Dentro do container: `import psycopg`, `playwright --version`,
+      `node --version`, `monid --version` — todos respondem. → node v22.23.2,
+      monid 0.1.6, claude 2.1.233, playwright 1.62.0, imports ok.
+- [x] 🔑 `dagster --version` continua idêntica à do webserver. → **1.13.17** nos
+      dois.
+- [x] 🔑 `git rev-parse HEAD` dentro do container == SHA do repo local (a
+      partir da fatia 3 isso vira metadata de run e deixa de ser manual). →
+      só depois do `safe.directory`; hoje `7eb5508` dos dois lados.
+- [x] A code location carrega o `definitions.py` **do repo do raspador** (não de
       `homelab/dagster/pipelines/`).
-- [ ] O asset trivial materializa contra a base de **produção em leitura**, e o
-      número bate com `SELECT count(*)` rodado daqui.
-- [ ] 🔑 **Teste de rede/Neon:** tempo de abertura da conexão medido com e sem
+- [x] O asset trivial materializa contra a base de **produção em leitura**, e o
+      número bate com `SELECT count(*)` rodado daqui. → run `636d97a3`:
+      `base=eventos`, 968 eventos, 343 futuros — os mesmos números do ensaio
+      local. Conexão em 0,36 s (0,20 s aqui): o servidor está um pouco mais
+      longe do Neon, e isso é irrelevante numa rodada de minutos.
+- [x] 🔑 **Teste de rede/Neon:** tempo de abertura da conexão medido com e sem
       `FORCAR_IPV4=1`. Se a diferença for grande, a variável fica; se não,
-      registro na spec que a rede do servidor não precisa dela.
-- [ ] Nenhum segredo aparece na UI (conferir a aba de config do run).
+      registro na spec que a rede do servidor não precisa dela. → **a rede do
+      servidor não precisa dela**; a variável fica como cinto de segurança.
+      Números, e o falso positivo que a primeira leitura produziu, na §6.3.
+- [x] Nenhum segredo aparece na UI (conferir a aba de config do run). → aba
+      Configuration do run vazia; os segredos entram só pelo `env_file`.
 
 **👤 Teu checklist**
 

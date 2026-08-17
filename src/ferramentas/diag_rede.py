@@ -100,6 +100,13 @@ def _rodar(forcar):
 
 def main():
     print(f"Alvo HTTP: {ALVO_HTTP}")
+    # Passada de aquecimento, DESCARTADA: cache de DNS e sessão TLS fazem a
+    # primeira medição custar mais que as seguintes, e como a ordem aqui é fixa
+    # quem pagaria a conta seria sempre o lado "sem patch". No servidor do
+    # homelab, em 17/08, isso apareceu como 0,73 s contra 0,25 s no Neon — que
+    # na segunda rodada viraram 0,26 e 0,19. Sem isto, a ferramenta recomenda
+    # ligar a variável em rede que não precisa dela.
+    _rodar(False)
     for forcar in (False, True):
         r = _rodar(forcar)
         rotulo = "COM FORCAR_IPV4" if forcar else "sem FORCAR_IPV4"
