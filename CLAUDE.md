@@ -88,6 +88,10 @@ python tests/test_mcp_server.py                 # age como cliente MCP real (std
 # Redescobrir a API interna do Sympla, se ela mudar
 python src/ferramentas/discover_sympla.py          # gera capturas_sympla.json (na raiz)
 
+# Rodada mudando de máquina? Mede se o FORCAR_IPV4 ainda serve nesta rede
+# (resolução, conexão com o Neon e uma requisição HTTP, com e sem o patch).
+python src/ferramentas/diag_rede.py
+
 # Mapa de linhagem (docs/linhagem/): de onde vem cada dado e por onde passou.
 # Lê o próprio código — rodar depois de mexer em fonte, trilha, ciclo ou sql/.
 python src/ferramentas/linhagem.py
@@ -146,6 +150,7 @@ src/
                definitions.py # o Dagster: o ÚNICO arquivo que importa dagster
                execucoes.py # telemetria da rodada
   ferramentas/ curar.py  feedback.py  discover_sympla.py   # fora do pipeline
+               diag_rede.py # mede se o FORCAR_IPV4 ainda serve NESTA máquina
                linhagem.py  # gera docs/linhagem/ a partir do próprio código
 api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)
   index.py     #   MCP remoto (ASGI do FastMCP)
