@@ -78,11 +78,38 @@ def _escalares(dic):
     return saida
 
 
+_ERROS_NA_TELA = 10
+
+
+def _tabela_de_erros(erros):
+    """O TEXTO do que quebrou, na tela do próprio asset.
+
+    Sem isto a metadata diz `erros: 1` e a mensagem só existe na linha de
+    `operacao.execucoes` — e foi exatamente esse percurso (UI -> compute log
+    vazio -> consulta na base) que precisei fazer em 17/08 para descobrir que
+    o "1 erro" do cinema era um `Connection refused`, e não o 404 de dia sem
+    sessão, que é rotina. Contagem não deixa ninguém decidir se aquilo
+    importa; a frase, sim.
+    """
+    linhas = ["| onde | o quê |", "| --- | --- |"]
+    for e in erros[:_ERROS_NA_TELA]:
+        onde = (e.get("evento_id") or e.get("passo") or "?") if isinstance(e, dict) else "?"
+        msg = e.get("erro", e) if isinstance(e, dict) else e
+        # `|` e quebra de linha desmontam a tabela — a do Monid tem as duas.
+        msg = " ".join(str(msg).split()).replace("|", "/")
+        linhas.append(f"| {onde} | {msg[:300]} |")
+    if len(erros) > _ERROS_NA_TELA:
+        linhas.append(f"| … | e mais {len(erros) - _ERROS_NA_TELA} |")
+    return dg.MarkdownMetadataValue("\n".join(linhas))
+
+
 def _resultado(res, erros, duracao_s, extras=None):
     """O par que todo asset devolve: `value` para quem vem depois (D8) e
     `metadata` para quem está olhando a tela."""
     meta = {**_escalares(res), "duracao_s": round(duracao_s, 1),
             "erros": len(erros), **(extras or {})}
+    if erros:
+        meta["erros_texto"] = _tabela_de_erros(erros)
     return dg.MaterializeResult(value={"res": res, "erros": list(erros)},
                                 metadata=meta)
 
@@ -497,11 +524,16 @@ def operacao_execucao(context: dg.AssetExecutionContext, **entradas):
 
     quebradas = [n for n in passos.ORDEM_FONTES
                  if (resultados[n] or {}).get("erro")]
-    return dg.MaterializeResult(metadata={
+    meta = {
         "duracao_s": round(duracao, 1), "modo": MODO,
         "erros": len(erros), "fontes_quebradas": ", ".join(quebradas) or "—",
         "coletados": sum(r.get("coletados") or 0
-                         for r in resultados.values() if isinstance(r, dict))})
+                         for r in resultados.values() if isinstance(r, dict))}
+    if erros:
+        # A rodada inteira num lugar só — é o que o relatório do CLI imprimia
+        # no terminal e que, sem isto, só sobreviveria dentro da base.
+        meta["erros_texto"] = _tabela_de_erros(erros)
+    return dg.MaterializeResult(metadata=meta)
 
 
 # --------------------------------------------------------------------------
