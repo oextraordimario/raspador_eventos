@@ -8,3 +8,7 @@
 # daemon do Docker a cada build — e nada novo passa a viajar por descuido.
 *
 !requirements.txt
+# O Docker já promete enviar o Dockerfile mesmo quando o `.dockerignore` o
+# exclui, mas isso é regra do daemon, não do arquivo — liberar explicitamente
+# custa uma linha e tira a dúvida de quem lê.
+!docker/raspador_code.Dockerfile
