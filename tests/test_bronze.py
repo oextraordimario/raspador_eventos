@@ -30,7 +30,7 @@ from coleta import gravar
 from coleta import ingresse as ingresse_coleta  # noqa: E402
 from coleta import sympla as sympla_coleta  # noqa: E402
 from coleta import zig as zig_coleta  # noqa: E402
-from pipeline import atualizar  # noqa: E402
+from pipeline import passos  # noqa: E402
 from tratamento import comum
 from tratamento import slug  # noqa: E402
 from tratamento import bairros as regioes  # `bairros` já é variável local aqui
@@ -454,7 +454,7 @@ def main():
     ingresse_coleta.raspar_descricao = _sem_rede
     zig_coleta.raspar_descricao = _sem_rede
     erros = []
-    r = atualizar._descrever(con, erros, pausa=0)
+    r = passos.descrever(con, erros, pausa=0)
     assert r["trocados"] == 1 and r["buscadas"] == 0, r
     meu = [e for e in erros if e["evento_id"] == "sympla:77"]
     assert len(meu) == 1 and "NI-17" in meu[0]["erro"], erros

@@ -324,8 +324,8 @@ flowchart LR
   end
   subgraph g_pipeline["pipeline/ — orquestração da rodada"]
     direction TB
-    pipeline_atualizar["pipeline/atualizar.py"]
     pipeline_execucoes["pipeline/execucoes.py"]
+    pipeline_passos["pipeline/passos.py"]
   end
   subgraph g_ferramentas["ferramentas/ — fora do pipeline"]
     direction TB
@@ -344,15 +344,15 @@ flowchart LR
   tratamento_slug --> operacao_slugs
   operacao_coletas --> tratamento_sumido
   tratamento_sumido --> tratado_eventos
-  cru_instagram --> pipeline_atualizar
-  cru_inventario --> pipeline_atualizar
-  cru_tmdb --> pipeline_atualizar
-  operacao_execucoes --> pipeline_atualizar
-  operacao_midias --> pipeline_atualizar
-  tratado_eventos --> pipeline_atualizar
-  tratado_filmes --> pipeline_atualizar
   pipeline_execucoes --> operacao_coletas
   pipeline_execucoes --> operacao_execucoes
+  cru_instagram --> pipeline_passos
+  cru_inventario --> pipeline_passos
+  cru_tmdb --> pipeline_passos
+  operacao_execucoes --> pipeline_passos
+  operacao_midias --> pipeline_passos
+  tratado_eventos --> pipeline_passos
+  tratado_filmes --> pipeline_passos
   tratado_eventos --> ferramentas_curar
   ferramentas_curar --> curado_correcoes
   ferramentas_curar --> curado_locais
@@ -368,7 +368,7 @@ flowchart LR
   classDef operacao fill:#e6ecd8,stroke:#6b7f3a,color:#2f3a19
   class operacao_coletas,operacao_execucoes,operacao_midias,operacao_slugs operacao
   classDef pipeline fill:#e3e6e9,stroke:#5b6b7a,color:#232c33
-  class pipeline_atualizar,pipeline_execucoes pipeline
+  class pipeline_execucoes,pipeline_passos pipeline
   classDef ferramentas fill:#f0e8dd,stroke:#8a7154,color:#3d3125
   class ferramentas_curar,ferramentas_linhagem ferramentas
 ```
@@ -434,20 +434,20 @@ creditadas à tabela que elas espelham.
 |---|---|---|---|---|---|
 | `cru.cinema` | table | nao se dropa, mas e a UNICA bronze com PODA por desenho — dias que ficaram no passado saem na raspagem. | [sql/cru/cinema.sql](../../sql/cru/cinema.sql) | `coleta/gravar.py` | `tratamento/cinema.py` |
 | `cru.ingresse` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/ingresse.sql](../../sql/cru/ingresse.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
-| `cru.instagram` | table | NUNCA SE DROPA. | [sql/cru/instagram.sql](../../sql/cru/instagram.sql) | `coleta/gravar.py` | `tratamento/instagram.py`, `pipeline/atualizar.py` |
+| `cru.instagram` | table | NUNCA SE DROPA. | [sql/cru/instagram.sql](../../sql/cru/instagram.sql) | `coleta/gravar.py` | `tratamento/instagram.py`, `pipeline/passos.py` |
 | `cru.shotgun` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/shotgun.sql](../../sql/cru/shotgun.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
 | `cru.sympla` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/sympla.sql](../../sql/cru/sympla.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
 | `cru.ticketandgo` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/ticketandgo.sql](../../sql/cru/ticketandgo.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
-| `cru.tmdb` | table | NUNCA SE DROPA, ACUMULATIVA e fora do snapshot de proposito — tratado.filmes/sessoes sao reconstruidas do zero a cada rodada, e o enriquecimento nao p… | [sql/cru/tmdb.sql](../../sql/cru/tmdb.sql) | `coleta/gravar.py` | `tratamento/cinema.py`, `pipeline/atualizar.py` |
+| `cru.tmdb` | table | NUNCA SE DROPA, ACUMULATIVA e fora do snapshot de proposito — tratado.filmes/sessoes sao reconstruidas do zero a cada rodada, e o enriquecimento nao p… | [sql/cru/tmdb.sql](../../sql/cru/tmdb.sql) | `coleta/gravar.py` | `tratamento/cinema.py`, `pipeline/passos.py` |
 | `cru.zig` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/zig.sql](../../sql/cru/zig.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
-| `cru.inventario` | view | — | [sql/cru/zz_views.sql](../../sql/cru/zz_views.sql) | — | `pipeline/atualizar.py` |
+| `cru.inventario` | view | — | [sql/cru/zz_views.sql](../../sql/cru/zz_views.sql) | — | `pipeline/passos.py` |
 
 ### `tratado` — prata: o schema unificado. Descartável por desenho
 
 | objeto | tipo | política declarada | DDL | escrito por | lido por |
 |---|---|---|---|---|---|
-| `tratado.eventos` | table | descartavel POR DESENHO — tem que se reconstruir a seco a partir do cru. | [sql/tratado/eventos.sql](../../sql/tratado/eventos.sql) | `tratamento/busca.py`, `tratamento/comum.py`, `tratamento/curadoria.py`, `tratamento/enriquecer.py`, `tratamento/instagram.py`, `tratamento/sumido.py`, `ferramentas/linhagem.py` | `tratamento/slug.py`, `pipeline/atualizar.py`, `ferramentas/curar.py` |
-| `tratado.filmes` | table | 100% descartavel — derivar.aplicar_cinema reconstroi filmes e sessoes do zero a partir do cru a cada rodada (SNAPSHOT). | [sql/tratado/filmes.sql](../../sql/tratado/filmes.sql) | `tratamento/busca.py`, `tratamento/cinema.py` | `tratamento/slug.py`, `pipeline/atualizar.py` |
+| `tratado.eventos` | table | descartavel POR DESENHO — tem que se reconstruir a seco a partir do cru. | [sql/tratado/eventos.sql](../../sql/tratado/eventos.sql) | `tratamento/busca.py`, `tratamento/comum.py`, `tratamento/curadoria.py`, `tratamento/enriquecer.py`, `tratamento/instagram.py`, `tratamento/sumido.py`, `ferramentas/linhagem.py` | `tratamento/slug.py`, `pipeline/passos.py`, `ferramentas/curar.py` |
+| `tratado.filmes` | table | 100% descartavel — derivar.aplicar_cinema reconstroi filmes e sessoes do zero a partir do cru a cada rodada (SNAPSHOT). | [sql/tratado/filmes.sql](../../sql/tratado/filmes.sql) | `tratamento/busca.py`, `tratamento/cinema.py` | `tratamento/slug.py`, `pipeline/passos.py` |
 | `tratado.lotes` | table | 100% descartavel e ja e reconstruida do zero a cada aplicar() (DELETE + INSERT — por isso sem PK natural). | [sql/tratado/lotes.sql](../../sql/tratado/lotes.sql) | `tratamento/comum.py`, `tratamento/instagram.py` | — |
 | `tratado.sessoes` | table | 100% descartavel. | [sql/tratado/sessoes.sql](../../sql/tratado/sessoes.sql) | `tratamento/cinema.py` | — |
 
@@ -464,8 +464,8 @@ creditadas à tabela que elas espelham.
 | objeto | tipo | política declarada | DDL | escrito por | lido por |
 |---|---|---|---|---|---|
 | `operacao.coletas` | table | NUNCA SE DROPA. | [sql/operacao/coletas.sql](../../sql/operacao/coletas.sql) | `pipeline/execucoes.py` | `tratamento/sumido.py` |
-| `operacao.execucoes` | table | NUNCA SE DROPA. | [sql/operacao/execucoes.sql](../../sql/operacao/execucoes.sql) | `pipeline/execucoes.py` | `pipeline/atualizar.py` |
-| `operacao.midias` | table | NUNCA SE DROPA. | [sql/operacao/midias.sql](../../sql/operacao/midias.sql) | `coleta/gravar.py` | `tratamento/cinema.py`, `tratamento/instagram.py`, `pipeline/atualizar.py` |
+| `operacao.execucoes` | table | NUNCA SE DROPA. | [sql/operacao/execucoes.sql](../../sql/operacao/execucoes.sql) | `pipeline/execucoes.py` | `pipeline/passos.py` |
+| `operacao.midias` | table | NUNCA SE DROPA. | [sql/operacao/midias.sql](../../sql/operacao/midias.sql) | `coleta/gravar.py` | `tratamento/cinema.py`, `tratamento/instagram.py`, `pipeline/passos.py` |
 | `operacao.slugs` | table | append-only por `slug` — o slug e a chave, entao um endereco nunca "muda de dono" por acidente. | [sql/operacao/slugs.sql](../../sql/operacao/slugs.sql) | `tratamento/slug.py` | — |
 
 ### `uso` — quem usou (LGPD). NUNCA SE DROPA

@@ -141,7 +141,9 @@ src/
                slug.py      # o endereço público de cada evento/filme
                ciclo.py     # o ciclo inteiro numa transação só
   servico/     consulta.py  mcp_server.py  auth.py  feedback.py
-  pipeline/    atualizar.py  execucoes.py            # orquestração
+  pipeline/    passos.py    # os passos da rodada, chamáveis por qualquer orquestrador
+               atualizar.py # o CLI: lê sys.argv, chama os passos na ordem
+               execucoes.py # telemetria da rodada
   ferramentas/ curar.py  feedback.py  discover_sympla.py   # fora do pipeline
                linhagem.py  # gera docs/linhagem/ a partir do próprio código
 api/           # funções serverless (Vercel; deps: pyproject.toml da raiz)

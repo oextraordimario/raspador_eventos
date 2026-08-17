@@ -18,7 +18,7 @@ from base import conexao
 from coleta import gravar
 from pipeline import execucoes
 from tratamento import busca, comum, sumido
-from pipeline import atualizar  # noqa: E402
+from pipeline import passos  # noqa: E402
 from servico import consulta  # noqa: E402
 from coleta import ingresse, sympla  # noqa: E402
 
@@ -90,15 +90,15 @@ def main():
     ult = execucoes.ultima_execucao(con)
     assert ult["modo"] == "sem-shotgun" and ult["fontes"]["sympla"]["erro"]
     assert ult["erros"][0]["evento_id"] == "sympla:9", "erros não round-tripam"
-    ant = atualizar._coleta_anterior(con)
+    ant = passos.coleta_anterior(con)
     assert ant["sympla"][0] == 200, "rodada com erro não pode valer como coleta"
     assert ant["ingresse"][0] == 30
     print("execucoes: registro round-tripa; coleta anterior ignora rodada com erro — ok")
 
     # ── alerta de queda: 200 -> 80 é queda de 60% (> QUEDA_ALERTA de 50%) ──
-    assert 80 < 200 * (1 - atualizar.QUEDA_ALERTA), "cenário do teste ficou inválido"
-    assert 120 > 200 * (1 - atualizar.QUEDA_ALERTA), "120 não deveria alertar"
-    print(f"execucoes: limiar de alerta em {atualizar.QUEDA_ALERTA:.0%} — ok")
+    assert 80 < 200 * (1 - passos.QUEDA_ALERTA), "cenário do teste ficou inválido"
+    assert 120 > 200 * (1 - passos.QUEDA_ALERTA), "120 não deveria alertar"
+    print(f"execucoes: limiar de alerta em {passos.QUEDA_ALERTA:.0%} — ok")
 
     # ── sumido: futuro não revisto marca; passado e revisto não marcam ──
     # visto_em default (3 dias atrás) = NÃO reapareceu nesta rodada
@@ -182,16 +182,16 @@ def main():
         chamados.append(f"ingresse:{id_nativo}"), {"payload": {"detail": {}}})[1]
 
     erros = []
-    r = atualizar._precificar(con, erros, pausa=0)
+    r = passos.precificar(con, erros, pausa=0)
     assert "ingresse:perto" in chamados and "sympla:111" in chamados, chamados
     assert "ingresse:longe" not in chamados, "60 dias tinha que ficar fora da janela"
     assert not any("222" in c for c in chamados), "sympla sem detalhe não é alvo"
     assert r["fora_janela"] == 1 and r["falhas"] == 0 and not erros, r
-    print(f"precificar: janela de {atualizar.JANELA_PRECIFICAR_DIAS} dias "
+    print(f"precificar: janela de {passos.JANELA_PRECIFICAR_DIAS} dias "
           "poupa evento distante e reporta fora_janela — ok")
 
     chamados.clear()
-    r = atualizar._precificar(con, erros, pausa=0, tudo=True)
+    r = passos.precificar(con, erros, pausa=0, tudo=True)
     assert "ingresse:longe" in chamados, "--precificar-tudo tinha que incluir o distante"
     assert r["fora_janela"] == 0, r
     print("precificar: --precificar-tudo cobre todos os futuros — ok")
@@ -201,7 +201,7 @@ def main():
         raise ValueError("boom")
     ingresse.raspar_tickets = quebra
     erros = []
-    r = atualizar._precificar(con, erros, pausa=0)  # só ingresse:perto falha
+    r = passos.precificar(con, erros, pausa=0)  # só ingresse:perto falha
     assert r["falhas"] == 1 and len(erros) == 1, (r, erros)
     assert erros[0] == {"passo": "precificar", "evento_id": "ingresse:perto",
                         "erro": "ValueError: boom"}, erros
