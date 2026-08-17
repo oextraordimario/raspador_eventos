@@ -88,10 +88,10 @@ def _resultado(res, erros, duracao_s, extras=None):
 
 
 # --------------------------------------------------------------------------
-# manutenção
+# preparação
 # --------------------------------------------------------------------------
 
-@dg.asset(key=["operacao", "schema"], group_name="manutencao",
+@dg.asset(key=["operacao", "schema"], group_name="preparacao",
           description="Aplica o DDL de `sql/` e recusa base de schema antigo. "
                       "É o `conectar(aplicar_schema=True)` que hoje só o "
                       "`atualizar.py` faz — no grafo ele vira o nó de que "
@@ -326,7 +326,13 @@ def tratamento(context: dg.AssetExecutionContext):
                     metadata={**_escalares(cine), "duracao_s": duracao})
 
 
-@dg.asset(key=["cru", "tmdb"], group_name="tratamento", pool=POOL_REDE,
+# --------------------------------------------------------------------------
+# enriquecimento — a segunda volta. Grupo próprio, e não "tratamento", porque
+# os dois primeiros ABREM REDE: pô-los junto do ciclo desmentiria na tela a
+# fronteira que o projeto inteiro serve (rede é coleta, a seco é tratamento).
+# --------------------------------------------------------------------------
+
+@dg.asset(key=["cru", "tmdb"], group_name="enriquecimento", pool=POOL_REDE,
           retry_policy=RETRY_REDE, deps=[_k("tratado", "filmes")],
           description="`passos.enriquecer_cinema`: sinopse/nota/ano por filme "
                       "NOVO. Fica DEPOIS do tratamento porque a lista do que "
@@ -343,7 +349,7 @@ def cru_tmdb(context: dg.AssetExecutionContext):
     return _resultado({"buscados": n}, erros, time.perf_counter() - marca)
 
 
-@dg.asset(key=["operacao", "posters"], group_name="tratamento", pool=POOL_REDE,
+@dg.asset(key=["operacao", "posters"], group_name="enriquecimento", pool=POOL_REDE,
           retry_policy=RETRY_REDE, deps=[_k("tratado", "filmes")],
           description="`passos.copiar_posters`: pôster do filme re-hospedado "
                       "no storage próprio, com pathname estável.")
@@ -358,7 +364,7 @@ def operacao_posters(context: dg.AssetExecutionContext):
     return _resultado({"copiados": n}, erros, time.perf_counter() - marca)
 
 
-@dg.asset(key=["tratado", "refresh"], group_name="tratamento",
+@dg.asset(key=["tratado", "refresh"], group_name="enriquecimento",
           ins={"saida": dg.AssetIn(key=_k("tratado", "eventos")),
                "tmdb": dg.AssetIn(key=_k("cru", "tmdb")),
                "posters": dg.AssetIn(key=_k("operacao", "posters"))},
@@ -387,7 +393,7 @@ def tratado_refresh(context: dg.AssetExecutionContext, saida, tmdb, posters):
 # fecho da rodada
 # --------------------------------------------------------------------------
 
-@dg.asset(key=["cru", "podado"], group_name="manutencao",
+@dg.asset(key=["cru", "podado"], group_name="fecho",
           deps=[_k("tratado", "refresh")],
           description="`gravar.podar_historico`: única exceção ao "
                       "'nada é apagado' no cru, e só de versão INTERMEDIÁRIA "
@@ -430,7 +436,7 @@ def _inicio_do_run(context):
         return None
 
 
-@dg.asset(key=["operacao", "execucao"], group_name="manutencao",
+@dg.asset(key=["operacao", "execucao"], group_name="fecho",
           ins=_INS_EXECUCAO,
           description="O fecho: relatório de saúde (com o alerta de queda > "
                       "50% vs. a rodada anterior) e a linha em "
