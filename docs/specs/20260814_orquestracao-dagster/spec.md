@@ -450,6 +450,7 @@ src/pipeline/
   passos.py        # NOVO — os passos, chamáveis por qualquer orquestrador
                    #   (feito: 769 linhas)
   definitions.py   # NOVO — assets, jobs, schedules (só ele importa dagster)
+                   #   (fatia 2: um asset de diagnóstico; o grafo vem na 3)
   checks.py        # NOVO — asset checks (leem a base, a seco)
   execucoes.py     # inalterado
 ```
@@ -630,6 +631,15 @@ o `raspador_code` herdar do Dockerfile atual: eles têm ciclos de vida
 diferentes, e uma dependência do raspador quebrando o rebuild derrubaria a UI
 do homelab junto.
 
+**Escolhido em 17/08: `python:3.12-slim` + `playwright install --with-deps
+chromium`.** O que decidiu não foi o tamanho, foi o pin: o `requirements.txt`
+declara piso (`playwright>=1.57`), então a versão da lib é resolvida no build —
+e a imagem `mcr.microsoft.com/playwright/python:v1.5x` traz um navegador
+casado com UMA versão da lib. As duas ficariam presas uma à outra, e o dia em
+que o pip resolvesse 1.60 sobre a tag 1.57 o sintoma seria "Executable doesn't
+exist" no meio de uma rodada. Instalando o navegador pelo próprio playwright
+recém-instalado, quem escolhe o navegador é sempre a lib que vai usá-lo.
+
 ⚠️ **O `pip install dagster` sem versão é uma bomba-relógio de fuso longo.**
 Hoje ele resolveu 1.13.17 nos dois serviços — como eles compartilham a imagem,
 sempre batem entre si. Com uma segunda imagem entra a possibilidade de
@@ -648,8 +658,27 @@ e ela precisa ficar escrita antes de alguém decidir no impulso:
 | Fica em `homelab` | Fica em `raspador_eventos` |
 |---|---|
 | `docker-compose.yml`, `Dockerfile` do Dagster, `dagster.yaml`, `workspace.yaml` | `src/pipeline/definitions.py`, `checks.py`, `passos.py` |
-| o `Dockerfile` do `raspador_code` (é infraestrutura da máquina) | tudo que sabe o que é um evento |
-| `.env` com `DAGSTER_PG_PASSWORD` (gitignorado) | — |
+| ~~o `Dockerfile` do `raspador_code`~~ → **mudou na fatia 2, ver abaixo** | `docker/raspador_code.Dockerfile` + `.dockerignore` |
+| `.env` com `DAGSTER_PG_PASSWORD` (gitignorado) | tudo que sabe o que é um evento |
+
+⚠️ **O Dockerfile do `raspador_code` mudou de repositório na execução (17/08).**
+A linha acima dizia que ele é "infraestrutura da máquina" e ficaria no
+`homelab`. Ao escrevê-lo, o critério do D5 apontou para o outro lado: a imagem
+existe para satisfazer o `requirements.txt`, e `COPY requirements.txt` exige o
+arquivo dentro do contexto de build. Com o Dockerfile no `homelab` sobravam
+três saídas, todas piores — **duplicar** o requirements lá (defasagem em
+silêncio, a classe de erro que esta spec inteira ataca), **instalar em runtime**
+a cada `restart` (o container passa a depender do PyPI para subir, e o que está
+instalado deixa de ser propriedade da imagem) ou **`additional_contexts`** do
+Compose (sintaxe pouco conhecida, e exige versão recente). Dependência nova
+nasce junto de código novo e os dois têm que viajar no mesmo commit, que é
+exatamente o argumento usado abaixo para o `definitions.py`.
+
+Quem **declara** o serviço continua sendo o `docker-compose.yml` do `homelab`;
+o que ele ganhou foi `context: /srv/raspador_eventos` +
+`dockerfile: docker/raspador_code.Dockerfile`. E o contexto é enxuto por
+`.dockerignore` (`*` seguido de `!requirements.txt`): o código chega por bind
+mount, então nada além do requirements precisa viajar para o daemon do Docker.
 
 O critério é o mesmo do D5: **o `definitions.py` do raspador mora no repo do
 raspador**, porque asset novo quase sempre nasce junto de passo novo, e os dois
@@ -708,6 +737,17 @@ keepalives. O servidor está **na mesma rede** que o notebook (confirmado na
 consultar a base. Sintoma se faltar: conexão que demora dezenas de segundos ou
 morre em silêncio no meio de um passo longo — não um erro limpo.
 
+**Medido na máquina do autor em 17/08, antes de o servidor entrar:** o asset de
+diagnóstico abre a conexão com o Neon em **0,20 s com o patch e 0,21 s sem** —
+ou seja, hoje, aqui, o Neon já não sofre. Duas consequências para a fatia 2:
+(a) medir só a conexão com a base **não decide nada** sobre a variável, porque
+o custo do IPv6 quebrado aparecia sobretudo nas requisições HTTP das fontes
+(BFF do Sympla) — a medição no servidor precisa incluir uma delas; (b) o
+`.env` local não define `FORCAR_IPV4`, o que significa que a rodada `completo`
+de ontem rodou sem o patch e mesmo assim foi normal. A variável continua no
+`env_file` do servidor por precaução (é opt-in e barata), mas quem decide se
+ela fica é a medição de uma requisição HTTP lá, não a da base.
+
 ### 6.4 O `claude` CLI na assinatura — o item mais arriscado
 
 `instagram.extrair` chama `claude -p --model sonnet --output-format json
@@ -760,6 +800,20 @@ funcionar. **Não é certeza**: o navegador vai estar headless num container
 Linux, não no Windows do autor. É a primeira coisa a testar na fatia 4, e o
 scraper já falha alto (listagem sem slug levanta exceção e despeja HTML +
 screenshot em `diagnostico/shotgun/`) — o diagnóstico já vem pronto.
+
+⚠️ **Antes disso vem um obstáculo mais bobo, previsto na fatia 2 e a resolver na
+4: o container roda como `root`, e o Chromium recusa subir como root sem
+`--no-sandbox`.** Hoje `coleta/shotgun.py:108` chama
+`p.chromium.launch(headless=True)` e nada mais — no Windows do autor isso é
+irrelevante, no container é uma falha imediata (`Running as root without
+--no-sandbox is not supported`), que o scraper vai reportar como listagem
+vazia... não: ele levanta exceção, que é o comportamento certo, mas o motivo
+não terá nada a ver com bloqueio de origem. As saídas, em ordem: acrescentar
+`args=["--no-sandbox"]` no launch quando o processo estiver rodando como root,
+ou criar um usuário não-root na imagem (mais correto, mais caro — os bind
+mounts do clone e do `~/.claude` passam a precisar de dono compatível). A
+decisão fica para a fatia 4, junto do teste de verdade; o que não pode é essa
+falha ser confundida com o NI-58.
 
 ### 6.6 Compute logs: o pipeline inteiro fala por `print`
 
@@ -1187,12 +1241,38 @@ comportamento.
 
 ### Fatia 2 — a imagem do raspador
 
-**Onde:** `homelab` (Dockerfile novo, compose) + `raspador_eventos`
-(`definitions.py` com um asset só).
+**Onde:** `homelab` (compose) + `raspador_eventos` (o Dockerfile, que mudou de
+repositório — §6.2 — e o `definitions.py` com um asset só).
 **O quê:** o `raspador_code` passa a usar imagem própria — `requirements.txt`,
 Node + Monid, Chromium, `claude` —, com o clone git montado, `PYTHONPATH`,
 `env_file` e `FORCAR_IPV4=1`. Um asset trivial que consulta
 `SELECT count(*) FROM tratado.eventos`.
+
+**Escrito em 17/08, antes de o servidor entrar:**
+
+- `docker/raspador_code.Dockerfile` — `python:3.12-slim` + Node 22 (NodeSource)
+  + `@monid-ai/cli` + `@anthropic-ai/claude-code` + `dagster==1.13.17` pinado
+  igual ao webserver + `requirements.txt` + `playwright install --with-deps
+  chromium`. Mais `git` (o SHA da §6.2) e `tzdata` (sem ele o
+  `TZ=America/Sao_Paulo` não resolve e o dia local de Brasília viaja).
+- `.dockerignore` — contexto de build reduzido ao `requirements.txt`.
+- `src/pipeline/definitions.py` — o asset `tratado/contagem_eventos`, que só
+  lê. Ele importa `passos` **de propósito**: é o import que aplica o
+  `FORCAR_IPV4` e é ele que puxa a cadeia inteira (coleta, tratamento,
+  serviço), de modo que dependência faltando na imagem apareça como code
+  location vermelha, e não no meio da primeira rodada de produção.
+- Compose do `homelab`: `build.context` apontando para o clone, `working_dir`,
+  `DAGSTER_HOME`, os volumes do clone e do `~/.claude`, e o `-f` do gRPC agora
+  no `definitions.py` do raspador. O `hello_homelab` sai da UI — a pasta
+  `./pipelines` deixa de ser montada.
+- **Ensaio local do asset** (venv com `dagster==1.13.17`, `dg.materialize`):
+  materializou contra produção em leitura — `base=eventos`, 968 eventos, 343
+  futuros, conexão em 0,20 s. Achado: `conectar()` devolve `row_factory=
+  dict_row`, então `fetchone()[0]` estoura `KeyError: 0` — toda contagem
+  precisa de apelido (`count(*) AS n`). Teria sido a primeira materialização
+  vermelha na UI.
+- `linhagem.py` regravado: o gerador enxergou o `definitions.py` sozinho e já o
+  lista como leitor de `tratado.eventos`.
 
 **✅ Meu checklist**
 
