@@ -359,9 +359,26 @@ virar API pública para o Dagster chamar sem duplicar código.
 | `_relatorio(...)`, `_coleta_anterior`, `_checar_schema` | idem, públicas | renome |
 | `main()` | fica em `atualizar.py` | O CLI continua sendo o CLI: lê `sys.argv`, chama os passos na ordem, imprime |
 
+**Feito em 14/08.** Três coisas que a execução acrescentou ao plano acima:
+
+- A separação do Instagram deixou um terceiro pedaço: a **fila** de extração
+  (`_fila_extracao`) é lida pelos dois lados, porque a rodada que NÃO extrai
+  ainda precisa dizer quantos posts ficaram esperando. Virou
+  `pendentes_extracao()`, e é o que o `atualizar.py` chama no modo do cron. Sem
+  ela, o pendente ficaria invisível justamente na rodada que não o processa.
+- O `atualizar.py` ficou com duas funções de orquestração, não só `main()`:
+  `_raspar` (o loop das cinco fontes, que agora é três linhas sobre
+  `passos.coletar`) e `_instagram` (coleta + visão, ou coleta + contagem). São
+  decisões de CLI — o Dagster vai tomar as suas próprias, com um asset por passo.
+- O patch de `FORCAR_IPV4` no `socket.getaddrinfo` mudou de arquivo junto com os
+  passos, e **mora em `passos.py` de propósito**: é decisão de pipeline. Quem
+  importa `base/conexao.py` para só ler a base (site, MCP, testes) não deve
+  ganhar um patch global no `socket` de brinde.
+
 **Como se prova que o refactor não mudou nada** (§13): uma rodada `--so-derivar`
 antes e depois com diff nas contagens, a suíte de fumaça inteira, e uma rodada
-`completo` comparada com a rodada anterior em `operacao.execucoes`.
+`completo` comparada com a rodada anterior em `operacao.execucoes`. As três
+foram feitas; o resultado de cada uma está na fatia 1, na §12.
 
 ### 5.3 `src/pipeline/definitions.py` — esboço
 
@@ -429,7 +446,9 @@ Pontos do esboço que são decisão, não estilo:
 ```
 src/pipeline/
   atualizar.py     # CLI — continua, encolhe para ~200 linhas (orquestração + main)
+                   #   (feito: 906 -> 238 linhas)
   passos.py        # NOVO — os passos, chamáveis por qualquer orquestrador
+                   #   (feito: 769 linhas)
   definitions.py   # NOVO — assets, jobs, schedules (só ele importa dagster)
   checks.py        # NOVO — asset checks (leem a base, a seco)
   execucoes.py     # inalterado
@@ -990,7 +1009,7 @@ nada que esteja em produção hoje.
 | Fatia | Onde | ✅ meu | 👤 teu | Feita em |
 |---|---|---|---|---|
 | 0 — compose | `homelab` | ✅ | ✅ | **14/08/2026** |
-| 1 — `passos.py` | `raspador_eventos` | ☐ | ☐ | |
+| 1 — `passos.py` | `raspador_eventos` | ✅ | ✅ | **17/08/2026** |
 | 2 — imagem do raspador | ambos | ☐ | ☐ | |
 | 3 — grafo em `eventos_teste` | `raspador_eventos` | ☐ | ☐ | |
 | 4 — Shotgun e produção | ambos | ☐ | ☐ | |
@@ -1122,32 +1141,45 @@ que o teste forçou).
 **O quê:** o refactor de movimentação da §5.2, com o `atualizar.py` intacto em
 comportamento.
 
-**✅ Meu checklist**
+**✅ Meu checklist** — feito em 14/08/2026, com o resultado de cada item:
 
-- [ ] `--so-derivar` **antes** do refactor, saída guardada em arquivo.
-- [ ] `--so-derivar` **depois**, e `diff` das duas saídas: contagens de
-      `derivado`, `enriquecimento`, `sumidos`, `slugs` idênticas.
-- [ ] Suíte de fumaça inteira verde — os oito scripts, com `test_bronze`
+- [x] `--so-derivar` **antes** do refactor, saída guardada em arquivo.
+- [x] `--so-derivar` **depois**, e `diff` das duas saídas: as contagens de
+      `derivado`, `enriquecimento`, `sumidos` e `slugs` são idênticas, e o
+      conjunto de nomes listados (sumidos, ruído, grupos de dedupe) também —
+      `diff` dos dois arquivos ordenados sai vazio. O que difere é timestamp,
+      duração, a ORDEM das listagens (query sem `ORDER BY`, não determinismo
+      pré-existente) e as contagens de "eventos futuros", porque os cinco
+      minutos entre as duas rodadas jogaram eventos do dia para o passado.
+- [x] Suíte de fumaça inteira verde — os oito scripts, com `test_bronze`
       (apaga a prata e reconstrói) por último.
-- [ ] `grep -r "import dagster" src/` → **vazio** (D5).
-- [ ] `python src/ferramentas/linhagem.py` roda e o diff em `docs/linhagem/` é
-      vazio ou explicável — o gerador lê a estrutura dos passos e pode sentir o
-      refactor (§5.4).
-- [ ] `git diff --stat`: o volume é compatível com movimentação, não com
-      reescrita. Qualquer trecho que mudou de lógica sai listado na conversa,
-      um a um.
-- [ ] Uma rodada `completo` local, comparada com a anterior em
-      `operacao.execucoes`: coletados por fonte dentro da variação normal.
+- [x] `grep -r "import dagster" src/` → **vazio** (D5).
+- [x] `python src/ferramentas/linhagem.py` roda; o diff em `docs/linhagem/` é
+      16 linhas, todas a mesma coisa: onde se lia `pipeline/atualizar.py` como
+      leitor de uma tabela, agora se lê `pipeline/passos.py`. É o refactor
+      aparecendo no mapa — o CLI não faz mais SQL nenhum.
+- [x] `git diff --stat`: `atualizar.py` −718/+50, `passos.py` +769. Comparação
+      função a função (AST, com os renomes aplicados): **onze das treze funções
+      movidas são byte-idênticas**; as duas que diferem, só em comentário —
+      `precificar` (uma menção a `_descrever`) e `relatorio` (a chamada a
+      `coleta_anterior` e um comentário que citava o antigo `_marcar_sumidos`).
+      As mudanças de forma são as duas declaradas na §5.2, e nenhuma outra.
+- [x] Uma rodada `completo` local (execução #47, 36 min): sympla 274→271,
+      ingresse 3→2, zig 1→3, ticketandgo 70→73, shotgun 74/74, cinema 8/8,
+      instagram 5/5 — **nenhum alerta de queda**. 57 flyers extraídos sem falha,
+      12 filmes no TMDB, 12 pôsteres. `operacao.execucoes` gravou no formato de
+      sempre, com `fontes[nome].coletados` intacto — é dele que o alerta de 50%
+      se alimenta, e é o que quebraria em silêncio se o D8 tivesse escorregado.
 
 **👤 Teu checklist**
 
-- [ ] Ler o diff de `passos.py` × `atualizar.py` — é a fatia com risco real de
+- [x] Ler o diff de `passos.py` × `atualizar.py` — é a fatia com risco real de
       mudar comportamento sem querer.
-- [ ] Rodar você mesmo `python src/pipeline/atualizar.py --so-derivar` e ver o
+- [x] Rodar você mesmo `python src/pipeline/atualizar.py --so-derivar` e ver o
       relatório sair igual ao que você conhece.
-- [ ] Conferir que a única quebra de forma é a que a §5.2 declara
+- [x] Conferir que a única quebra de forma é a que a §5.2 declara
       (`_raspar` vira `coletar` de UMA fonte).
-- [ ] Ok para commitar.
+- [x] Ok para commitar. → **revisado em 17/08/2026.**
 
 **Portão:** os dois checklists completos.
 
