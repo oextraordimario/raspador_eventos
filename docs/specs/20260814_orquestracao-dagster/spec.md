@@ -1362,6 +1362,84 @@ produção no servidor — não avançar com pendência de segurança.
 `@multi_asset` do tratamento, com `EVENTOS_DB_URL` apontando para
 `eventos_teste`. Job e schedule **desligados** — só materialização manual.
 
+**Escrito em 17/08, antes de o servidor entrar.** 21 assets, o grafo da §4.1
+inteiro. Quatro coisas saíram diferentes do plano, e as quatro são decisão:
+
+1. **Nasceu um nó que a §4.1 não tinha: `operacao/schema`.** O DDL de `sql/`
+   precisa de dono. Hoje quem o aplica é o `conectar(aplicar_schema=True)` do
+   `atualizar.py` — "só o CLI aplica DDL" é regra do CLAUDE.md, e sem tradução
+   o Dagster rodaria contra uma base que ninguém migrou (visível na hora, em
+   `eventos_teste`, que nem tabela tinha). Virou a raiz de que todo o resto
+   depende. Ele também traduz o `checar_schema`: no CLI a recusa é `sys.exit`,
+   que aqui mataria o processo do run sem dizer por quê — vira `dg.Failure`
+   com a mensagem inteira na tela.
+2. **`outs` + `internal_asset_deps`, e não `specs`, no `@multi_asset`.** O
+   esboço da §4.3 usava `specs`, e specs só produzem output do tipo `Nothing`:
+   `MaterializeResult(value=...)` estoura com *"expected type Nothing"*. Como o
+   ciclo precisa ENTREGAR sua saída para o fecho da rodada (é o D8 — o
+   relatório e `operacao.execucoes` consomem esse dicionário), a forma certa é
+   `outs`. O `internal_asset_deps` é o que preserva a linhagem fina; sem ele os
+   três assets herdariam as quatro dependências e o grafo diria que a grade de
+   cinema vem do Sympla.
+3. **`tratado/filmes` e `tratado/sessoes` dependem de `cru/cinema`, e só.** O
+   mapa da §4.1 ligava o bloco inteiro do tratamento a tudo. Separar deixa o
+   grafo dizer a verdade: evento vem das plataformas + Instagram, filme e
+   sessão vêm da grade. A transação continua sendo uma só — é o mesmo compute.
+4. **O laço do TMDB ficou na opção 2 da §4.5**, como recomendado:
+   `tratado/refresh` roda o segundo `ciclo.executar` **só se** TMDB ou pôster
+   trouxeram algo, e devolve a saída que vale para o relatório. Custa um nó a
+   mais no grafo e preserva o comportamento de hoje exatamente.
+
+**Uma consequência do D8 que precisa ficar escrita:** `operacao/execucao`
+recebe o VALOR de todos os outros assets (15 entradas). Isso é o que mantém o
+formato de `operacao.execucoes` idêntico ao de hoje — inclusive o que o
+`coleta_anterior` lê para o alerta de queda de 50%. O preço é que materializar
+o fecho sozinho exige que os upstreams já tenham materializado alguma vez: o
+IO manager carrega o último valor, e se nunca houve, o step falha. Na rodada
+diária isso é irrelevante (tudo roda junto); na mão, é a pegadinha a lembrar.
+
+**Ensaiado aqui contra `eventos_teste`, com `dg.materialize`** — o grafo
+INTEIRO, 20 assets, 864 s, tudo verde:
+
+| Asset | | Asset | |
+|---|---|---|---|
+| `cru/sympla` | 204/205 em 9 s | `cru/detalhes` | 195 buscadas, 4 descartadas |
+| `cru/shotgun` | 60/60 em 158 s | `cru/tickets` | 173 buscados, 61 fora da janela |
+| `cru/ticketandgo` | 54/57 em 259 s | `tratado/eventos` | 337 eventos, 621 lotes, 2 rejeitados |
+| `cru/zig` | 3/3 | `tratado/filmes` | 34 filmes, 619 sessões |
+| `cru/ingresse` | 1/1 | `cru/tmdb` + `operacao/posters` | 34 + 34 |
+| `cru/cinema` | 8/8 em 40 s | `tratado/refresh` | **reciclou: True** (68 novos) |
+
+Cinco coisas que só o ensaio mostrou:
+
+- **O laço do TMDB rodou no caminho quente.** 34 filmes novos + 34 pôsteres
+  fizeram `tratado/refresh` chamar o segundo ciclo de verdade (16 s) — não é
+  código de exceção não testado.
+- **O fecho fez o que o D8 promete.** `operacao.execucoes` ganhou a linha no
+  formato exato de hoje: `fontes[nome].coletados` por fonte (é o que
+  `coleta_anterior` lê para o alerta de queda de 50%), `passos` com
+  descrever/precificar/derivado/cinema/instagram, 11 erros, duração 864,3 s.
+  Modo `dagster`.
+- **O D6 se provou sem precisar quebrar nada de propósito.** O Monid saiu do
+  PATH no ensaio (a chave dele só entra na fatia 5, então no servidor vai ser
+  igual): `cru/instagram` materializou **verde com `coletados: 0` e 5 erros na
+  metadata**, e o run seguiu. Que é exatamente o que se queria ter visto no dia
+  do Sympla.
+- **O `descrever` acusa lixo de teste, e acerta ao acusar:** ids sintéticos de
+  testes antigos (`sympla:3`, `sympla:sc`, `Evento shotgun:6`) não têm URL com
+  id numérico. Falha por evento vira erro registrado, não derruba o passo.
+- **Rodar contra `eventos_teste` TOCA serviço externo compartilhado**: os 34
+  pôsteres subiram para o Vercel Blob de produção e o TMDB levou 34 chamadas.
+  É inofensivo (o pathname do Blob é estável e o conteúdo vem da mesma fonte,
+  então re-subir substitui), mas não é "ambiente isolado" — só a BASE é de
+  teste. Vale para o `atualizar.py` do mesmo jeito; fica escrito porque a
+  palavra "teste" sugere o contrário.
+
+A metadata do tratamento foi podada no caminho: `derivado` é {coluna: quantos
+eventos ganharam valor}, 23 chaves que na tela viram ruído. Ficaram o total, os
+REJEITADOS pela guarda e a cobertura de preço/local/coordenada — que é o que
+responde "a rodada foi normal?".
+
 **✅ Meu checklist**
 
 - [ ] `EVENTOS_DB_URL` do container aponta para `eventos_teste` — conferido
