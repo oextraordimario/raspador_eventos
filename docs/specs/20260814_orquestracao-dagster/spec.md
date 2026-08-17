@@ -1092,7 +1092,7 @@ nada que esteja em produção hoje.
 |---|---|---|---|---|
 | 0 — compose | `homelab` | ✅ | ✅ | **14/08/2026** |
 | 1 — `passos.py` | `raspador_eventos` | ✅ | ✅ | **17/08/2026** |
-| 2 — imagem do raspador | ambos | ✅ | ☐ | |
+| 2 — imagem do raspador | ambos | ✅ | ✅ | **17/08/2026** |
 | 3 — grafo em `eventos_teste` | `raspador_eventos` | ☐ | ☐ | |
 | 4 — Shotgun e produção | ambos | ☐ | ☐ | |
 | 5 — Instagram completo | ambos | ☐ | ☐ | |
@@ -1344,11 +1344,11 @@ container, que sumiria no rebuild seguinte.
 
 **👤 Teu checklist**
 
-- [ ] Ver o asset materializar na UI e conferir que o número bate com o que o
+- [x] Ver o asset materializar na UI e conferir que o número bate com o que o
       site mostra.
-- [ ] Conferir que a UI seguiu responsiva com o container pesado no ar.
-- [ ] Conferir que o `env_file` está fora do git (`git status` no `homelab`).
-- [ ] Ok no Dockerfile novo.
+- [x] Conferir que a UI seguiu responsiva com o container pesado no ar.
+- [x] Conferir que o `env_file` está fora do git (`git status` no `homelab`).
+- [x] Ok no Dockerfile novo. → **revisado em 17/08/2026.**
 
 **Portão:** os dois checklists completos. A partir daqui existe credencial de
 produção no servidor — não avançar com pendência de segurança.
