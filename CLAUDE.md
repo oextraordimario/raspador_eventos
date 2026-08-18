@@ -92,6 +92,12 @@ python src/ferramentas/discover_sympla.py          # gera capturas_sympla.json (
 # (resolução, conexão com o Neon e uma requisição HTTP, com e sem o patch).
 python src/ferramentas/diag_rede.py
 
+# O MESMO grafo do Dagster, com UI, aqui no laptop e contra a base de TESTE
+# (docs/DAGSTER.md). 1ª vez: `py -3.12 -m venv .venv-dagster` +
+# `.venv-dagster/Scripts/python.exe -m pip install -r requirements-dagster.txt`.
+python src/ferramentas/dagster_dev.py                  # UI em 127.0.0.1:3070
+.venv-dagster/Scripts/python.exe -m dagster definitions validate -f src/pipeline/definitions.py
+
 # Mapa de linhagem (docs/linhagem/): de onde vem cada dado e por onde passou.
 # Lê o próprio código — rodar depois de mexer em fonte, trilha, ciclo ou sql/.
 python src/ferramentas/linhagem.py
@@ -528,6 +534,14 @@ filmes, título/gêneros.
   e re-derivar; (c) os schemas `cru`, `curado`, `operacao` e `uso` **não se
   reconstroem** — não dropar; se algo destrutivo for inevitável, exportar antes
   (NI-56).
+- **O CLI do Dagster injeta o `.env` do cwd POR CIMA do ambiente.** Ele lê o
+  `.env` do diretório de trabalho e faz `os.environ[chave] = valor` —
+  sobrescrevendo, não completando. Como o `.env` da raiz tem o
+  `EVENTOS_DB_URL` de produção, passar a URL de teste no ambiente do
+  subprocesso NÃO aponta o grafo para a base de teste (medido: a sonda recebeu
+  `BANCO_DE_TESTE_FALSO` e o step leu `eventos`). Quem redireciona é
+  `conexao.DB_URL`, em Python, como nos testes — ver
+  `src/ferramentas/dagster_dev.py`.
 - **MCP / FastMCP:** retorno `list` vira `structuredContent["result"]` + um content
   block por item; retorno `dict` vira content block único. `tests/test_mcp_server.py`
   lida com os dois formatos. Config em `.mcp.json`; setup dos clientes em

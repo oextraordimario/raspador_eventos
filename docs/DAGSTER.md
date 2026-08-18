@@ -1,9 +1,9 @@
-# Dagster — acesso à API
+# Dagster — a instância do homelab
 
 Instância de Dagster rodando no homelab do autor, exposta na tailnet via
-Tailscale (`tailscale serve`, **não** Funnel). Ainda **não integrada ao
-pipeline** — este documento registra o acesso verificado, para o dia em que a
-orquestração migrar para lá.
+Tailscale (`tailscale serve`, **não** Funnel). A migração da orquestração para
+lá está em curso — spec `20260814_orquestracao-dagster`, fatia a fatia; este
+documento registra o acesso à API e como rodar o mesmo grafo no laptop.
 
 ## Endpoint
 
@@ -65,6 +65,64 @@ curl -s -X POST "$DAGSTER_URL" \
   -H "Content-Type: application/json" \
   -d '{"query":"{ assetsOrError { ... on AssetConnection { nodes { key { path } definition { groupName computeKind } } } ... on PythonError { message } } }"}'
 ```
+
+## Dagster no laptop
+
+O grafo de `src/pipeline/definitions.py` roda aqui também, com UI, contra a
+base de **teste**:
+
+```bash
+# 1ª vez: o venv dedicado (3.12, a mesma minor da imagem do servidor)
+py -3.12 -m venv .venv-dagster
+.venv-dagster/Scripts/python.exe -m pip install -r requirements-dagster.txt
+
+# sempre: da raiz do repo, com o python que estiver à mão
+python src/ferramentas/dagster_dev.py        # UI em http://127.0.0.1:3070
+```
+
+Serve para encurtar o laço de quem mexe no grafo: ver o efeito de uma mudança
+no servidor custa commit → push → `git pull` → `docker compose restart
+raspador_code`; aqui custa um F5. O que mais se ganha é o que só se vê
+olhando — agrupamento, nome de chave, o que o desenho explica.
+
+**Por que um script, e não `dagster dev` na mão.** O `.env` da raiz tem
+`EVENTOS_DB_URL` de **produção**, e um grafo apontado para lá materializa de
+verdade: um clique em `tratamento` reconstrói a prata de produção. O script
+redireciona a conexão para a base de teste — e faz isso por
+`conexao.DB_URL`, o mesmo caminho de `tests/base_teste.py`, com guarda de nome
+(URL sem "teste" não sobe). A conferência em run é a de sempre:
+`operacao/schema` publica `base=` na metadata; se não disser `eventos_teste`,
+pare.
+
+> ⚠️ **Variável de ambiente não segura isto** — medido em 18/08/2026. O CLI do
+> Dagster lê o `.env` do diretório de trabalho e o injeta com
+> `os.environ[chave] = valor`, ou seja **sobrescrevendo** o que o processo já
+> tinha. Passar `EVENTOS_DB_URL=<teste>` ao subprocesso parece bastar e não
+> basta: numa sonda que só imprimia o nome do banco visto pelo step, a URL
+> passada era `.../BANCO_DE_TESTE_FALSO` e o step leu `eventos`. Por isso o
+> redirecionamento é em Python, não no ambiente.
+>
+> Corolário para o servidor: se um dia aparecer um `.env` dentro de
+> `/srv/raspador_eventos`, ele passa a **vencer** o `env_file` do compose. Hoje
+> não existe — o clone é limpo e o `.env` é gitignorado.
+
+Antes de commitar mudança de grafo, a checagem barata (não sobe UI, só carrega
+o arquivo e reclama):
+
+```bash
+.venv-dagster/Scripts/python.exe -m dagster definitions validate -f src/pipeline/definitions.py
+```
+
+**Diferenças assumidas em relação ao servidor:** storage local é SQLite em
+`.dagster/` (gitignorado, descartável — o histórico que vale é o do Postgres da
+instância); não há `dagster.yaml`, então valem os defaults, e config de
+instância (pools, concorrência, retenção) só existe lá; a porta é 3070 porque a
+3000 é onde o `next dev` cai.
+
+**A versão é pinada em três lugares** — `homelab/dagster/Dockerfile`,
+`docker/raspador_code.Dockerfile` e `requirements-dagster.txt` — e sobe nos
+três no mesmo commit. Divergir entre daemon e code location dá "location failed
+to load"; divergir com o laptop é pior, porque o grafo abre aqui e quebra só lá.
 
 ## Armadilhas
 

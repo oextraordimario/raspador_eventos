@@ -1,0 +1,25 @@
+# Dagster no LAPTOP - o loop de desenvolvimento do grafo: ver e materializar
+# aqui antes de subir ao servidor (`python src/ferramentas/dagster_dev.py`).
+#
+# NAO e dependencia do raspador: o `atualizar.py` roda sem nada disto, e o
+# `requirements.txt` continua sendo o que a imagem do servidor e o CI instalam.
+# Fica num arquivo a parte porque o dagster arrasta pydantic/click/grpc, e
+# misturá-lo ao ambiente do projeto trocaria versoes que o resto usa.
+#
+# ATENCAO - A VERSAO E PINADA E VIAJA EM TRES LUGARES, no mesmo commit:
+#   1. homelab/dagster/Dockerfile        (webserver + daemon)
+#   2. docker/raspador_code.Dockerfile   (code location - a que executa)
+#   3. este arquivo                      (o laptop)
+# O protocolo gRPC entre daemon e code location e versionado; divergir da
+# "location failed to load" com erro de serializacao, sem relacao aparente com
+# o que se mexeu. Aqui a divergencia e mais traicoeira ainda: o grafo ABRE
+# local e quebra so no servidor.
+#
+# SEM EMOJI E SEM CARACTERE EXOTICO NESTE ARQUIVO: no Windows o pip le o
+# requirements em cp1252, e byte que nao existe nessa tabela (o 0x8F do
+# seletor de variacao de um emoji, por exemplo) aborta a instalacao inteira
+# com UnicodeDecodeError - erro que nao tem nada a ver com dependencia.
+-r requirements.txt
+
+dagster==1.13.17
+dagster-webserver==1.13.17   # a UI; `dagster dev` nao sobe sem ela

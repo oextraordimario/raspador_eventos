@@ -1583,6 +1583,13 @@ embaralham a comparação "vs. rodada anterior".
 - [ ] Slugs e FTS íntegros: nenhum evento sem slug, busca por texto responde.
 - [ ] O site continua servindo durante a materialização do tratamento (uma
       requisição a `/festas` no meio do run).
+- [ ] 🔑 **Conferir que não existe `.env` em `/srv/raspador_eventos`.** O CLI do
+      Dagster injeta o `.env` do diretório de trabalho por cima do ambiente
+      (`os.environ[chave] = valor`, medido em 18/08 — ver `docs/DAGSTER.md`), e
+      o `working_dir` do serviço é o clone. Um `.env` ali venceria o `env_file`
+      do compose e decidiria em silêncio contra qual base a rodada roda. Hoje
+      não existe, porque o arquivo é gitignorado; a virada de chave desta fatia
+      é justamente sobre qual `EVENTOS_DB_URL` vale.
 
 **👤 Teu checklist**
 

@@ -25,7 +25,13 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.venv-dagster/
 *.egg-info/
+
+# Dagster do laptop (src/ferramentas/dagster_dev.py): storage SQLite e logs de
+# run locais. Descartável por desenho — o histórico que vale é o do servidor,
+# que fica no Postgres da instância.
+.dagster/
 
 # Jupyter
 .ipynb_checkpoints/
