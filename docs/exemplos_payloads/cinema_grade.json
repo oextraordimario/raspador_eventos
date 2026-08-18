@@ -1,0 +1,880 @@
+[
+  {
+    "date": "2026-08-14",
+    "dateFormatted": "14/08",
+    "dayOfWeek": "sexta-feira",
+    "isToday": true,
+    "movies": [
+      {
+        "id": "29922",
+        "b2BId": null,
+        "type": "Filme",
+        "title": "Homem-Aranha: Um Novo Dia",
+        "originalTitle": "Spider-Man: Brand New Day",
+        "movieIdUrl": "",
+        "inPreSale": false,
+        "isReexhibition": false,
+        "duration": "144",
+        "contentRating": "12 anos",
+        "distributor": "Sony Pictures",
+        "urlKey": "homem-aranha-um-novo-dia",
+        "siteURL": "https://www.ingresso.com/filme/homem-aranha-um-novo-dia?city=brasilia&partnership=home",
+        "nationalSiteURL": "https://www.ingresso.com/filme/homem-aranha-um-novo-dia?city=brasilia&partnership=home",
+        "siteURLByTheater": "https://www.ingresso.com/filme/homem-aranha-um-novo-dia?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "nationalSiteURLByTheater": "https://www.ingresso.com/filme/homem-aranha-um-novo-dia?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "ancineId": "E2600041000000",
+        "images": [
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/homem-aranha-um-novo-dia/257f9c31-7c31-4bfd-b903-2b398f4830dc.webp",
+            "type": "PosterPortrait"
+          },
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/homem-aranha-um-novo-dia/7f7f73da-937a-4d28-ae73-29aaceb615f6.webp",
+            "type": "PosterHorizontal"
+          }
+        ],
+        "trailers": [
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=mx-shWgxZvw",
+            "embeddedUrl": "//www.youtube.com/embed/mx-shWgxZvw"
+          },
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=y80_2R-aPT0",
+            "embeddedUrl": "//www.youtube.com/embed/y80_2R-aPT0"
+          },
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=OFql8iHM53g",
+            "embeddedUrl": "//www.youtube.com/embed/OFql8iHM53g"
+          }
+        ],
+        "genres": [
+          "Ação",
+          "Aventura",
+          "Fantasia",
+          "Ficção Científica"
+        ],
+        "ratingDescriptors": [
+          "Linguagem Imprópria",
+          "Temas Sensíveis",
+          "Violência"
+        ],
+        "accessibilityHubs": [],
+        "tags": [
+          "Férias escolares"
+        ],
+        "completeTags": [
+          {
+            "name": "Férias escolares",
+            "background": "",
+            "color": ""
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Sala 2",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354710",
+                "boxOfficeId": "47deb7d6-ea84-4c0e-b748-e34e12efb89c",
+                "eventBoxOfficeId": "42919",
+                "price": 59.27,
+                "room": "Sala 2",
+                "type": [
+                  "Normal",
+                  "Dublado"
+                ],
+                "types": [
+                  {
+                    "id": 1,
+                    "name": "Normal",
+                    "alias": "2D",
+                    "display": false,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Dublado",
+                    "alias": "DUB",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T22:10:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:10",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T22:10:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:10",
+                  "year": "2026"
+                },
+                "time": "22:10",
+                "defaultSector": "3177",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354710&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          },
+          {
+            "name": "Sala 3",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354730",
+                "boxOfficeId": "7850c185-ccfb-41eb-bc37-f182e8d0c9a4",
+                "eventBoxOfficeId": "42930",
+                "price": 71.81,
+                "room": "Sala 3",
+                "type": [
+                  "3D",
+                  "Dublado"
+                ],
+                "types": [
+                  {
+                    "id": 4,
+                    "name": "3D",
+                    "alias": "3D",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Dublado",
+                    "alias": "DUB",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T19:15:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "19:15",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T19:15:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "19:15",
+                  "year": "2026"
+                },
+                "time": "19:15",
+                "defaultSector": "3178",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354730&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          },
+          {
+            "name": "Sala 3",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354729",
+                "boxOfficeId": "ddcd0747-1567-4f26-937f-dd855d7e01f8",
+                "eventBoxOfficeId": "42916",
+                "price": 59.27,
+                "room": "Sala 3",
+                "type": [
+                  "Normal",
+                  "Legendado"
+                ],
+                "types": [
+                  {
+                    "id": 1,
+                    "name": "Normal",
+                    "alias": "2D",
+                    "display": false,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Legendado",
+                    "alias": "LEG",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T22:20:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:20",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T22:20:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:20",
+                  "year": "2026"
+                },
+                "time": "22:20",
+                "defaultSector": "3178",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354729&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          },
+          {
+            "name": "Sala 4",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354714",
+                "boxOfficeId": "d12a00bd-ee95-42f1-a0c8-486f225670de",
+                "eventBoxOfficeId": "42929",
+                "price": 71.81,
+                "room": "Sala 4",
+                "type": [
+                  "3D",
+                  "Legendado"
+                ],
+                "types": [
+                  {
+                    "id": 4,
+                    "name": "3D",
+                    "alias": "3D",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Legendado",
+                    "alias": "LEG",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T22:05:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:05",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T22:05:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:05",
+                  "year": "2026"
+                },
+                "time": "22:05",
+                "defaultSector": "3179",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354714&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          },
+          {
+            "name": "Sala 6",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354712",
+                "boxOfficeId": "0b567ac4-0250-462b-a7f8-c6069ebb6116",
+                "eventBoxOfficeId": "42913",
+                "price": 59.27,
+                "room": "Sala 6",
+                "type": [
+                  "Normal",
+                  "Dublado"
+                ],
+                "types": [
+                  {
+                    "id": 1,
+                    "name": "Normal",
+                    "alias": "2D",
+                    "display": false,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Dublado",
+                    "alias": "DUB",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T21:10:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "21:10",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T21:10:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "21:10",
+                  "year": "2026"
+                },
+                "time": "21:10",
+                "defaultSector": "3181",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354712&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          }
+        ],
+        "sessionTypes": null,
+        "ratingDetails": {
+          "id": 1,
+          "name": "12 anos",
+          "label": "12",
+          "displayName": "12 anos",
+          "description": "Linguagem Imprópria,Temas Sensíveis, Violência, Violência Doméstica.",
+          "color": "#FBC115"
+        }
+      },
+      {
+        "id": "30413",
+        "b2BId": null,
+        "type": "Filme",
+        "title": "A Odisseia",
+        "originalTitle": "The Odyssey",
+        "movieIdUrl": "",
+        "inPreSale": false,
+        "isReexhibition": false,
+        "duration": "172",
+        "contentRating": "14 anos",
+        "distributor": "Universal Pictures Brasil",
+        "urlKey": "a-odisseia",
+        "siteURL": "https://www.ingresso.com/filme/a-odisseia?city=brasilia&partnership=home",
+        "nationalSiteURL": "https://www.ingresso.com/filme/a-odisseia?city=brasilia&partnership=home",
+        "siteURLByTheater": "https://www.ingresso.com/filme/a-odisseia?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "nationalSiteURLByTheater": "https://www.ingresso.com/filme/a-odisseia?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "ancineId": "",
+        "images": [
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/a-odisseia/91713f7f-195b-4d60-89c2-8c94588f7aa5.webp",
+            "type": "PosterPortrait"
+          },
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/a-odisseia/640ae222-42a8-427d-b950-4ed71d27dbe9.webp",
+            "type": "PosterHorizontal"
+          }
+        ],
+        "trailers": [
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=CWQyZSd-mC8",
+            "embeddedUrl": "//www.youtube.com/embed/CWQyZSd-mC8"
+          },
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=NJV9Pw2kXc4",
+            "embeddedUrl": "//www.youtube.com/embed/NJV9Pw2kXc4"
+          },
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=GcI3K4_-CuQ",
+            "embeddedUrl": "//www.youtube.com/embed/GcI3K4_-CuQ"
+          }
+        ],
+        "genres": [
+          "Ação",
+          "Aventura",
+          "Épico",
+          "Fantasia"
+        ],
+        "ratingDescriptors": [
+          "Violência"
+        ],
+        "accessibilityHubs": [],
+        "tags": [],
+        "completeTags": [],
+        "rooms": [
+          {
+            "name": "Sala 5",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86385210",
+                "boxOfficeId": "66a7f95e-ea26-441e-9a8e-ad78337ac023",
+                "eventBoxOfficeId": "42885",
+                "price": 59.27,
+                "room": "Sala 5",
+                "type": [
+                  "Normal",
+                  "Legendado"
+                ],
+                "types": [
+                  {
+                    "id": 1,
+                    "name": "Normal",
+                    "alias": "2D",
+                    "display": false,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Legendado",
+                    "alias": "LEG",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T21:30:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "21:30",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T21:30:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "21:30",
+                  "year": "2026"
+                },
+                "time": "21:30",
+                "defaultSector": "3180",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86385210&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          }
+        ],
+        "sessionTypes": null,
+        "ratingDetails": {
+          "id": 2,
+          "name": "14 anos",
+          "label": "14",
+          "displayName": "14 anos",
+          "description": "Atos Criminosos, Conteúdo Sexual, Linguagem Imprópria, Temas Sensíveis, Violência, Estigma ou Preconceito.",
+          "color": "#F58220"
+        }
+      },
+      {
+        "id": "32451",
+        "b2BId": null,
+        "type": "Filme",
+        "title": "A Morte De Robin Hood",
+        "originalTitle": "The Death of Robin Hood",
+        "movieIdUrl": "",
+        "inPreSale": false,
+        "isReexhibition": false,
+        "duration": "122",
+        "contentRating": "18 anos",
+        "distributor": "Imagem Filmes",
+        "urlKey": "a-morte-de-robin-hood",
+        "siteURL": "https://www.ingresso.com/filme/a-morte-de-robin-hood?city=brasilia&partnership=home",
+        "nationalSiteURL": "https://www.ingresso.com/filme/a-morte-de-robin-hood?city=brasilia&partnership=home",
+        "siteURLByTheater": "https://www.ingresso.com/filme/a-morte-de-robin-hood?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "nationalSiteURLByTheater": "https://www.ingresso.com/filme/a-morte-de-robin-hood?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "ancineId": "",
+        "images": [
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/a-morte-de-robin-hood/4bb63768-094b-44dd-a72c-19c7662d798d.webp",
+            "type": "PosterPortrait"
+          },
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/a-morte-de-robin-hood/d80e35a1-5ed5-46a2-a636-90a27ee48a2a.webp",
+            "type": "PosterHorizontal"
+          }
+        ],
+        "trailers": [
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=pkabJ7iJmW4&t=7s",
+            "embeddedUrl": "//www.youtube.com/embed/pkabJ7iJmW4?t=7s"
+          },
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=T5YwX8nhrgo",
+            "embeddedUrl": "//www.youtube.com/embed/T5YwX8nhrgo"
+          }
+        ],
+        "genres": [
+          "Aventura",
+          "Drama"
+        ],
+        "ratingDescriptors": [
+          "Conteúdo Sexual",
+          "Temas Sensíveis",
+          "Violência contra vulnerável",
+          "Violência Extrema"
+        ],
+        "accessibilityHubs": [],
+        "tags": [],
+        "completeTags": [],
+        "rooms": [
+          {
+            "name": "Sala 1",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354711",
+                "boxOfficeId": "eac2bdf9-684e-443b-9bc6-3107e88b4932",
+                "eventBoxOfficeId": "43194",
+                "price": 59.27,
+                "room": "Sala 1",
+                "type": [
+                  "Normal",
+                  "Dublado"
+                ],
+                "types": [
+                  {
+                    "id": 1,
+                    "name": "Normal",
+                    "alias": "2D",
+                    "display": false,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Dublado",
+                    "alias": "DUB",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T19:40:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "19:40",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T19:40:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "19:40",
+                  "year": "2026"
+                },
+                "time": "19:40",
+                "defaultSector": "3176",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354711&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          }
+        ],
+        "sessionTypes": null,
+        "ratingDetails": {
+          "id": 5,
+          "name": "18 anos",
+          "label": "18",
+          "displayName": "18 anos",
+          "description": "Atos Criminosos, Conteúdo Sexual, Linguagem Imprópria, Nudez, Temas Sensíveis, Violência, Violência contra Vulnerável, Violência Sexual, Autoagressão ou Suicídio.",
+          "color": "#000000"
+        }
+      },
+      {
+        "id": "32490",
+        "b2BId": null,
+        "type": "Filme",
+        "title": "O Fim Da Rua",
+        "originalTitle": "The End Of The Oak Street",
+        "movieIdUrl": "",
+        "inPreSale": false,
+        "isReexhibition": false,
+        "duration": "100",
+        "contentRating": "14 anos",
+        "distributor": "Warner Bros",
+        "urlKey": "o-fim-da-rua",
+        "siteURL": "https://www.ingresso.com/filme/o-fim-da-rua?city=brasilia&partnership=home",
+        "nationalSiteURL": "https://www.ingresso.com/filme/o-fim-da-rua?city=brasilia&partnership=home",
+        "siteURLByTheater": "https://www.ingresso.com/filme/o-fim-da-rua?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "nationalSiteURLByTheater": "https://www.ingresso.com/filme/o-fim-da-rua?city=brasilia&partnership=home#cinema=cinemark-iguatemi-brasilia",
+        "ancineId": "",
+        "images": [
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/o-fim-da-rua/61fcc0de-f502-4400-81dc-8d4944de1c62.webp",
+            "type": "PosterPortrait"
+          },
+          {
+            "url": "https://ingresso-a.akamaihd.net/prd/img/movie/o-fim-da-rua/ebea8faa-8c09-44b3-9656-ce5bdbbb7ac2.webp",
+            "type": "PosterHorizontal"
+          }
+        ],
+        "trailers": [
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=P9S0_OTI_rg",
+            "embeddedUrl": "//www.youtube.com/embed/P9S0_OTI_rg"
+          },
+          {
+            "type": "YouTube",
+            "url": "https://www.youtube.com/watch?v=x7WT4e6HNo8",
+            "embeddedUrl": "//www.youtube.com/embed/x7WT4e6HNo8"
+          }
+        ],
+        "genres": [
+          "Ficção Científica",
+          "Thriller"
+        ],
+        "ratingDescriptors": [
+          "Drogas Lícitas",
+          "Violência"
+        ],
+        "accessibilityHubs": [],
+        "tags": [],
+        "completeTags": [],
+        "rooms": [
+          {
+            "name": "Sala 1",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354709",
+                "boxOfficeId": "487ef1c1-8bef-408b-9825-b387e44404bb",
+                "eventBoxOfficeId": "43159",
+                "price": 59.27,
+                "room": "Sala 1",
+                "type": [
+                  "Normal",
+                  "Legendado"
+                ],
+                "types": [
+                  {
+                    "id": 1,
+                    "name": "Normal",
+                    "alias": "2D",
+                    "display": false,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Legendado",
+                    "alias": "LEG",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T22:30:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:30",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T22:30:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "22:30",
+                  "year": "2026"
+                },
+                "time": "22:30",
+                "defaultSector": "3176",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354709&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          },
+          {
+            "name": "Sala 2",
+            "type": null,
+            "sessions": [
+              {
+                "id": "86354723",
+                "boxOfficeId": "8812455c-8db5-4910-aefd-dd3fed364afc",
+                "eventBoxOfficeId": "43160",
+                "price": 59.27,
+                "room": "Sala 2",
+                "type": [
+                  "Normal",
+                  "Dublado"
+                ],
+                "types": [
+                  {
+                    "id": 1,
+                    "name": "Normal",
+                    "alias": "2D",
+                    "display": false,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/sessiontype/"
+                    }
+                  },
+                  {
+                    "id": 0,
+                    "name": "Dublado",
+                    "alias": "DUB",
+                    "display": true,
+                    "typeDescriptions": {
+                      "detailedImage": "https://ingresso-a.akamaihd.net/prd/img/copytype/"
+                    }
+                  }
+                ],
+                "date": {
+                  "localDate": "2026-08-14T19:50:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "19:50",
+                  "year": "2026"
+                },
+                "realDate": {
+                  "localDate": "2026-08-14T19:50:00-03:00",
+                  "isToday": true,
+                  "dayOfWeek": "sexta-feira",
+                  "dayAndMonth": "14/08",
+                  "hour": "19:50",
+                  "year": "2026"
+                },
+                "time": "19:50",
+                "defaultSector": "3177",
+                "midnightMessage": null,
+                "siteURL": "https://checkout.ingresso.com/?sessionId=86354723&partnership=home",
+                "nationalSiteURL": null,
+                "appCheckoutUrl": "",
+                "hasSeatSelection": true,
+                "driveIn": false,
+                "streaming": false,
+                "isNewCheckout": true,
+                "maxTicketsPerCar": 0,
+                "enabled": true,
+                "blockMessage": ""
+              }
+            ]
+          }
+        ],
+        "sessionTypes": null,
+        "ratingDetails": {
+          "id": 2,
+          "name": "14 anos",
+          "label": "14",
+          "displayName": "14 anos",
+          "description": "Atos Criminosos, Conteúdo Sexual, Linguagem Imprópria, Temas Sensíveis, Violência, Estigma ou Preconceito.",
+          "color": "#F58220"
+        }
+      }
+    ]
+  }
+]

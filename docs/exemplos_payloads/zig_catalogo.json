@@ -1,0 +1,26 @@
+{
+  "id": 26851,
+  "name": "PRO TOUR STU BRASÍLIA VERT | SEMIFINAL E FINAL",
+  "slug": "pro-tour-stu-brasilia-vert-semifinal-e-final",
+  "start_date": "2026-09-05T10:00:00.000-03:00",
+  "end_date": "2026-09-06T19:30:00.000-03:00",
+  "banner": "https://superticket-assets.s3.amazonaws.com/eventos/2795ae0d-dd65-42df-bcc8-6ffc6242462f",
+  "thumb": "",
+  "link_other": null,
+  "is_online": false,
+  "event_status": "ativo",
+  "g_analytics_code": "G-H9VP6RZ1TK",
+  "timezone": "America/Sao_Paulo",
+  "vertical_banner": "https://superticket-assets.s3.amazonaws.com/eventos/2795ae0d-dd65-42df-bcc8-6ffc6242462f",
+  "event_location": {
+    "name": "Parque da Cidade Sarah Kubitschek ",
+    "zip_code": "70635-815",
+    "neighborhood": "Zona Industrial",
+    "city": "Brasília",
+    "state": "DF",
+    "lng": null,
+    "lat": null,
+    "formatted_address": "Parque da Cidade Sarah Kubitschek ,  - Zona Industrial, Brasília, DF - 70635-815"
+  },
+  "is_closed": false
+}

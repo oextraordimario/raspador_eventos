@@ -292,8 +292,14 @@ registrado uma coleta boa.
 flowchart LR
   subgraph g_cru["cru — bronze: o que a fonte disse. NUNCA SE DROPA"]
     direction TB
+    cru_cinema["cru.cinema<br/>nao se dropa, mas e a UNICA bronze com PODA…"]
+    cru_ingresse["cru.ingresse<br/>NUNCA SE DROPA e APPEND-ONLY."]
     cru_instagram["cru.instagram<br/>NUNCA SE DROPA."]
+    cru_shotgun["cru.shotgun<br/>NUNCA SE DROPA e APPEND-ONLY."]
+    cru_sympla["cru.sympla<br/>NUNCA SE DROPA e APPEND-ONLY."]
+    cru_ticketandgo["cru.ticketandgo<br/>NUNCA SE DROPA e APPEND-ONLY."]
     cru_tmdb["cru.tmdb<br/>NUNCA SE DROPA, ACUMULATIVA e fora do snapsh…"]
+    cru_zig["cru.zig<br/>NUNCA SE DROPA e APPEND-ONLY."]
     cru_inventario["cru.inventario<br/>view"]
   end
   subgraph g_tratamento["tratamento/ — a seco, nenhuma rede"]
@@ -331,6 +337,7 @@ flowchart LR
   subgraph g_ferramentas["ferramentas/ — fora do pipeline"]
     direction TB
     ferramentas_curar["ferramentas/curar.py"]
+    ferramentas_exemplos_payloads["ferramentas/exemplos_payloads.py"]
     ferramentas_linhagem["ferramentas/linhagem.py"]
   end
   tratamento_busca --> tratado_eventos
@@ -358,9 +365,17 @@ flowchart LR
   tratado_eventos --> ferramentas_curar
   ferramentas_curar --> curado_correcoes
   ferramentas_curar --> curado_locais
+  cru_sympla --> ferramentas_exemplos_payloads
+  cru_ingresse --> ferramentas_exemplos_payloads
+  cru_zig --> ferramentas_exemplos_payloads
+  cru_shotgun --> ferramentas_exemplos_payloads
+  cru_ticketandgo --> ferramentas_exemplos_payloads
+  cru_cinema --> ferramentas_exemplos_payloads
+  cru_instagram --> ferramentas_exemplos_payloads
+  cru_tmdb --> ferramentas_exemplos_payloads
   ferramentas_linhagem --> tratado_eventos
   classDef cru fill:#f6e6cd,stroke:#a8722c,color:#4a3214
-  class cru_instagram,cru_tmdb,cru_inventario cru
+  class cru_cinema,cru_ingresse,cru_instagram,cru_shotgun,cru_sympla,cru_ticketandgo,cru_tmdb,cru_zig,cru_inventario cru
   classDef tratamento fill:#e7e2f3,stroke:#6b5ca5,color:#2e2650
   class tratamento_busca,tratamento_curadoria,tratamento_enriquecer,tratamento_slug,tratamento_sumido tratamento
   classDef tratado fill:#e6e9ec,stroke:#6b7280,color:#2b3138
@@ -372,7 +387,7 @@ flowchart LR
   classDef pipeline fill:#e3e6e9,stroke:#5b6b7a,color:#232c33
   class pipeline_definitions,pipeline_execucoes,pipeline_passos pipeline
   classDef ferramentas fill:#f0e8dd,stroke:#8a7154,color:#3d3125
-  class ferramentas_curar,ferramentas_linhagem ferramentas
+  class ferramentas_curar,ferramentas_exemplos_payloads,ferramentas_linhagem ferramentas
 ```
 
 ## 6. O ciclo do tratamento
@@ -434,14 +449,14 @@ creditadas à tabela que elas espelham.
 
 | objeto | tipo | política declarada | DDL | escrito por | lido por |
 |---|---|---|---|---|---|
-| `cru.cinema` | table | nao se dropa, mas e a UNICA bronze com PODA por desenho — dias que ficaram no passado saem na raspagem. | [sql/cru/cinema.sql](../../sql/cru/cinema.sql) | `coleta/gravar.py` | `tratamento/cinema.py` |
-| `cru.ingresse` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/ingresse.sql](../../sql/cru/ingresse.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
-| `cru.instagram` | table | NUNCA SE DROPA. | [sql/cru/instagram.sql](../../sql/cru/instagram.sql) | `coleta/gravar.py` | `tratamento/instagram.py`, `pipeline/passos.py` |
-| `cru.shotgun` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/shotgun.sql](../../sql/cru/shotgun.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
-| `cru.sympla` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/sympla.sql](../../sql/cru/sympla.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
-| `cru.ticketandgo` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/ticketandgo.sql](../../sql/cru/ticketandgo.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
-| `cru.tmdb` | table | NUNCA SE DROPA, ACUMULATIVA e fora do snapshot de proposito — tratado.filmes/sessoes sao reconstruidas do zero a cada rodada, e o enriquecimento nao p… | [sql/cru/tmdb.sql](../../sql/cru/tmdb.sql) | `coleta/gravar.py` | `tratamento/cinema.py`, `pipeline/passos.py` |
-| `cru.zig` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/zig.sql](../../sql/cru/zig.sql) | `coleta/gravar.py` | `tratamento/comum.py` |
+| `cru.cinema` | table | nao se dropa, mas e a UNICA bronze com PODA por desenho — dias que ficaram no passado saem na raspagem. | [sql/cru/cinema.sql](../../sql/cru/cinema.sql) | `coleta/gravar.py` | `tratamento/cinema.py`, `ferramentas/exemplos_payloads.py` |
+| `cru.ingresse` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/ingresse.sql](../../sql/cru/ingresse.sql) | `coleta/gravar.py` | `tratamento/comum.py`, `ferramentas/exemplos_payloads.py` |
+| `cru.instagram` | table | NUNCA SE DROPA. | [sql/cru/instagram.sql](../../sql/cru/instagram.sql) | `coleta/gravar.py` | `tratamento/instagram.py`, `pipeline/passos.py`, `ferramentas/exemplos_payloads.py` |
+| `cru.shotgun` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/shotgun.sql](../../sql/cru/shotgun.sql) | `coleta/gravar.py` | `tratamento/comum.py`, `ferramentas/exemplos_payloads.py` |
+| `cru.sympla` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/sympla.sql](../../sql/cru/sympla.sql) | `coleta/gravar.py` | `tratamento/comum.py`, `ferramentas/exemplos_payloads.py` |
+| `cru.ticketandgo` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/ticketandgo.sql](../../sql/cru/ticketandgo.sql) | `coleta/gravar.py` | `tratamento/comum.py`, `ferramentas/exemplos_payloads.py` |
+| `cru.tmdb` | table | NUNCA SE DROPA, ACUMULATIVA e fora do snapshot de proposito — tratado.filmes/sessoes sao reconstruidas do zero a cada rodada, e o enriquecimento nao p… | [sql/cru/tmdb.sql](../../sql/cru/tmdb.sql) | `coleta/gravar.py` | `tratamento/cinema.py`, `pipeline/passos.py`, `ferramentas/exemplos_payloads.py` |
+| `cru.zig` | table | NUNCA SE DROPA e APPEND-ONLY. | [sql/cru/zig.sql](../../sql/cru/zig.sql) | `coleta/gravar.py` | `tratamento/comum.py`, `ferramentas/exemplos_payloads.py` |
 | `cru.inventario` | view | — | [sql/cru/zz_views.sql](../../sql/cru/zz_views.sql) | — | `pipeline/passos.py` |
 
 ### `tratado` — prata: o schema unificado. Descartável por desenho

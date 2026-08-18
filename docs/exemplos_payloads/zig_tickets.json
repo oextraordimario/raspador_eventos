@@ -1,0 +1,54 @@
+{
+  "tickets": [
+    {
+      "id": 278921,
+      "fee": 0,
+      "name": "Semifinais Street e Park + Urb [Gratuito] Geral",
+      "value": 0,
+      "public": 1,
+      "maximum": 6,
+      "minimum": 1,
+      "ticket_limit": null,
+      "sector_id": 45751,
+      "sector_lot_id": 216139,
+      "sector_index": 3,
+      "sector_limit": null,
+      "available": 6,
+      "is_passport": 0,
+      "sector_name": "Semifinais Street e Park + Urb",
+      "description": "Este ingresso NÃO garante acesso às arquibancadas das modalidades Street e Park, que estão sujeitas à lotação. E também NÃO dá acesso ao espaço exclusivo do STU Superstars.  ",
+      "limited_by_document": false,
+      "seats_category_id": null,
+      "passport_items_amount": 0,
+      "lot_available": 5098
+    }
+  ],
+  "steward": null,
+  "availables": [
+    {
+      "id": 278921,
+      "fee": 0,
+      "name": "Semifinais Street e Park + Urb [Gratuito] Geral",
+      "value": 0,
+      "public": 1,
+      "maximum": 6,
+      "minimum": 1,
+      "ticket_limit": null,
+      "sector_id": 45751,
+      "sector_lot_id": 216139,
+      "sector_index": 3,
+      "sector_limit": null,
+      "available": 6,
+      "is_passport": 0,
+      "sector_name": "Semifinais Street e Park + Urb",
+      "description": "Este ingresso NÃO garante acesso às arquibancadas das modalidades Street e Park, que estão sujeitas à lotação. E também NÃO dá acesso ao espaço exclusivo do STU Superstars.  ",
+      "limited_by_document": false,
+      "seats_category_id": null,
+      "passport_items_amount": 0,
+      "lot_available": 5098
+    }
+  ],
+  "unavailables": [],
+  "cart_discount": 0,
+  "max_discount_use": 6
+}

@@ -1,47 +1,47 @@
 {
-  "end_date": "2026-07-12T10:00:00+00:00",
+  "end_date": "2026-08-29T20:00:00+00:00",
   "images": {
-    "original": "https://images.sympla.com.br/6a442518f0dab.png",
-    "xs": "https://images.sympla.com.br/6a442518f0dab-xs.png",
-    "lg": "https://images.sympla.com.br/6a442518f0dab-lg.png"
+    "original": "https://images.sympla.com.br/6a7f7233d69ea.png",
+    "xs": "https://images.sympla.com.br/6a7f7233d69ea-xs.png",
+    "lg": "https://images.sympla.com.br/6a7f7233d69ea-lg.png"
   },
-  "global_score": 387143,
+  "global_score": 377073,
   "duration_type": "single",
   "type": "NORMAL",
-  "url": "https://www.sympla.com.br/evento/house-club-13-anos/3459772",
+  "url": "https://www.sympla.com.br/evento/feijoada-samba-da-catedral/3541189",
   "start_date_formats": {
-    "pt": "Sab, 11 Jul - 2026 · 22:00",
-    "en": "Sat, 11 Jul - 2026 · 22:00",
-    "es": "Sab, 11 Jul - 2026 · 22:00"
+    "pt": "Sab, 29 Ago - 2026 · 12:00",
+    "en": "Sat, 29 Aug - 2026 · 12:00",
+    "es": "Sab, 29 Ago - 2026 · 12:00"
   },
   "organizer": {
     "image": "",
-    "name": "Cuscus Estréia",
-    "id": "1845380",
+    "name": "Catedral Anglicana de Brasília",
+    "id": "13012120",
     "url": "",
     "email": "contato-mascarado@example.com"
   },
   "end_date_formats": {
-    "pt": "Dom, 12 Jul - 2026 · 07:00",
-    "en": "Sun, 12 Jul - 2026 · 07:00",
-    "es": "Dom, 12 Jul - 2026 · 07:00"
+    "pt": "Sab, 29 Ago - 2026 · 17:00",
+    "en": "Sat, 29 Aug - 2026 · 17:00",
+    "es": "Sab, 29 Ago - 2026 · 17:00"
   },
-  "name": "HOUSE CLUB 13 ANOS",
+  "name": "Feijoada&Samba da Catedral",
   "company": "sympla",
   "location": {
     "country": "BRASIL",
-    "address": "SAAN Quadra 2",
+    "address": "SHCS EQS 309/310 ",
     "address_alt": "",
     "city": "Brasília",
-    "address_num": "45",
-    "name": "Anexo BZ",
-    "lon": -47.9374282,
+    "address_num": "0",
+    "name": "Catedral Episcopal Anglicana",
+    "lon": -47.9097639,
     "state": "DF",
-    "neighborhood": "",
-    "zip_code": "70632-200",
-    "lat": -15.7693354
+    "neighborhood": "Asa Sul",
+    "zip_code": "70360-510",
+    "lat": -15.8170901
   },
-  "id": 3459772,
-  "start_date": "2026-07-12T01:00:00+00:00",
+  "id": 3541189,
+  "start_date": "2026-08-29T15:00:00+00:00",
   "event_type": "NORMAL"
 }

@@ -1,20 +1,20 @@
 {
-  "logoUrl": "https://images.sympla.com.br/6a442518f0dab.png",
+  "logoUrl": "https://images.sympla.com.br/6a7f7233d69ea.png",
   "eventsAddress": {
-    "id": 994836,
-    "name": "Anexo BZ",
-    "address": "SAAN Quadra 2",
-    "addressNum": "45",
+    "id": 521528,
+    "name": "Catedral Episcopal Anglicana",
+    "address": "SHCS EQS 309/310 ",
+    "addressNum": "",
     "addressAlt": "",
-    "neighborhood": "",
+    "neighborhood": "Asa Sul",
     "city": "Brasília",
     "state": "DF",
-    "zipCode": "70632-200",
+    "zipCode": "70360-510",
     "country": "BRASIL",
-    "location": "POINT(-15.769335 -47.937428)",
+    "location": "POINT(-15.817090 -47.909764)",
     "geolocation": {
-      "latitude": -15.7693354,
-      "longitude": -47.9374282
+      "latitude": -15.8170901,
+      "longitude": -47.9097639
     }
   },
   "showInstallmentsInfo": true,
@@ -46,15 +46,15 @@
       "publicToken": null
     },
     "facebook": {
-      "authToken": "000000000000000",
-      "subdomain": "pixel.beneficiosvip.com.br",
+      "authToken": null,
+      "subdomain": null,
       "events": {
-        "PageView": true,
+        "PageView": false,
         "AddToCart": false,
         "InitiateCheckout": false,
         "AddPaymentInfo": false,
-        "Lead": true,
-        "Purchase": true
+        "Lead": false,
+        "Purchase": false
       }
     },
     "googleAds": {
@@ -200,15 +200,15 @@
     }
   ],
   "paymentEventType": "paid",
-  "id": 3459772,
-  "name": "HOUSE CLUB 13 ANOS",
-  "startDate": "2026-07-11 22:00:00",
-  "endDate": "2026-07-12 07:00:00",
-  "detail": "<div>A HOUSE CLUB está de volta!</div><div>&nbsp;11 de julho - (B-Day Cuscus)</div><div>Evento Limitado com Sold Out!&nbsp;</div><div><br></div><div>Tapete vermelho para receber nossa próxima House Club! </div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\"><br></span></div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\">A arte de viver é um processo contínuo de transformação, onde cada passo nos aproxima da essência da felicidade.&nbsp;</span><br></div><div><br></div><div>HOUSE CLUB 13 ANOS&nbsp;</div><div>SÁBADO 11/07 - 22:00 Horas</div><div>ANEXO BZ SAAN&nbsp;</div><div>(Local Inédito no espaço)</div><div><br></div><div>Lounge, Bistrô Antecipado e Aniversariantes Mês pelo número:&nbsp;</div><div>(61) 90000-0000</div><div><br></div><div>IDADE MININA 18 ANOS</div>",
+  "id": 3541189,
+  "name": "Feijoada&Samba da Catedral",
+  "startDate": "2026-08-29 12:00:00",
+  "endDate": "2026-08-29 17:00:00",
+  "detail": "<p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-size: 14px;\">﻿</span><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; border: 1pt windowtext; padding: 0cm;\"><span style=\"font-size: 14px;\">Chegou nossa </span><span style=\"font-weight: 700; font-size: 14px;\">Feijoada de 2026</span><span style=\"font-size: 14px;\">&nbsp;com música boa, muito samba, alegria, diversidade, e claro... uma deliciosa feijoada.</span></span><span style=\"font-family: Calibri, sans-serif;\"><o:p></o:p></span></p><p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-weight: 700;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; border: 1pt windowtext; padding: 0cm;\"><br></span></span><span style=\"font-family: Calibri, sans-serif;\"></span><o:p></o:p></p><p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-weight: 700;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; border: 1pt windowtext; padding: 0cm; font-size: 14px;\">Você vai ficar de fora dessa?&nbsp;</span></span></p><p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; font-size: 14px; letter-spacing: 0px;\">Vou te contar como vai funcionar:</span></p><span style=\"font-size: medium;\"></span><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; background-image: initial; background-position: initial; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial;\"><span style=\"font-weight: 700;\"><span style=\"font-size: 14px;\">Horário de funcionamento:</span><br></span><span style=\"font-size: 14px;\">A feijoada começa a ser servida às 12h até as 14h30.</span></p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; background-image: initial; background-position: initial; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial;\">Bebidas serão vendidas a parte.</p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; margin-block: 0px 0.9rem;\"><span style=\"font-weight: 700; font-size: 14px;\">Buffet + couvert artístico:</span><br><span style=\"font-size: 14px;\">R$ 65.00 por pessoa e pode se servir à vontade.</span><br><span style=\"font-size: 14px;\">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Inclui feijoada vegetariana.</span><o:p></o:p></p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; margin-block: 0px 0.9rem;\"><span style=\"font-weight: 700; font-size: 14px;\">Crianças:</span><br><span style=\"font-size: 14px;\">De zero a 7 anos não pagam buffet;</span><br><span style=\"font-size: 14px;\">Até 12 anos não pagam couvert;</span><br><span style=\"font-size: 14px;\">De 8 a 12 anos pagam 50% do valor do Buffet;</span><br><span style=\"font-size: 14px;\">A partir dos 13 anos pagam integralmente;</span></p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; margin-block: 0px 0.9rem;\"><span style=\"font-weight: 700; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; letter-spacing: 0px;\"><span style=\"font-family: Calibri, sans-serif; border: 1pt windowtext; padding: 0cm; font-size: 14px;\">Estamos esperando vocês, ansiosamente, para termos um sábado alegre</span></span><span style=\"font-family: Calibri, sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 0px;\">!</span></p><p class=\"MsoNormal\" align=\"center\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; text-align: center;\"><span style=\"font-weight: 700;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; color: rgb(107, 165, 74); border: 1pt windowtext; padding: 0cm;\"><span style=\"font-size: 18px;\">\"Um bom samba é uma forma de oração!\"&nbsp;</span>&nbsp;(Vinicius de Morais)</span></span></p>",
   "details": {
     "pt": {
       "hasInfo": true,
-      "text": "<div>A HOUSE CLUB está de volta!</div><div>&nbsp;11 de julho - (B-Day Cuscus)</div><div>Evento Limitado com Sold Out!&nbsp;</div><div><br></div><div>Tapete vermelho para receber nossa próxima House Club! </div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\"><br></span></div><div><span style=\"font-family: var(--font-family); letter-spacing: 0px; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;\">A arte de viver é um processo contínuo de transformação, onde cada passo nos aproxima da essência da felicidade.&nbsp;</span><br></div><div><br></div><div>HOUSE CLUB 13 ANOS&nbsp;</div><div>SÁBADO 11/07 - 22:00 Horas</div><div>ANEXO BZ SAAN&nbsp;</div><div>(Local Inédito no espaço)</div><div><br></div><div>Lounge, Bistrô Antecipado e Aniversariantes Mês pelo número:&nbsp;</div><div>(61) 90000-0000</div><div><br></div><div>IDADE MININA 18 ANOS</div>",
+      "text": "<p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-size: 14px;\">﻿</span><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; border: 1pt windowtext; padding: 0cm;\"><span style=\"font-size: 14px;\">Chegou nossa </span><span style=\"font-weight: 700; font-size: 14px;\">Feijoada de 2026</span><span style=\"font-size: 14px;\">&nbsp;com música boa, muito samba, alegria, diversidade, e claro... uma deliciosa feijoada.</span></span><span style=\"font-family: Calibri, sans-serif;\"><o:p></o:p></span></p><p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-weight: 700;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; border: 1pt windowtext; padding: 0cm;\"><br></span></span><span style=\"font-family: Calibri, sans-serif;\"></span><o:p></o:p></p><p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-weight: 700;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; border: 1pt windowtext; padding: 0cm; font-size: 14px;\">Você vai ficar de fora dessa?&nbsp;</span></span></p><p class=\"MsoNormal\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; font-size: 14px; letter-spacing: 0px;\">Vou te contar como vai funcionar:</span></p><span style=\"font-size: medium;\"></span><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; background-image: initial; background-position: initial; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial;\"><span style=\"font-weight: 700;\"><span style=\"font-size: 14px;\">Horário de funcionamento:</span><br></span><span style=\"font-size: 14px;\">A feijoada começa a ser servida às 12h até as 14h30.</span></p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; background-image: initial; background-position: initial; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial;\">Bebidas serão vendidas a parte.</p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; margin-block: 0px 0.9rem;\"><span style=\"font-weight: 700; font-size: 14px;\">Buffet + couvert artístico:</span><br><span style=\"font-size: 14px;\">R$ 65.00 por pessoa e pode se servir à vontade.</span><br><span style=\"font-size: 14px;\">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Inclui feijoada vegetariana.</span><o:p></o:p></p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; margin-block: 0px 0.9rem;\"><span style=\"font-weight: 700; font-size: 14px;\">Crianças:</span><br><span style=\"font-size: 14px;\">De zero a 7 anos não pagam buffet;</span><br><span style=\"font-size: 14px;\">Até 12 anos não pagam couvert;</span><br><span style=\"font-size: 14px;\">De 8 a 12 anos pagam 50% do valor do Buffet;</span><br><span style=\"font-size: 14px;\">A partir dos 13 anos pagam integralmente;</span></p><p style=\"margin: 0px 0cm 1em; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; margin-block: 0px 0.9rem;\"><span style=\"font-weight: 700; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; letter-spacing: 0px;\"><span style=\"font-family: Calibri, sans-serif; border: 1pt windowtext; padding: 0cm; font-size: 14px;\">Estamos esperando vocês, ansiosamente, para termos um sábado alegre</span></span><span style=\"font-family: Calibri, sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 0px;\">!</span></p><p class=\"MsoNormal\" align=\"center\" style=\"margin: 0cm; font-family: &quot;Times New Roman&quot;, serif; font-size: 12pt; text-align: center;\"><span style=\"font-weight: 700;\"><span style=\"font-family: &quot;Open Sans&quot;, sans-serif; color: rgb(107, 165, 74); border: 1pt windowtext; padding: 0cm;\"><span style=\"font-size: 18px;\">\"Um bom samba é uma forma de oração!\"&nbsp;</span>&nbsp;(Vinicius de Morais)</span></span></p>",
       "lang": "PT"
     },
     "en": {
@@ -223,20 +223,20 @@
     },
     "default": "PT"
   },
-  "strippedDetail": "A HOUSE CLUB está de volta!&nbsp;11 de julho - (B-Day Cuscus)Evento Limitado com Sold Out!&nbsp;Tapete vermelho para receber nossa próxima House Club! A arte de viver é um processo contínuo de transformação, onde cada passo nos aproxima da essência da felicidade.&nbsp;HOUSE CLUB 13 ANOS&nbsp;SÁBADO 11/07 - 22:00 HorasANEXO BZ SAAN&nbsp;(Local Inédito no espaço)Lounge, Bistrô Antecipado e Aniversariantes Mês pelo número:&nbsp;(61) 90000-0000IDADE MININA 18 ANOS",
+  "strippedDetail": "﻿Chegou nossa Feijoada de 2026&nbsp;com música boa, muito samba, alegria, diversidade, e claro... uma deliciosa feijoada.Você vai ficar de fora dessa?&nbsp;Vou te contar como vai funcionar:Horário de funcionamento:A feijoada começa a ser servida às 12h até as 14h30.Bebidas serão vendidas a parte.Buffet + couvert artístico:R$ 65.00 por pessoa e pode se servir à vontade.&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Inclui feijoada vegetariana.Crianças:De zero a 7 anos não pagam buffet;Até 12 anos não pagam couvert;De 8 a 12 anos pagam 50% do valor do Buffet;A partir dos 13 anos pagam integralmente;Estamos esperando vocês, ansiosamente, para termos um sábado alegre!\"Um bom samba é uma forma de oração!\"&nbsp;&nbsp;(Vinicius de Morais)",
   "images": {
-    "logoFileName": "6a442518f0dab.png",
-    "logoUrl": "https://images.sympla.com.br/6a442518f0dab.png",
-    "logoLarge": "https://images.sympla.com.br/6a442518f0dab-lg.png",
-    "logoSmall": "https://images.sympla.com.br/6a442518f0dab-xs.png",
-    "logoCover": "https://images.sympla.com.br/6a442518f0dab-cover.png",
-    "logoProfile": "https://images.sympla.com.br/6a442518f0dab-profile.png"
+    "logoFileName": "6a7f7233d69ea.png",
+    "logoUrl": "https://images.sympla.com.br/6a7f7233d69ea.png",
+    "logoLarge": "https://images.sympla.com.br/6a7f7233d69ea-lg.png",
+    "logoSmall": "https://images.sympla.com.br/6a7f7233d69ea-xs.png",
+    "logoCover": "https://images.sympla.com.br/6a7f7233d69ea-cover.png",
+    "logoProfile": "https://images.sympla.com.br/6a7f7233d69ea-profile.png"
   },
-  "oldUrl": "https://www.sympla.com.br/house-club-13-anos__3459772",
-  "newUrl": "https://beta.sympla.com.br/evento/house-club-13-anos/3459772",
-  "slug": "house-club-13-anos",
+  "oldUrl": "https://www.sympla.com.br/feijoada-samba-da-catedral__3541189",
+  "newUrl": "https://beta.sympla.com.br/evento/feijoada-samba-da-catedral/3541189",
+  "slug": "feijoada-samba-da-catedral",
   "logoType": "BANNER_16_9",
-  "bannerAltText": "Banner do evento HOUSE CLUB 13 ANOS",
+  "bannerAltText": "Banner do evento Feijoada&Samba da Catedral",
   "published": true,
   "cancelled": false,
   "visible": true,
@@ -244,21 +244,21 @@
   "eventSubType": "NORMAL",
   "ticketsNomenclature": "TICKETING",
   "isClosed": false,
-  "uniqueHash": "Y1hNWNHFPoyIns1AwRX0x6yAJRZIIMJLk6skscjMJw%3D%3D",
+  "uniqueHash": "Y1hNWNHFPoyJn8VGzh70Ko6___lC1TpakiGhrTcrl9YQ%3D%3D",
   "eventsCategory": {
-    "id": 27,
-    "name": "musica",
-    "description": "Música",
+    "id": 22,
+    "name": "gastronomia-comidas-e-bebidas",
+    "description": "Gastronomia, comidas e bebidas",
     "vertical": "ENTRETENIMENTO",
-    "slug": "musica"
+    "slug": "gastronomia-comidas-e-bebidas"
   },
   "eventsHost": {
-    "id": 476436,
-    "name": "Cuscus Estréia",
+    "id": 467270,
+    "name": "Catedral Anglicana de Brasília",
     "description": "",
     "image": null,
     "url": null,
-    "organizerId": 1845380,
+    "organizerId": 13012120,
     "organizerPageSlug": null
   },
   "headerContent": null,
@@ -277,17 +277,17 @@
   "hasInstallments": true,
   "serviceFee": 10,
   "showMaps": true,
-  "hasActiveDiscounts": true,
-  "logoFileName": "6a442518f0dab.png",
+  "hasActiveDiscounts": false,
+  "logoFileName": "6a7f7233d69ea.png",
   "startDateMultiFormat": {
-    "ptBR": "11/07/2026 22:00:00",
-    "default": "2026-07-11 22:00:00",
-    "ISO8601": "2026-07-11T22:00:00-03:00"
+    "ptBR": "29/08/2026 12:00:00",
+    "default": "2026-08-29 12:00:00",
+    "ISO8601": "2026-08-29T12:00:00-03:00"
   },
   "endDateMultiFormat": {
-    "ptBR": "12/07/2026 07:00:00",
-    "default": "2026-07-12 07:00:00",
-    "ISO8601": "2026-07-12T07:00:00-03:00"
+    "ptBR": "29/08/2026 17:00:00",
+    "default": "2026-08-29 17:00:00",
+    "ISO8601": "2026-08-29T17:00:00-03:00"
   },
   "_source": "db",
   "hasSymplaStore": false

@@ -98,6 +98,10 @@ python src/ferramentas/diag_rede.py
 python src/ferramentas/dagster_dev.py                  # UI em 127.0.0.1:3070
 .venv-dagster/Scripts/python.exe -m dagster definitions validate -f src/pipeline/definitions.py
 
+# Um exemplar do que cada fonte respondeu, em docs/exemplos_payloads/ (lê o
+# cru, não raspa; mascara e-mail/telefone/token por PADRÃO do valor).
+python src/ferramentas/exemplos_payloads.py
+
 # Mapa de linhagem (docs/linhagem/): de onde vem cada dado e por onde passou.
 # Lê o próprio código — rodar depois de mexer em fonte, trilha, ciclo ou sql/.
 python src/ferramentas/linhagem.py

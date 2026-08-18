@@ -1,17 +1,17 @@
 {
-  "id": 89750,
-  "createdAt": "2026-01-03T16:25:30.643017+00:00",
-  "slug": "passaporte-festa-da-lili-21-anos",
-  "title": "Passaporte 3 DIAS - Festa da Lili 21 anos",
+  "id": 89753,
+  "createdAt": "2026-01-03T16:29:10.330248+00:00",
+  "slug": "day-party-festa-da-lili-21-anos",
+  "title": "Day Party - Festa da Lili 21 anos",
   "poster": {
-    "small": "https://kraken.ingresse.com/event/posters/89750/small/1767996524.60834.jpg",
-    "medium": "https://kraken.ingresse.com/event/posters/89750/medium/1767996524.7731667.jpg",
-    "large": "https://kraken.ingresse.com/event/posters/89750/large/1767996524.9404705.jpg",
-    "xLarge": "https://kraken.ingresse.com/event/posters/89750/xLarge/1767996525.2100928.jpg"
+    "small": "https://kraken.ingresse.com/event/posters/89753/small/1768833500.1547403.jpg",
+    "medium": "https://kraken.ingresse.com/event/posters/89753/medium/1768833500.3021567.jpg",
+    "large": "https://kraken.ingresse.com/event/posters/89753/large/1768833500.4594905.jpg",
+    "xLarge": "https://kraken.ingresse.com/event/posters/89753/xLarge/1768833500.6708796.jpg"
   },
   "session": {
-    "dateTime": "2026-08-15T01:00:00+00:00",
-    "id": 128871,
+    "dateTime": "2026-08-16T18:00:00+00:00",
+    "id": 128876,
     "status": "available",
     "timezone": "America/Sao_Paulo"
   },
@@ -19,16 +19,16 @@
   "place": {
     "country": "BRA",
     "city": "Brasília",
-    "id": 54957,
-    "name": "Brasília",
+    "id": 54960,
+    "name": "Ascade",
     "state": "DF",
     "street": "",
     "location": {
-      "lat": -15.79752,
-      "lon": -47.89189
+      "lat": -15.817,
+      "lon": -47.85239
     },
-    "zip": "",
-    "externalId": "ChIJdeKa3xg9WpMRJEp1aeRwhHM",
+    "zip": "70200-002",
+    "externalId": "ChIJq6qq9agkWpMR1QBiEl8W6V0",
     "origin": "googleMaps"
   }
 }

@@ -1,0 +1,76 @@
+{
+  "id": 55628,
+  "uuid": "78c4d8d5-a362-417b-91f9-4904223037da",
+  "slug_evento": "training-agosto-2026",
+  "id_produtora": 43,
+  "nome": "Training day Rota dos Reis - 29 de Agosto 2026",
+  "descricao": "<h2 style=\"text-align: center;\"><strong><span style=\"background-color: rgb(241, 196, 15);\">ATENÇÃO</span></strong></h2>\r\n<ul>\r\n<li>EVENTO EXCLUSIVO PARA LEGENDÁRIOS</li>\r\n<li>MODALIDADE<strong> ON-LINE </strong>APENAS PARA QUEM <strong>ESTIVER A MAIS DE 100KM DO LOCAL</strong> NO DIA DO EVENTO&nbsp;</li>\r\n<li>USO DE FARDA OBRIGATÓRIA</li>\r\n<li>USO DE BONÉ OBRIGATÓRIO</li>\r\n<li>NA MODALIDADE ON-LINE DEVERÁ FICAR COM A CÂMERA ABERTA EM TEMPO INTEGRAL</li>\r\n<li>SÓ PRECISA ENTRAR NO GRUPO QUEM OPTAR PELA MODALIDADE ONLINE</li>\r\n</ul>\r\n<p><strong><span style=\"background-color: rgb(251, 238, 184);\">AO FINAL DA INSCRIÇÃO, CLIQUE NO BOTÃO INFORMAÇÕES PARA RECEBER O LINK DO GRUPO</span></strong></p>\r\n<p><strong><span style=\"background-color: rgb(251, 238, 184);\">FIQUE ATENTO À PASTA DE SPAM DO SEU E-MAIL</span></strong></p>",
+  "inicio": "2026-08-29",
+  "hora_incio": "09:30:00",
+  "fim": "2026-08-29",
+  "hora_fim": "12:30:00",
+  "banner": "https://s3.us-east-1.amazonaws.com/production-tag-main/storage/78c4d8d5-a362-417b-91f9-4904223037da/event/6a7d01da16380.webp",
+  "gratuito": false,
+  "pixel_google": null,
+  "pixel_facebook": null,
+  "tag_manager": null,
+  "bg_banner": null,
+  "cs_taxa_servico": false,
+  "cs_taxa_processamento": false,
+  "moeda": "BRL",
+  "simbolo_moeda": "R$",
+  "local": "Comunidade das Nações - SIA",
+  "classificacao_etaria": "N",
+  "cs_biometria_facial": false,
+  "taxa_conveniencia": 0.049,
+  "taxa_processamento": 0,
+  "stripeTaxaSistema": [],
+  "lugar_marcado": false,
+  "sessoes": [
+    {
+      "id": 36678,
+      "uuid": "c6663bf9-aa9c-44e9-a8ea-fe44ca0471d9",
+      "nome": "Sessão 1",
+      "data_inicio": "2026-08-29 09:30:00",
+      "data_fim": "2026-08-29 12:30:00",
+      "seatsio_event_key": null
+    }
+  ],
+  "bilhetes": [
+    {
+      "uuid": "6da6bcc4-0221-438f-9587-6da6a34be7ed",
+      "id": 154935,
+      "nome": "PRESENCIAL - Certificação Agosto de 2026",
+      "valor": "150.0000",
+      "valor_bilhete": "150.00",
+      "valor_parcelado": 15.73,
+      "qtd_parcelas": 12,
+      "minimo_por_compra": 1,
+      "maximo_por_compra": 1,
+      "descricao": null,
+      "seatsio_category_key": null
+    },
+    {
+      "uuid": "80a93d94-b631-4753-bba9-4e6990cff4dc",
+      "id": 154936,
+      "nome": "ONLINE (mais de 100km do local)",
+      "valor": "150.0000",
+      "valor_bilhete": "150.00",
+      "valor_parcelado": 15.73,
+      "qtd_parcelas": 12,
+      "minimo_por_compra": 1,
+      "maximo_por_compra": 1,
+      "descricao": null,
+      "seatsio_category_key": null
+    }
+  ],
+  "endereco": [],
+  "produtora": {
+    "razao_social": "LEGENDARIOS BRASILIA ASSESSORIA E EVENTOS LTDA",
+    "email": "contato-mascarado@example.com",
+    "email_perfil_publico": "contato-mascarado@example.com"
+  },
+  "nome_tipo_evento": null,
+  "boCasaDecimal": true,
+  "imagem": "https://s3.us-east-1.amazonaws.com/production-tag-main/storage/78c4d8d5-a362-417b-91f9-4904223037da/event/6a7ce4336f110.webp"
+}

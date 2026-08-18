@@ -1,0 +1,128 @@
+{
+  "consultas": [
+    "Obsession"
+  ],
+  "candidatos": [
+    {
+      "adult": false,
+      "backdrop_path": "/r013C8Me2bZ0pUi0OWJRh0h7MzT.jpg",
+      "genre_ids": [
+        27,
+        53
+      ],
+      "id": 1339713,
+      "title": "Obsessão",
+      "original_language": "en",
+      "original_title": "Obsession",
+      "overview": "Sem grandes pretensões, um romântico incurável compra um brinquedo que promete realizar desejos únicos. Ele quebra o artefato misterioso enquanto pede para conquistar a crush e consegue exatamente o que desejava, mas descobre que a consequência é sinistra.",
+      "popularity": 401.1034,
+      "poster_path": "/wUc6IDf5ChjM1UyQye21qFBeJY0.jpg",
+      "release_date": "2026-05-14",
+      "softcore": false,
+      "video": false,
+      "vote_average": 8.3,
+      "vote_count": 3758
+    },
+    {
+      "adult": false,
+      "backdrop_path": "/kjIgQmRlgBI1u2YvjW7EcorzHbf.jpg",
+      "genre_ids": [
+        53,
+        9648,
+        18
+      ],
+      "id": 4780,
+      "title": "Trágica Obsessão",
+      "original_language": "en",
+      "original_title": "Obsession",
+      "overview": "Michael Courtland é um importante homem de negócios em New Orleans. Mas sua feliz rotina familiar é interrompida quando a mulher e a filha são sequestradas e tragicamente mortas durante o resgate. Muitos anos depois, o empresário está na Itália a negócios quando conhece e se apaixona por uma mulher que guarda incrível semelhança com sua falecida esposa.",
+      "popularity": 2.5476,
+      "poster_path": "/cOdYlDKVZ4kjqmcNfKXoCYUtndn.jpg",
+      "release_date": "1976-09-13",
+      "softcore": false,
+      "video": false,
+      "vote_average": 6.666,
+      "vote_count": 323
+    },
+    {
+      "adult": false,
+      "backdrop_path": "/6nKc0kXrzHH5117CnwxEOxhTyJm.jpg",
+      "genre_ids": [
+        18,
+        53
+      ],
+      "id": 158576,
+      "title": "Privacidade Obscena",
+      "original_language": "en",
+      "original_title": "Private Obsession",
+      "overview": "Emanuelle, uma modelo mundialmente famosa, é mantida em cativeiro por Richard Tate, um fã maluco. O rapaz a quer somente para si, e a beldade precisa usar de todos os seus recursos para tentar escapar.",
+      "popularity": 3.966,
+      "poster_path": "/nbIPdeXOyNdplAnPz6vpJIUpKMe.jpg",
+      "release_date": "1995-03-07",
+      "softcore": false,
+      "video": false,
+      "vote_average": 4.5,
+      "vote_count": 21
+    },
+    {
+      "adult": false,
+      "backdrop_path": "/9tI2BBfTPK4pbYxaQZ16Thca9L9.jpg",
+      "genre_ids": [
+        18,
+        53,
+        10770
+      ],
+      "id": 530442,
+      "title": "Meu Professor, Minha Obsessão",
+      "original_language": "en",
+      "original_title": "My Teacher, My Obsession",
+      "overview": "Depois de se transferir a uma nova escola, onde seu pai é professor de inglês, a jovem Riley (Laura Bilgeri) encontra problemas para fazer novas amizades. Quando ela conhece Kyla (Lucy Loken), uma jovem solitária, elas rapidamente tornam-se amigas íntimas, mas a situação começa a ficar complicada quando Riley descobre que Kyla possui um obscuro interesse por seu pai.",
+      "popularity": 5.974,
+      "poster_path": "/mrYqLuFP2s6oXvcz7tCStLFZNHQ.jpg",
+      "release_date": "2018-06-12",
+      "softcore": false,
+      "video": false,
+      "vote_average": 4.932,
+      "vote_count": 110
+    },
+    {
+      "adult": false,
+      "backdrop_path": "/sBGU0LGGi9dwsV2Yjgp0le3FjA8.jpg",
+      "genre_ids": [
+        53
+      ],
+      "id": 620561,
+      "title": "Relações Perigosas",
+      "original_language": "en",
+      "original_title": "Obsession",
+      "overview": "Antes de conhecer George, Sonny era apenas um vagabundo perdido com um passado conturbado flutuando de cidade em cidade, procurando trabalho. Como o destino queria, Sonny acaba salvando a vida de George de um assalto. Como agradecimento, George dá a Sonny uma casa e um emprego como mecânico em sua fazenda no solitário Bayou da Louisiana. Sonny rapidamente se instala e se torna útil em todo o lugar, mas depois Sonny conhece Larissa, a atraente esposa de George. Ela tem um passado misterioso e os dois são irresistivelmente atraídos um pelo outro. Os dois começam um caso apaixonado, que os leva a construir uma trama distorcida para tirar a vida de George a sangue frio, a fim de ficarem juntos. À medida que seu plano desprezível se desenrola, eles aprendem até onde estão dispostos a ir para cobrir seus crimes.",
+      "popularity": 3.3839,
+      "poster_path": "/5p9VqPTdiYkdO9NF0oe7bBhJcIF.jpg",
+      "release_date": "2019-09-27",
+      "softcore": false,
+      "video": false,
+      "vote_average": 5.161,
+      "vote_count": 28
+    }
+  ],
+  "escolhido": {
+    "adult": false,
+    "backdrop_path": "/r013C8Me2bZ0pUi0OWJRh0h7MzT.jpg",
+    "genre_ids": [
+      27,
+      53
+    ],
+    "id": 1339713,
+    "title": "Obsessão",
+    "original_language": "en",
+    "original_title": "Obsession",
+    "overview": "Sem grandes pretensões, um romântico incurável compra um brinquedo que promete realizar desejos únicos. Ele quebra o artefato misterioso enquanto pede para conquistar a crush e consegue exatamente o que desejava, mas descobre que a consequência é sinistra.",
+    "popularity": 401.1034,
+    "poster_path": "/wUc6IDf5ChjM1UyQye21qFBeJY0.jpg",
+    "release_date": "2026-05-14",
+    "softcore": false,
+    "video": false,
+    "vote_average": 8.3,
+    "vote_count": 3758
+  }
+}
