@@ -94,6 +94,30 @@ def main(argv):
     env = dict(os.environ, DAGSTER_HOME=str(RAIZ / ".dagster"))
     Path(env["DAGSTER_HOME"]).mkdir(exist_ok=True)
 
+    # `--spike` carrega TAMBÉM o experimento de `spikes/` como segunda code
+    # location. São dois grafos lado a lado na mesma UI, que é o ponto: o
+    # desenho real e o alternativo se comparam olhando, não lendo diff.
+    #
+    # Por um workspace, e não por dois `-f`: com `-f` repetido a UI nomeia cada
+    # location pelo NOME DO ARQUIVO, e os dois grafos apareceriam como
+    # "dagster_dev.py" e "definitions.py" — sendo que o `definitions.py` é o
+    # spike, e o do pipeline real é o outro. Justamente na tela feita para
+    # comparar os dois, o rótulo mentiria.
+    fontes = [("raspador", "src/ferramentas/dagster_dev.py")]
+    if "--spike" in argv:
+        argv = [a for a in argv if a != "--spike"]
+        fontes.append(("spike_sympla", "spikes/dagster_sympla/definitions.py"))
+    # Caminho ABSOLUTO e `working_directory` explícito: o `relative_path` do
+    # workspace resolve contra a pasta do YAML — que aqui é `.dagster/` —, e
+    # não contra o diretório de trabalho. Com caminho relativo, as duas
+    # locations falham ao carregar procurando `.dagster/src/...`.
+    workspace = Path(env["DAGSTER_HOME"]) / "workspace.yaml"
+    workspace.write_text("load_from:\n" + "".join(
+        f"  - python_file:\n      relative_path: {(RAIZ / caminho).as_posix()}\n"
+        f"      working_directory: {RAIZ.as_posix()}\n"
+        f"      location_name: {nome}\n" for nome, caminho in fontes),
+        encoding="utf-8")
+
     # Só o nome da base: a URL inteira carrega usuário e senha do Neon, e esta
     # linha existe para ser lida antes de clicar em qualquer coisa.
     print(f"base  : {URL_TESTE.rsplit('/', 1)[-1].split('?')[0]}")
@@ -101,8 +125,8 @@ def main(argv):
     print(f"UI    : http://127.0.0.1:{PORTA}\n")
 
     return subprocess.call(
-        [str(PY), "-m", "dagster", "dev", "-f", str(Path(__file__).resolve()),
-         "-p", PORTA, *argv], env=env, cwd=RAIZ)
+        [str(PY), "-m", "dagster", "dev", "-w", str(workspace), "-p", PORTA,
+         *argv], env=env, cwd=RAIZ)
 
 
 if __name__ == "__main__":
