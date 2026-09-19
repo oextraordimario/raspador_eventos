@@ -40,11 +40,14 @@ python src/pipeline/atualizar.py
 python src/pipeline/atualizar.py --sem-shotgun           # pula Shotgun (lento, usa navegador)
 python src/pipeline/atualizar.py --sem-cinema            # pula a grade de cinema
 python src/pipeline/atualizar.py --sem-tmdb              # pula o enriquecimento TMDB dos filmes
-python src/pipeline/atualizar.py --sem-instagram         # pula o Instagram (Monid + claude -p)
-python src/pipeline/atualizar.py --sem-extracao-flyer    # Instagram só até o cru, sem a visão
-python src/pipeline/atualizar.py --rodada-local          # o que o CI não faz: Shotgun + fila de
-                                                #   extração de flyer (--so-instagram é
-                                                #   o nome antigo, continua valendo)
+python src/pipeline/atualizar.py --com-instagram         # LIGA o Instagram (Monid + claude -p).
+                                                #   A fonte é OPT-IN: nenhuma rodada
+                                                #   (nem o cron, nem o Dagster) a raspa sem isto
+python src/pipeline/atualizar.py --com-instagram --sem-extracao-flyer   # Instagram só até o cru, sem a visão
+python src/pipeline/atualizar.py --rodada-local          # o que o CI não faz: Shotgun (+ a fila de
+                                                #   extração de flyer, se vier com
+                                                #   --com-instagram; --so-instagram é o
+                                                #   nome antigo, continua valendo)
 python src/pipeline/atualizar.py --precificar-tudo       # tickets de TODOS os futuros (default: 30 dias)
 python src/pipeline/atualizar.py --so-derivar            # não raspa; RECONSTRÓI `tratado` inteira do cru
 python src/pipeline/atualizar.py --so-enriquecer         # não raspa; só reaplica regras + FTS
@@ -248,7 +251,11 @@ Cada scraper preenche `ULTIMA_RASPAGEM` com `coletados`/`total_site` — é daí
   `escolhido=None` e o filme fica sem nota). Incremental por filme novo. Tabela cru
   própria (`cru.tmdb`, PK filme_id), **acumulativa** — sobrevive ao snapshot de
   filmes/sessoes. Atribuição ao TMDB no rodapé e na página "sobre" (exigência dos ToS).
-- **instagram** — contrato próprio (payloads brutos por perfil): posts + stories dos
+- **instagram** — **OPT-IN desde 19/09/2026**: só entra na rodada com
+  `--com-instagram` (no Dagster, materializando o grupo `instagram`). É a única fonte
+  com custo por rodada e a única que depende de duas ferramentas externas, então
+  nenhuma rodada automática a raspa — nem o cron, nem o job diário.
+  Contrato próprio (payloads brutos por perfil): posts + stories dos
   perfis de `dados/perfis_instagram.yaml` via CLI do **Monid** (subprocess; chave no
   config do monid, nunca no repo; ~$0,006/perfil/rodada, o 1º custo recorrente do
   projeto). Também abriga `extrair(...)` (legenda + todas as páginas do carrossel numa

@@ -722,13 +722,13 @@ def relatorio(con, resultados, derivado, cine, insta, enriq, sumidos,
         print(f"\nInstagram (watchlist{cobertura}): {insta['eventos']} eventos"
               f" derivados, {insta['lotes']} com preço no flyer"
               f" ({insta['descartados']} posts sem evento pela guarda)")
-        # Caminho 1 (cron): a visão não roda em CI. Sem esta linha, o pendente
-        # ficaria invisível justamente na rodada que não o processa.
+        # Rodada que coletou os posts mas não chamou a visão. Sem esta linha,
+        # o pendente ficaria invisível justamente na rodada que não o processa.
         if res.get("pendentes_extracao"):
             print(f"  *** {res['pendentes_extracao']} posts aguardando "
-                  "extração do flyer — rode `python src/atualizar.py "
-                  "--rodada-local` (a visão exige a assinatura; a mesma "
-                  "rodada traz o Shotgun, que o CI não lê)")
+                  "extração do flyer — rode `python src/pipeline/atualizar.py "
+                  "--rodada-local --com-instagram` (a visão exige a "
+                  "assinatura; a mesma rodada traz o Shotgun, que o CI não lê)")
 
     # --- cinema: grade derivada de cinema_raw (snapshot da rodada) ---
     if cine is not None:

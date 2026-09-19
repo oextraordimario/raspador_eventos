@@ -8,8 +8,8 @@ seco é tratamento, e só o tratamento escreve em `tratado`**.
      em `cru.<fonte>` e o registro da coleta em `operacao.coletas` → descrever
      (payload de detalhe dos que ainda não têm) → precificar (payload de tickets
      dos futuros na janela de 30 dias; não é incremental, preço é volátil) →
-     cinema (grade dos 8 cinemas) → instagram (posts/stories + extração do flyer
-     por visão) → flyer no storage próprio.
+     cinema (grade dos 8 cinemas) → instagram, **só com `--com-instagram`**
+     (posts/stories + extração do flyer por visão) → flyer no storage próprio.
   2. TRATAMENTO — `tratamento/ciclo.py`, numa transação só: reconstrói
      `tratado` inteira a partir do cru, deriva `sumido` de `operacao.coletas`,
      enriquece (ruído + dedupe cross-fonte), reaplica a curadoria humana e
@@ -31,7 +31,7 @@ Uso (da raiz do repo):
     python src/pipeline/atualizar.py --sem-shotgun      # pula o Shotgun (lento, usa navegador)
     python src/pipeline/atualizar.py --sem-cinema       # pula a grade de cinema
     python src/pipeline/atualizar.py --sem-tmdb         # pula o enriquecimento TMDB dos filmes
-    python src/pipeline/atualizar.py --sem-instagram    # pula o Instagram (Monid/claude -p)
+    python src/pipeline/atualizar.py --com-instagram    # LIGA o Instagram (Monid/claude -p); é opt-in
     python src/pipeline/atualizar.py --precificar-tudo  # tickets de TODOS os futuros (ex.: 1ª carga)
     python src/pipeline/atualizar.py --so-derivar       # não raspa; reconstrói `tratado` do cru
     python src/pipeline/atualizar.py --so-enriquecer    # não raspa; só reaplica regras + FTS
@@ -73,12 +73,16 @@ def _instagram(erros, extrair=True):
     """A fonte Instagram inteira, do ponto de vista do CLI: coleta + (quando é
     uma rodada que pode) a extração do flyer.
 
+    Só é chamada com `--com-instagram`: a fonte é opt-in (ver o main).
+
     `extrair=False` (flag --sem-extracao-flyer) faz a coleta parar na Bronze:
-    raspa os perfis, grava os posts e NÃO chama a visão. É o modo do cron (spec
-    20260726_abrir-ao-publico §3 passo 2, "caminho 1"): o `claude -p` roda na
-    ASSINATURA e não há login de assinatura em CI. A fila é incremental e
-    re-tentável por desenho, então o que ficou pendente é extraído na próxima
-    rodada LOCAL — o resultado reporta quantos são, para o pendente não virar
+    raspa os perfis, grava os posts e NÃO chama a visão. Era o modo do cron
+    (spec 20260726_abrir-ao-publico §3 passo 2, "caminho 1"): o `claude -p`
+    roda na ASSINATURA e não há login de assinatura em CI. Hoje o cron não
+    raspa Instagram nenhum, e a flag serve para uma rodada local que quer os
+    posts frescos sem gastar cota de visão. A fila é incremental e re-tentável
+    por desenho, então o que ficou pendente é extraído na próxima rodada com
+    visão — o resultado reporta quantos são, para o pendente não virar
     invisível.
     """
     resultado = passos.coletar_instagram(erros)
@@ -110,11 +114,18 @@ def main():
     rodada_local = ("--rodada-local" in sys.argv or "--so-instagram" in sys.argv)
     sem_shotgun = "--sem-shotgun" in sys.argv
     sem_cinema = "--sem-cinema" in sys.argv
-    sem_instagram = "--sem-instagram" in sys.argv
+    # Instagram é OPT-IN desde 2026-09-19, a pedido do autor: é a única fonte
+    # com custo por rodada (~$0,006/perfil no Monid) e a única que depende de
+    # duas ferramentas externas (CLI do Monid + `claude -p` na assinatura).
+    # Nenhuma rodada automática o raspa — nem o cron, nem o job do Dagster;
+    # ele entra quando alguém pede. `--sem-instagram` continua aceito (está em
+    # doc e hábito) e vence o opt-in, para o par de flags nunca surpreender.
+    com_instagram = ("--com-instagram" in sys.argv
+                     and "--sem-instagram" not in sys.argv)
     sem_extracao = "--sem-extracao-flyer" in sys.argv
     modo = ("so-enriquecer" if so_enriquecer else "so-derivar" if so_derivar
             else "rodada-local" if rodada_local
-            else "cron" if sem_extracao
+            else "sem-extracao" if sem_extracao
             else "sem-shotgun" if sem_shotgun else "completo")
 
     # Conexões CURTAS por bloco (2026-07-27, a pedido do autor): o pipeline
@@ -139,8 +150,8 @@ def main():
         # (a) o Shotgun, que devolve 0 no runner do Actions e vai bem aqui
         #     (NI-58) — sem descrever/precificar, que ele não usa: o JSON-LD
         #     do catálogo já traz descrição, line-up e preço;
-        # (b) a fila de extração de flyer deixada pelo cron (que roda com
-        #     --sem-extracao-flyer, porque a visão exige a assinatura).
+        # (b) com `--com-instagram`, a fila de extração de flyer — a visão
+        #     exige a assinatura do Claude, que não existe em CI.
         # Re-raspa os perfis de propósito — a URL de mídia do CDN expira em
         # horas, então a Bronze precisa estar fresca para a visão baixar.
         if rodada_local:
@@ -161,7 +172,7 @@ def main():
             con.close()
             if not sem_cinema:
                 resultados["cinema"] = passos.coletar_cinema(erros)
-        if not sem_instagram:
+        if com_instagram:
             r_insta = _instagram(erros, extrair=not sem_extracao)
             if r_insta is not None:
                 resultados["instagram"] = r_insta

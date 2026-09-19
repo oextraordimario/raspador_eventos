@@ -11,18 +11,23 @@
 # traz os dois e, como o repo é PÚBLICO, os minutos são gratuitos e ilimitados.
 # Comparativo das 7 opções e o plano B (Cloud Run Jobs) no anexo cron.md da spec.
 #
-# ATENÇÃO — duas coisas NÃO rodam aqui, as duas por limite do ambiente de CI,
-# e as duas são feitas pela rodada LOCAL:
-#     python src/pipeline/atualizar.py --rodada-local
+# ATENÇÃO — duas coisas NÃO rodam aqui, e as duas são feitas na máquina do
+# autor:
+#     python src/pipeline/atualizar.py --rodada-local [--com-instagram]
 #
-#   1. extração de flyer do Instagram (--sem-extracao-flyer): usa `claude -p`
-#      na ASSINATURA, e não existe login de assinatura em CI ("caminho 1" da
-#      spec do Instagram). O relatório avisa quantos posts estão na fila.
+#   1. Instagram inteiro. Desde 2026-09-19 a fonte é OPT-IN (--com-instagram):
+#      é a única com custo por rodada (~$0,006/perfil no Monid) e a única que
+#      depende de duas ferramentas externas, e a extração do flyer já não
+#      rodava aqui porque o `claude -p` usa a ASSINATURA, que não existe em
+#      CI. Nenhuma rodada automática raspa Instagram — ele entra quando o
+#      autor pede. Para religar no cron: devolver o setup-node + o step do
+#      Monid (git log deste arquivo) e acrescentar `--com-instagram
+#      --sem-extracao-flyer` ao comando.
 #   2. Shotgun (--sem-shotgun): o site entrega a listagem vazia para o runner
 #      (0 eventos em 26, 27 e 28/07) e vai bem na máquina do autor, que raspou
 #      65 eventos no mesmo dia. Decisão de 2026-07-28 (NI-58): não vale
 #      investigar bloqueio nem pagar proxy residencial por ~65 eventos/semana
-#      — a fonte pega carona na rodada local, que já é obrigatória por (1).
+#      — a fonte pega carona na rodada local.
 #      Consequência aceita: a agenda do Shotgun fica tão fresca quanto a
 #      frequência com que a rodada local é executada.
 
@@ -59,23 +64,15 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      # A CLI do Monid é npm global — o Instagram sai por ela.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
       - name: Instalar dependências Python
         run: pip install -r requirements.txt
 
       # Sem Chromium aqui: o Playwright só era usado pelo Shotgun, que saiu do
       # cron (ver o cabeçalho). Isso corta ~2 min e ~400 MB de cada rodada.
 
-      - name: Instalar e configurar a CLI do Monid (Instagram)
-        env:
-          MONID_KEY: ${{ secrets.MONID_KEY }}
-        run: |
-          npm i -g @monid-ai/cli
-          monid keys add -k "$MONID_KEY" -l main
+      # Sem Node nem CLI do Monid aqui: existiam só para o Instagram, que saiu
+      # do cron em 2026-09-19 (ver o cabeçalho). O secret MONID_KEY segue
+      # guardado no repo para quando a fonte voltar.
 
       - name: Raspar
         env:
@@ -85,4 +82,4 @@ jobs:
           # Ausentes, os passos são pulados com aviso — não derrubam a rodada.
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: python src/pipeline/atualizar.py --sem-extracao-flyer --sem-shotgun
+        run: python src/pipeline/atualizar.py --sem-shotgun

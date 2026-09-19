@@ -227,7 +227,7 @@ def cru_cinema(context: dg.AssetExecutionContext):
     return _resultado(res, erros, time.perf_counter() - marca)
 
 
-@dg.asset(key=["cru", "instagram"], group_name="coleta", pool=POOL_REDE,
+@dg.asset(key=["cru", "instagram"], group_name="instagram", pool=POOL_REDE,
           retry_policy=RETRY_REDE, deps=[_k("operacao", "schema")],
           description="`passos.coletar_instagram`: posts e stories da "
                       "watchlist via Monid, SEM a visão. Custa ~$0,006 por "
@@ -246,7 +246,7 @@ def cru_instagram(context: dg.AssetExecutionContext):
     return _resultado(res, erros, time.perf_counter() - marca)
 
 
-@dg.asset(key=["cru", "extracao_flyer"], group_name="coleta", pool=POOL_REDE,
+@dg.asset(key=["cru", "extracao_flyer"], group_name="instagram", pool=POOL_REDE,
           deps=[_k("cru", "instagram")],
           description="`passos.extrair_flyers`: a visão (`claude -p`, na "
                       "ASSINATURA) lendo legenda + carrossel. SEM retry de "
@@ -259,7 +259,7 @@ def cru_extracao_flyer(context: dg.AssetExecutionContext):
     return _resultado(res, erros, time.perf_counter() - marca)
 
 
-@dg.asset(key=["operacao", "midias"], group_name="coleta", pool=POOL_REDE,
+@dg.asset(key=["operacao", "midias"], group_name="instagram", pool=POOL_REDE,
           retry_policy=RETRY_REDE, deps=[_k("cru", "extracao_flyer")],
           description="`passos.subir_midias_instagram`: o flyer vai para o "
                       "storage próprio ANTES do tratamento, porque é a "
@@ -575,13 +575,28 @@ ASSETS = [operacao_schema, *ASSETS_FONTE, cru_detalhes, cru_tickets,
           cru_podado, operacao_execucao, contagem_eventos]
 
 # A rodada inteira, menos a sonda de diagnóstico (que só lê e não faz parte do
-# pipeline). O teto de tempo é regra desta instância desde a fatia 0: run
-# travado não se recupera sozinho, e sem teto ele segura o próximo.
+# pipeline) e menos o grupo `instagram`, que desde 2026-09-19 é OPT-IN: a fonte
+# custa por rodada (~$0,006/perfil no Monid) e a visão do flyer exige a
+# assinatura do Claude, que o container não tem. Os três assets continuam no
+# grafo, com a linhagem inteira — materializar o grupo na UI é o "falar
+# explicitamente". O tratamento lê a ÚLTIMA materialização de `operacao/midias`
+# (dep fora da seleção não bloqueia), então a rodada diária não espera por ele.
+# O teto de tempo é regra desta instância desde a fatia 0: run travado não se
+# recupera sozinho, e sem teto ele segura o próximo.
 rodada = dg.define_asset_job(
     "rodada_diaria",
-    selection=dg.AssetSelection.all() - dg.AssetSelection.groups("diagnostico"),
+    selection=(dg.AssetSelection.all()
+               - dg.AssetSelection.groups("diagnostico", "instagram")),
     tags={"dagster/max_runtime": 7200})
+
+# O grupo do Instagram sozinho, para quando o autor pedir: coleta dos perfis →
+# extração do flyer → flyer no storage. Roda na máquina do autor (a visão
+# precisa do `claude -p` logado na assinatura).
+instagram = dg.define_asset_job(
+    "instagram",
+    selection=dg.AssetSelection.groups("instagram"),
+    tags={"dagster/max_runtime": 3600})
 
 # SEM schedule ainda (fatia 3 roda contra `eventos_teste`, só na mão). O
 # schedule diário entra na fatia 4, junto com a base de produção.
-defs = dg.Definitions(assets=ASSETS, jobs=[rodada])
+defs = dg.Definitions(assets=ASSETS, jobs=[rodada, instagram])

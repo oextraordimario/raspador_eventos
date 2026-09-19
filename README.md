@@ -112,7 +112,8 @@ npm i -g @monid-ai/cli
 monid keys add -k <sua-chave> -l main    # conta em app.monid.ai
 ```
 
-Sem isso, use `--sem-instagram` e todo o resto funciona normalmente.
+A fonte é **opt-in**: só entra na rodada com `--com-instagram`. Sem a chave do
+Monid, é só não passar a flag — todo o resto funciona normalmente.
 
 ### Testes
 
